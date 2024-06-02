@@ -61,4 +61,16 @@ public struct Cytrus {
     public func pausePlay(_ pausePlay: Bool) {
         cytrusObjC.pausePlay(pausePlay)
     }
+    
+    public func `import`(game url: URL) -> Bool {
+        cytrusObjC.importGame(url)
+    }
+    
+    public func installed() -> [URL] {
+        cytrusObjC.installedGamePaths() as! [URL]
+    }
+    
+    public func system() -> [URL] {
+        cytrusObjC.systemGamePaths() as! [URL]
+    }
 }

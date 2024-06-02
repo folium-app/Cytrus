@@ -92,6 +92,11 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 
 -(void) settingsSaved;
 -(void) pausePlay:(BOOL)pausePlay;
+
+-(BOOL) importGame:(NSURL *)url;
+
+-(NSMutableArray<NSURL *> *) installedGamePaths;
+-(NSMutableArray<NSURL *> *) systemGamePaths;
 @end
 
 NS_ASSUME_NONNULL_END
