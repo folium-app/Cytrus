@@ -11,6 +11,10 @@
 
 #import "GameInformation/GameInformation.h"
 
+#ifdef __cplusplus
+#include <atomic>
+#endif
+
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -68,7 +72,9 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 
 @interface CytrusObjC : NSObject {
     CGSize _size;
-    BOOL _pausePlay;
+#ifdef __cplusplus
+    std::atomic_bool stop_run;
+#endif
 }
 
 @property (nonatomic, strong) GameInformation *gameInformation;

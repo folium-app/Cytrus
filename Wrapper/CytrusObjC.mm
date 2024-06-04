@@ -150,17 +150,63 @@ std::unique_ptr<EmulationWindow_Vulkan> window, window2;
     return sharedInstance;
 }
 
--(void) configurePrimaryLayer:(CAMetalLayer *)primaryLayer withPrimarySize:(CGSize)primarySize/*
-               secondaryLayer:(CAMetalLayer *)secondaryLayer withSecondarySize:(CGSize)secondarySize*/ {
+-(void) configurePrimaryLayer:(CAMetalLayer *)primaryLayer withPrimarySize:(CGSize)primarySize /**/ {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    
+    Settings::values.cpu_clock_percentage.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.cpuClockPercentage"]] unsignedIntValue]);
+    Settings::values.is_new_3ds.SetValue([defaults boolForKey:@"cytrus.useNew3DS"]);
+    Settings::values.lle_applets.SetValue([defaults boolForKey:@"cytrus.useLLEApplets"]);
+    
+    Settings::values.region_value.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.regionSelect"]] intValue]);
+    
+    Settings::values.spirv_shader_gen.SetValue([defaults boolForKey:@"cytrus.spirvShaderGeneration"]);
+    Settings::values.async_shader_compilation.SetValue([defaults boolForKey:@"cytrus.useAsyncShaderCompilation"]);
+    Settings::values.async_presentation.SetValue([defaults boolForKey:@"cytrus.useAsyncPresentation"]);
+    Settings::values.use_hw_shader.SetValue([defaults boolForKey:@"cytrus.useHardwareShaders"]);
+    Settings::values.use_disk_shader_cache.SetValue([defaults boolForKey:@"cytrus.useDiskShaderCache"]);
+    Settings::values.shaders_accurate_mul.SetValue([defaults boolForKey:@"cytrus.useShadersAccurateMul"]);
+    Settings::values.use_vsync_new.SetValue([defaults boolForKey:@"cytrus.useNewVSync"]);
+    Settings::values.resolution_factor.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.resolutionFactor"]] unsignedIntValue]);
+    Settings::values.use_shader_jit.SetValue([defaults boolForKey:@"cytrus.useShaderJIT"]);
+    Settings::values.texture_filter.SetValue((Settings::TextureFilter)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.textureFilter"]] unsignedIntValue]);
+    Settings::values.texture_sampling.SetValue((Settings::TextureSampling)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.textureSampling"]] unsignedIntValue]);
+    
+    Settings::values.layout_option.SetValue((Settings::LayoutOption)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.layoutOption"]] unsignedIntValue]);
+    
+    Settings::values.render_3d.SetValue((Settings::StereoRenderOption)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.render3D"]] unsignedIntValue]);
+    Settings::values.mono_render_option.SetValue((Settings::MonoRenderOption)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.monoRender"]] unsignedIntValue]);
+    
+    Settings::values.custom_textures.SetValue([defaults boolForKey:@"cytrus.useCustomTextures"]);
+    Settings::values.preload_textures.SetValue([defaults boolForKey:@"cytrus.preloadTextures"]);
+    Settings::values.async_custom_loading.SetValue([defaults boolForKey:@"cytrus.asyncCustomLoading"]);
+    
+    Settings::values.audio_emulation.SetValue((Settings::AudioEmulation)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.audioEmulation"]] unsignedIntValue]);
+    Settings::values.enable_audio_stretching.SetValue([defaults boolForKey:@"cytrus.audioStretching"]);
+    Settings::values.output_type.SetValue((AudioCore::SinkType)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.audioOutputDevice"]] unsignedIntValue]);
+    Settings::values.input_type.SetValue((AudioCore::InputType)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.audioInputDevice"]] unsignedIntValue]);
+    
+    Settings::values.custom_layout.SetValue([defaults boolForKey:@"cytrus.useCustomLayout"]);
+    Settings::values.custom_top_left.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutTopLeft"]] unsignedIntValue]);
+    Settings::values.custom_top_top.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutTopTop"]] unsignedIntValue]);
+    Settings::values.custom_top_right.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutTopRight"]] unsignedIntValue]);
+    Settings::values.custom_top_bottom.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutTopBottom"]] unsignedIntValue]);
+    Settings::values.custom_bottom_left.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutBottomLeft"]] unsignedIntValue]);
+    Settings::values.custom_bottom_top.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutBottomTop"]] unsignedIntValue]);
+    Settings::values.custom_bottom_right.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutBottomRight"]] unsignedIntValue]);
+    Settings::values.custom_bottom_bottom.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutBottomBottom"]] unsignedIntValue]);
+    
+    cytrusEmulator.ApplySettings();
+    
+    
     window = std::make_unique<EmulationWindow_Vulkan>((__bridge CA::MetalLayer *)primaryLayer,
                                                       std::make_shared<Common::DynamicLibrary>(dlopen("@rpath/MoltenVK.framework/MoltenVK", RTLD_NOW)),
                                                       false, primarySize);
     _size = primarySize;
-                   
-    if (primarySize.height > primarySize.width)
-        Settings::values.layout_option.SetValue(Settings::LayoutOption::MobilePortrait);
-    else
-        Settings::values.layout_option.SetValue(Settings::LayoutOption::MobilePortrait);
+    
+    // if (primarySize.height > primarySize.width)
+    //     Settings::values.layout_option.SetValue(Settings::LayoutOption::MobilePortrait);
+    // else
+    //     Settings::values.layout_option.SetValue(Settings::LayoutOption::MobileLandscape);
     
     // window2 = std::make_unique<EmulationWindow_Vulkan>((__bridge CA::MetalLayer *)secondaryLayer,
     //                                                   std::make_shared<Common::DynamicLibrary>(dlopen("@rpath/MoltenVK.framework/MoltenVK", RTLD_NOW)),
@@ -173,17 +219,13 @@ std::unique_ptr<EmulationWindow_Vulkan> window, window2;
 
 -(void) insertGame:(NSURL *)url {
     void(cytrusEmulator.Load(*window, [url.path UTF8String]/*, window2.get()*/));
-    _pausePlay = TRUE;
+    stop_run = false;
     
-    std::atomic_bool stop_run;
-    cytrusEmulator.GPU().Renderer().Rasterizer()->LoadDiskResources(stop_run, [](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total) {
-        LOG_DEBUG(Frontend, "Loading stage {} progress {} {}", static_cast<u32>(stage), value,
-                  total);
-    });
+    cytrusEmulator.GPU().Renderer().Rasterizer()->LoadDiskResources(stop_run, [](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total) { });
 }
 
 -(void) step {
-    if (_pausePlay) {
+    if (!stop_run) {
         void(cytrusEmulator.RunLoop());
         
         if (Settings::values.volume.GetValue() == 0) {
@@ -199,12 +241,13 @@ std::unique_ptr<EmulationWindow_Vulkan> window, window2;
 -(void) orientationChanged:(UIInterfaceOrientation)orientation with:(CGSize)secondaryScreenSize {
     _size = secondaryScreenSize;
     
-    if (orientation == UIInterfaceOrientationPortrait)
-        Settings::values.layout_option.SetValue(Settings::LayoutOption::MobilePortrait);
-    else
-        Settings::values.layout_option.SetValue(Settings::LayoutOption::MobilePortrait);
+    // if (orientation == UIInterfaceOrientationPortrait)
+    //     Settings::values.layout_option.SetValue(Settings::LayoutOption::MobilePortrait);
+    // else
+    //     Settings::values.layout_option.SetValue(Settings::LayoutOption::MobileLandscape);
     
     window->OrientationChanged(orientation, window->surface);
+    cytrusEmulator.GPU().Renderer().NotifySurfaceChanged();
     // window2->OrientationChanged(orientation, window2->surface);
 }
 
@@ -254,7 +297,7 @@ std::unique_ptr<EmulationWindow_Vulkan> window, window2;
 }
 
 -(void) pausePlay:(BOOL)pausePlay {
-    _pausePlay = pausePlay;
+    stop_run = pausePlay;
 }
 
 -(BOOL) importGame:(NSURL *)url {

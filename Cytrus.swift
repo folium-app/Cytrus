@@ -8,7 +8,7 @@
 import Foundation
 import QuartzCore.CAMetalLayer
 
-public struct Cytrus {
+@objc public class Cytrus : NSObject {
     public static let shared = Cytrus()
     
     public let cytrusObjC = CytrusObjC.shared()
