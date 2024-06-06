@@ -58,8 +58,16 @@ import QuartzCore.CAMetalLayer
         cytrusObjC.virtualControllerButtonUp(button)
     }
     
+    public func isPaused() -> Bool {
+        cytrusObjC.isPaused()
+    }
+    
     public func pausePlay(_ pausePlay: Bool) {
         cytrusObjC.pausePlay(pausePlay)
+    }
+    
+    public func stop() {
+        cytrusObjC.stop()
     }
     
     public func `import`(game url: URL) -> Bool {

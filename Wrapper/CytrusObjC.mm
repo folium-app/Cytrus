@@ -15,6 +15,7 @@
 #include <memory>
 
 #include "common/dynamic_library/dynamic_library.h"
+#include "common/scope_exit.h"
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/frontend/applets/default_applets.h"
@@ -113,8 +114,17 @@ std::pair<std::string, uint8_t> Keyboard::GetKeyboardText(const Frontend::Keyboa
 
 //
 
-Core::System& cytrusEmulator{Core::System::GetInstance()};
 std::unique_ptr<EmulationWindow_Vulkan> window, window2;
+
+static void TryShutdown() {
+    if (!window)
+        return;
+    
+    window->DoneCurrent();
+    Core::System::GetInstance().Shutdown();
+    window.reset();
+    InputManager::Shutdown();
+};
 
 @implementation CytrusObjC
 -(CytrusObjC *) init {
@@ -131,11 +141,11 @@ std::unique_ptr<EmulationWindow_Vulkan> window, window2;
         
         Config config;
         
-        cytrusEmulator.ApplySettings();
+        Core::System::GetInstance().ApplySettings();
         Settings::LogSettings();
         
-        Frontend::RegisterDefaultApplets(cytrusEmulator);
-        cytrusEmulator.RegisterSoftwareKeyboard(std::make_shared<SoftwareKeyboard::Keyboard>());
+        Frontend::RegisterDefaultApplets(Core::System::GetInstance());
+        Core::System::GetInstance().RegisterSoftwareKeyboard(std::make_shared<SoftwareKeyboard::Keyboard>());
         
         InputManager::Init();
     } return self;
@@ -195,7 +205,10 @@ std::unique_ptr<EmulationWindow_Vulkan> window, window2;
     Settings::values.custom_bottom_right.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutBottomRight"]] unsignedIntValue]);
     Settings::values.custom_bottom_bottom.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutBottomBottom"]] unsignedIntValue]);
     
-    cytrusEmulator.ApplySettings();
+    Core::System::GetInstance().ApplySettings();
+    
+    for (const auto& mod : Service::service_module_map)
+        Settings::values.lle_modules.emplace(mod.name, false);
     
     
     window = std::make_unique<EmulationWindow_Vulkan>((__bridge CA::MetalLayer *)primaryLayer,
@@ -218,22 +231,34 @@ std::unique_ptr<EmulationWindow_Vulkan> window, window2;
 }
 
 -(void) insertGame:(NSURL *)url {
-    void(cytrusEmulator.Load(*window, [url.path UTF8String]/*, window2.get()*/));
-    stop_run = false;
-    
-    cytrusEmulator.GPU().Renderer().Rasterizer()->LoadDiskResources(stop_run, [](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total) { });
+    void(Core::System::GetInstance().Load(*window, [url.path UTF8String]/*, window2.get()*/));
 }
 
 -(void) step {
-    if (!stop_run) {
-        void(cytrusEmulator.RunLoop());
-        
-        if (Settings::values.volume.GetValue() == 0) {
-            Settings::values.volume.SetValue(1);
-        }
-    } else {
-        if (Settings::values.volume.GetValue() == 1) {
-            Settings::values.volume.SetValue(0);
+    std::scoped_lock lock(running_mutex);
+    
+    Core::System& system{Core::System::GetInstance()};
+    
+    stop_run = false;
+    pause_emulation = false;
+    
+    system.GPU().Renderer().Rasterizer()->LoadDiskResources(stop_run, [](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total) { });
+    
+    SCOPE_EXIT({
+        TryShutdown();
+    });
+    
+    while (!stop_run) {
+        if (!pause_emulation) {
+            void(system.RunLoop());
+        } else {
+            const float volume = Settings::values.volume.GetValue();
+            SCOPE_EXIT({ Settings::values.volume = volume; });
+            Settings::values.volume = 0;
+            
+            std::unique_lock pause_lock{paused_mutex};
+            running_cv.wait(pause_lock, [&] { return !pause_emulation || stop_run; });
+            window->PollEvents();
         }
     }
 }
@@ -247,7 +272,7 @@ std::unique_ptr<EmulationWindow_Vulkan> window, window2;
     //     Settings::values.layout_option.SetValue(Settings::LayoutOption::MobileLandscape);
     
     window->OrientationChanged(orientation, window->surface);
-    cytrusEmulator.GPU().Renderer().NotifySurfaceChanged();
+    Core::System::GetInstance().GPU().Renderer().NotifySurfaceChanged();
     // window2->OrientationChanged(orientation, window2->surface);
 }
 
@@ -292,12 +317,27 @@ std::unique_ptr<EmulationWindow_Vulkan> window, window2;
 
 -(void) settingsSaved {
     Config config;
-    cytrusEmulator.ApplySettings();
+    Core::System::GetInstance().ApplySettings();
     Settings::LogSettings();
 }
 
+-(BOOL) isPaused {
+    return pause_emulation;
+}
+
 -(void) pausePlay:(BOOL)pausePlay {
-    stop_run = pausePlay;
+    if (pausePlay) { // play
+        pause_emulation = false;
+        running_cv.notify_all();
+    } else
+        pause_emulation = true;
+}
+
+-(void) stop {
+    stop_run = true;
+    pause_emulation = false;
+    window->StopPresenting();
+    running_cv.notify_all();
 }
 
 -(BOOL) importGame:(NSURL *)url {

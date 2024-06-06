@@ -13,6 +13,8 @@
 
 #ifdef __cplusplus
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 #endif
 
 
@@ -74,6 +76,11 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
     CGSize _size;
 #ifdef __cplusplus
     std::atomic_bool stop_run;
+    std::atomic_bool pause_emulation;
+    
+    std::mutex paused_mutex;
+    std::mutex running_mutex;
+    std::condition_variable running_cv;
 #endif
 }
 
@@ -97,7 +104,9 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 -(void) virtualControllerButtonUp:(VirtualControllerButtonType)button;
 
 -(void) settingsSaved;
+-(BOOL) isPaused;
 -(void) pausePlay:(BOOL)pausePlay;
+-(void) stop;
 
 -(BOOL) importGame:(NSURL *)url;
 
