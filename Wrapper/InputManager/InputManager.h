@@ -44,6 +44,7 @@ enum ButtonType {
 class ButtonList;
 class AnalogButtonList;
 class AnalogList;
+class Motion;
 
 /**
  * A button device factory representing a gamepad. It receives input events and forward them
@@ -116,6 +117,21 @@ private:
     std::shared_ptr<AnalogList> analog_list;
 };
 
+inline std::atomic<int> screen_rotation;
+class MotionFactory final : public Input::Factory<Input::MotionDevice> {
+public:
+    /**
+     * Creates a motion device that obtains data from device sensors
+     */
+    std::unique_ptr<Input::MotionDevice> Create(const Common::ParamPackage& params) override;
+
+    void EnableSensors();
+    void DisableSensors();
+    
+private:
+    Motion* _motion;
+};
+
 /// Initializes and registers all built-in input device factories.
 void Init();
 
@@ -127,6 +143,8 @@ ButtonFactory* ButtonHandler();
 
 /// Gets the gamepad analog device factory.
 AnalogFactory* AnalogHandler();
+
+MotionFactory* MotionHandler();
 
 /// Gets the NDK Motion device factory.
 // NDKMotionFactory* NDKMotionHandler();

@@ -174,6 +174,8 @@ extension CytrusSettings {
             default:
                 break
             }
+            
+            updateSettings()
         }
         
         public func get(for key: Keys) -> Int {
@@ -265,6 +267,8 @@ extension CytrusSettings {
             default:
                 break
             }
+            
+            updateSettings()
         }
         
         public func setDefaultSettingsIfNeeded() {
@@ -283,7 +287,7 @@ extension CytrusSettings {
                 UserDefaults.standard.set(true, forKey: Keys.useShadersAccurateMul.rawValue)
                 UserDefaults.standard.set(true, forKey: Keys.useNewVSync.rawValue)
                 UserDefaults.standard.set(1, forKey: Keys.resolutionFactor.rawValue)
-                UserDefaults.standard.set(true, forKey: Keys.useShaderJIT.rawValue)
+                UserDefaults.standard.set(false, forKey: Keys.useShaderJIT.rawValue)
                 UserDefaults.standard.set(0, forKey: Keys.textureFilter.rawValue)
                 UserDefaults.standard.set(0, forKey: Keys.textureSampling.rawValue)
                 
@@ -360,6 +364,52 @@ extension CytrusSettings {
             Settings.customLayoutBottomTop = UserDefaults.standard.integer(forKey: Keys.customLayoutBottomTop.rawValue)
             Settings.customLayoutBottomRight = UserDefaults.standard.integer(forKey: Keys.customLayoutBottomRight.rawValue)
             Settings.customLayoutBottomBottom = UserDefaults.standard.integer(forKey: Keys.customLayoutBottomBottom.rawValue)
+        }
+        
+        fileprivate func updateSettings() {
+            Settings.cpuClockPercentage = UserDefaults.standard.integer(forKey: Keys.cpuClockPercentage.rawValue)
+            Settings.useNew3DS = UserDefaults.standard.bool(forKey: Keys.useNew3DS.rawValue)
+            Settings.useLLEApplets = UserDefaults.standard.bool(forKey: Keys.useLLEApplets.rawValue)
+            
+            Settings.regionSelect = UserDefaults.standard.integer(forKey: Keys.regionSelect.rawValue)
+            
+            Settings.useSpirvShaderGeneration = UserDefaults.standard.bool(forKey: Keys.useSpirvShaderGeneration.rawValue)
+            Settings.useAsyncShaderCompilation = UserDefaults.standard.bool(forKey: Keys.useAsyncShaderCompilation.rawValue)
+            Settings.useAsyncPresentation = UserDefaults.standard.bool(forKey: Keys.useAsyncPresentation.rawValue)
+            Settings.useHardwareShaders = UserDefaults.standard.bool(forKey: Keys.useHardwareShaders.rawValue)
+            Settings.useDiskShaderCache = UserDefaults.standard.bool(forKey: Keys.useDiskShaderCache.rawValue)
+            Settings.useShadersAccurateMul = UserDefaults.standard.bool(forKey: Keys.useShadersAccurateMul.rawValue)
+            Settings.useNewVSync = UserDefaults.standard.bool(forKey: Keys.useNewVSync.rawValue)
+            Settings.useShaderJIT = UserDefaults.standard.bool(forKey: Keys.useShaderJIT.rawValue)
+            Settings.resolutionFactor = UserDefaults.standard.integer(forKey: Keys.resolutionFactor.rawValue)
+            Settings.textureFilter = UserDefaults.standard.integer(forKey: Keys.textureFilter.rawValue)
+            Settings.textureSampling = UserDefaults.standard.integer(forKey: Keys.textureSampling.rawValue)
+            
+            Settings.layoutOption = UserDefaults.standard.integer(forKey: Keys.layoutOption.rawValue)
+            
+            Settings.render3D = UserDefaults.standard.integer(forKey: Keys.render3D.rawValue)
+            Settings.monoRender = UserDefaults.standard.integer(forKey: Keys.monoRender.rawValue)
+            
+            Settings.useCustomTextures = UserDefaults.standard.bool(forKey: Keys.useCustomTextures.rawValue)
+            Settings.preloadTextures = UserDefaults.standard.bool(forKey: Keys.preloadTextures.rawValue)
+            Settings.asyncCustomLoading = UserDefaults.standard.bool(forKey: Keys.asyncCustomLoading.rawValue)
+            
+            Settings.audioEmulation = UserDefaults.standard.integer(forKey: Keys.audioEmulation.rawValue)
+            Settings.audioStretching = UserDefaults.standard.bool(forKey: Keys.audioStretching.rawValue)
+            Settings.audioOutputDevice = UserDefaults.standard.integer(forKey: Keys.audioOutputDevice.rawValue)
+            Settings.audioInputDevice = UserDefaults.standard.integer(forKey: Keys.audioInputDevice.rawValue)
+            
+            Settings.useCustomLayout = UserDefaults.standard.bool(forKey: Keys.useCustomLayout.rawValue)
+            Settings.customLayoutTopLeft = UserDefaults.standard.integer(forKey: Keys.customLayoutTopLeft.rawValue)
+            Settings.customLayoutTopTop = UserDefaults.standard.integer(forKey: Keys.customLayoutTopTop.rawValue)
+            Settings.customLayoutTopRight = UserDefaults.standard.integer(forKey: Keys.customLayoutTopRight.rawValue)
+            Settings.customLayoutTopBottom = UserDefaults.standard.integer(forKey: Keys.customLayoutTopBottom.rawValue)
+            Settings.customLayoutBottomLeft = UserDefaults.standard.integer(forKey: Keys.customLayoutBottomLeft.rawValue)
+            Settings.customLayoutBottomTop = UserDefaults.standard.integer(forKey: Keys.customLayoutBottomTop.rawValue)
+            Settings.customLayoutBottomRight = UserDefaults.standard.integer(forKey: Keys.customLayoutBottomRight.rawValue)
+            Settings.customLayoutBottomBottom = UserDefaults.standard.integer(forKey: Keys.customLayoutBottomBottom.rawValue)
+            
+            Cytrus.shared.updateSettings()
         }
     }
 }

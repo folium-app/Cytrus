@@ -7,6 +7,7 @@
 
 #import <Foundation/Foundation.h>
 #import <QuartzCore/CAMetalLayer.h>
+#import <MetalKit/MetalKit.h>
 #import <UIKit/UIKit.h>
 
 #import "GameInformation/GameInformation.h"
@@ -71,10 +72,21 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 
 //
 
+typedef NS_ENUM(NSUInteger, InstallStatus) {
+    InstallStatusSuccess,
+    InstallStatusErrorFailedToOpenFile,
+    InstallStatusErrorFileNotFound,
+    InstallStatusErrorAborted,
+    InstallStatusErrorInvalid,
+    InstallStatusErrorEncrypted,
+};
+
 
 @interface CytrusObjC : NSObject {
-    CGSize _size;
 #ifdef __cplusplus
+    CGSize _size;
+    MTKView *_mtkView;
+    
     std::atomic_bool stop_run;
     std::atomic_bool pause_emulation;
     
@@ -87,12 +99,14 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 @property (nonatomic, strong) GameInformation *gameInformation;
 
 +(CytrusObjC *) sharedInstance NS_SWIFT_NAME(shared());
--(void) configurePrimaryLayer:(CAMetalLayer *)primaryLayer withPrimarySize:(CGSize)primarySize NS_SWIFT_NAME(configure(primaryLayer:primarySize:));
-// -(void) configurePrimaryLayer:(CAMetalLayer *)primaryLayer withPrimarySize:(CGSize)primarySize secondaryLayer:(CAMetalLayer *)secondaryLayer withSecondarySize:(CGSize)secondarySize NS_SWIFT_NAME(configure(primaryLayer:primarySize:secondaryLayer:secondarySize:));
--(void) insertGame:(NSURL *)url NS_SWIFT_NAME(insert(game:));
--(void) step;
 
--(void) orientationChanged:(UIInterfaceOrientation)orientation with:(CGSize)secondaryScreenSize NS_SWIFT_NAME(orientationChanged(orientation:with:));
+-(void) getVulkanLibrary;
+-(void) setMTKView:(MTKView *)mtkView size:(CGSize)size;
+-(void) run:(NSURL *)url;
+
+-(void) updateSettings;
+
+-(void) orientationChanged:(UIInterfaceOrientation)orientation mtkView:(MTKView *)mtkView;
 
 -(void) touchBeganAtPoint:(CGPoint)point;
 -(void) touchEnded;
@@ -103,12 +117,11 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 -(void) virtualControllerButtonDown:(VirtualControllerButtonType)button;
 -(void) virtualControllerButtonUp:(VirtualControllerButtonType)button;
 
--(void) settingsSaved;
 -(BOOL) isPaused;
 -(void) pausePlay:(BOOL)pausePlay;
 -(void) stop;
 
--(BOOL) importGame:(NSURL *)url;
+-(InstallStatus) importGame:(NSURL *)url;
 
 -(NSMutableArray<NSURL *> *) installedGamePaths;
 -(NSMutableArray<NSURL *> *) systemGamePaths;

@@ -7,31 +7,36 @@
 
 import Foundation
 import QuartzCore.CAMetalLayer
+import MetalKit
 
 @objc public class Cytrus : NSObject {
     public static let shared = Cytrus()
     
     public let cytrusObjC = CytrusObjC.shared()
     
-    public func insert(game url: URL) {
-        cytrusObjC.insert(game: url)
+    public func getVulkanLibrary() {
+        cytrusObjC.getVulkanLibrary()
     }
     
-    public func step() {
-        cytrusObjC.step()
+    public func setMTKView(_ mtkView: MTKView, _ size: CGSize) {
+        cytrusObjC.setMTKView(mtkView, size: size)
+    }
+    
+    public func run(_ url: URL) {
+        cytrusObjC.run(url)
+    }
+    
+    public func updateSettings() {
+        cytrusObjC.updateSettings()
+    }
+    
+    public func orientationChanged(_ orientation: UIInterfaceOrientation, _ mtkView: MTKView) {
+        cytrusObjC.orientationChanged(orientation, mtkView: mtkView)
     }
     
     public func information(_ url: URL) -> (title: String, iconData: Data) {
         let information = cytrusObjC.gameInformation.information(for: url)
         return (information.title, information.iconData)
-    }
-    
-    public func configure(_ primaryScreen: CAMetalLayer, _ primaryScreenSize: CGSize) {
-        cytrusObjC.configure(primaryLayer: primaryScreen, primarySize: primaryScreenSize)
-    }
-    
-    public func orientationChanged(_ orientation: UIInterfaceOrientation, _ primaryScreenSize: CGSize) {
-        cytrusObjC.orientationChanged(orientation: orientation, with: primaryScreenSize)
     }
     
     public func thumbstickMoved(_ thumbstick: VirtualControllerAnalogType, _ x: Float, _ y: Float) {
@@ -70,7 +75,7 @@ import QuartzCore.CAMetalLayer
         cytrusObjC.stop()
     }
     
-    public func `import`(game url: URL) -> Bool {
+    public func `import`(game url: URL) -> InstallStatus {
         cytrusObjC.importGame(url)
     }
     
