@@ -101,6 +101,7 @@ typedef NS_ENUM(NSUInteger, InstallStatus) {
 +(CytrusObjC *) sharedInstance NS_SWIFT_NAME(shared());
 
 -(void) getVulkanLibrary;
+-(void) setMTKViewSize:(CGSize)size;
 -(void) setMTKView:(MTKView *)mtkView size:(CGSize)size;
 -(void) run:(NSURL *)url;
 

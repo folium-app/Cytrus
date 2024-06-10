@@ -155,6 +155,11 @@ static void TryShutdown() {
     library = std::make_shared<Common::DynamicLibrary>(dlopen("@rpath/MoltenVK.framework/MoltenVK", RTLD_NOW));
 }
 
+-(void) setMTKViewSize:(CGSize)size {
+    _size = size;
+    window->SizeChanged(_size);
+}
+
 -(void) setMTKView:(MTKView *)mtkView size:(CGSize)size {
     _size = size;
     _mtkView = mtkView;
@@ -303,19 +308,22 @@ static void TryShutdown() {
 }
 
 -(void) orientationChanged:(UIInterfaceOrientation)orientation mtkView:(MTKView *)mtkView {
+    if (!Core::System::GetInstance().IsPoweredOn())
+        return;
+    
     _mtkView = mtkView;
     window->OrientationChanged(orientation, (__bridge CA::MetalLayer*)_mtkView.layer);
     Core::System::GetInstance().GPU().Renderer().NotifySurfaceChanged();
 }
 
 -(void) touchBeganAtPoint:(CGPoint)point {
-    window->TouchPressed(point.x, point.y);
+    // window->TouchPressed(point.x, point.y);
     
-    // float h_ratio, w_ratio;
-    // h_ratio = window->GetFramebufferLayout().height / (_mtkView.frame.size.height * [[UIScreen mainScreen] nativeScale]);
-    // w_ratio = window->GetFramebufferLayout().width / (_mtkView.frame.size.width * [[UIScreen mainScreen] nativeScale]);
+    float h_ratio, w_ratio;
+    h_ratio = window->GetFramebufferLayout().height / (_mtkView.frame.size.height * [[UIScreen mainScreen] nativeScale]);
+    w_ratio = window->GetFramebufferLayout().width / (_mtkView.frame.size.width * [[UIScreen mainScreen] nativeScale]);
     
-    // window->TouchPressed((point.x) * [[UIScreen mainScreen] nativeScale] * w_ratio, ((point.y) * [[UIScreen mainScreen] nativeScale] * h_ratio));
+    window->TouchPressed((point.x) * [[UIScreen mainScreen] nativeScale] * w_ratio, ((point.y) * [[UIScreen mainScreen] nativeScale] * h_ratio));
 }
 
 -(void) touchEnded {
@@ -323,13 +331,13 @@ static void TryShutdown() {
 }
 
 -(void) touchMovedAtPoint:(CGPoint)point {
-    window->TouchMoved(point.x, point.y);
+    // window->TouchMoved(point.x, point.y);
     
-    // float h_ratio, w_ratio;
-    // h_ratio = window->GetFramebufferLayout().height / (_mtkView.frame.size.height * [[UIScreen mainScreen] nativeScale]);
-    // w_ratio = window->GetFramebufferLayout().width / (_mtkView.frame.size.width * [[UIScreen mainScreen] nativeScale]);
+    float h_ratio, w_ratio;
+    h_ratio = window->GetFramebufferLayout().height / (_mtkView.frame.size.height * [[UIScreen mainScreen] nativeScale]);
+    w_ratio = window->GetFramebufferLayout().width / (_mtkView.frame.size.width * [[UIScreen mainScreen] nativeScale]);
     
-    // window->TouchMoved((point.x) * [[UIScreen mainScreen] nativeScale] * w_ratio, ((point.y) * [[UIScreen mainScreen] nativeScale] * h_ratio));
+    window->TouchMoved((point.x) * [[UIScreen mainScreen] nativeScale] * w_ratio, ((point.y) * [[UIScreen mainScreen] nativeScale] * h_ratio));
 }
 
 -(void) thumbstickMoved:(VirtualControllerAnalogType)analog x:(CGFloat)x y:(CGFloat)y {

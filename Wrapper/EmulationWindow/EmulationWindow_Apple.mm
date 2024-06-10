@@ -24,13 +24,13 @@
 
 #import <SDL2/SDL.h>
 
-EmulationWindow_Apple::EmulationWindow_Apple(CA::MetalLayer* surface, bool is_secondary, CGSize size) : Frontend::EmuWindow(is_secondary), host_window(surface), size(size) {
+EmulationWindow_Apple::EmulationWindow_Apple(CA::MetalLayer* surface, bool is_secondary, CGSize size) : Frontend::EmuWindow(is_secondary), host_window(surface), m_size(size) {
     is_portrait = true;
     if (!surface)
         return;
     
-    window_width = size.width;
-    window_height = size.height;
+    window_width = m_size.width;
+    window_height = m_size.height;
     
     Network::Init();
     

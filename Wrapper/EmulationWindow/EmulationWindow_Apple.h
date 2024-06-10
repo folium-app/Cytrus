@@ -36,7 +36,7 @@ protected:
 
     bool is_portrait;
     
-    CGSize size;
+    CGSize m_size;
     int window_width;
     int window_height;
     

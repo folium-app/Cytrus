@@ -18,6 +18,10 @@ import MetalKit
         cytrusObjC.getVulkanLibrary()
     }
     
+    public func setMTKViewSize( size: CGSize) {
+        cytrusObjC.setMTKViewSize(size)
+    }
+    
     public func setMTKView(_ mtkView: MTKView, _ size: CGSize) {
         cytrusObjC.setMTKView(mtkView, size: size)
     }
