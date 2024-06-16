@@ -10,11 +10,11 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @interface Information : NSObject
-@property (nonatomic, strong) NSData *iconData;
+@property (nonatomic, strong) NSData * _Nullable iconData;
 @property (nonatomic) BOOL isSystem;
 @property (nonatomic, strong) NSString *publisher, *regions, *title;
 
--(Information *) initWithIconData:(NSData *)iconData isSystem:(BOOL)isSystem publisher:(NSString *)publisher
+-(Information *) initWithIconData:(NSData * _Nullable)iconData isSystem:(BOOL)isSystem publisher:(NSString *)publisher
                           regions:(NSString *)regions title:(NSString *)title;
 @end
 

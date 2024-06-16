@@ -38,7 +38,7 @@ import MetalKit
         cytrusObjC.orientationChanged(orientation, mtkView: mtkView)
     }
     
-    public func information(_ url: URL) -> (title: String, iconData: Data) {
+    public func information(_ url: URL) -> (title: String, iconData: Data?) {
         let information = cytrusObjC.gameInformation.information(for: url)
         return (information.title, information.iconData)
     }

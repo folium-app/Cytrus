@@ -218,6 +218,14 @@ static void TryShutdown() {
     Settings::values.custom_bottom_right.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutBottomRight"]] unsignedIntValue]);
     Settings::values.custom_bottom_bottom.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutBottomBottom"]] unsignedIntValue]);
     
+    u64 program_id{};
+    FileUtil::SetCurrentRomPath([url.path UTF8String]);
+    auto app_loader = Loader::GetLoader([url.path UTF8String]);
+    if (app_loader) {
+        app_loader->ReadProgramId(program_id);
+        system.RegisterAppLoaderEarly(app_loader);
+    }
+    
     system.ApplySettings();
     Settings::LogSettings();
     
