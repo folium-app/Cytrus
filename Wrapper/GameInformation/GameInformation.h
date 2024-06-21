@@ -22,6 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 +(GameInformation *) sharedInstance NS_SWIFT_NAME(shared());
 
 -(Information *) informationForGame:(NSURL *)url NS_SWIFT_NAME(information(for:));
+-(uint64_t) titleIdentifier:(NSURL *)url;
 @end
 
 NS_ASSUME_NONNULL_END

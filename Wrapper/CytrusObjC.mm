@@ -26,6 +26,7 @@
 #include <thread>
 #include <map>
 
+#include "core/system_titles.h"
 #include "core/frontend/applets/swkbd.h"
 #include "video_core/gpu.h"
 #include "video_core/renderer_base.h"
@@ -165,6 +166,107 @@ static void TryShutdown() {
     _mtkView = mtkView;
     window = std::make_unique<EmulationWindow_Vulkan>((__bridge CA::MetalLayer*)self->_mtkView.layer, library, false, self->_size);
     window->MakeCurrent();
+}
+
+-(void) bootHomeMenu {
+    std::scoped_lock lock(running_mutex);
+    
+    Core::System& system{Core::System::GetInstance()};
+    
+    Config config;
+    
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    
+    Settings::values.cpu_clock_percentage.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.cpuClockPercentage"]] unsignedIntValue]);
+    Settings::values.is_new_3ds.SetValue([defaults boolForKey:@"cytrus.useNew3DS"]);
+    Settings::values.lle_applets.SetValue([defaults boolForKey:@"cytrus.useLLEApplets"]);
+    
+    Settings::values.region_value.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.regionSelect"]] intValue]);
+    
+    Settings::values.spirv_shader_gen.SetValue([defaults boolForKey:@"cytrus.spirvShaderGeneration"]);
+    Settings::values.async_shader_compilation.SetValue([defaults boolForKey:@"cytrus.useAsyncShaderCompilation"]);
+    Settings::values.async_presentation.SetValue([defaults boolForKey:@"cytrus.useAsyncPresentation"]);
+    Settings::values.use_hw_shader.SetValue([defaults boolForKey:@"cytrus.useHardwareShaders"]);
+    Settings::values.use_disk_shader_cache.SetValue([defaults boolForKey:@"cytrus.useDiskShaderCache"]);
+    Settings::values.shaders_accurate_mul.SetValue([defaults boolForKey:@"cytrus.useShadersAccurateMul"]);
+    Settings::values.use_vsync_new.SetValue([defaults boolForKey:@"cytrus.useNewVSync"]);
+    Settings::values.resolution_factor.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.resolutionFactor"]] unsignedIntValue]);
+    Settings::values.use_shader_jit.SetValue([defaults boolForKey:@"cytrus.useShaderJIT"]);
+    Settings::values.texture_filter.SetValue((Settings::TextureFilter)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.textureFilter"]] unsignedIntValue]);
+    Settings::values.texture_sampling.SetValue((Settings::TextureSampling)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.textureSampling"]] unsignedIntValue]);
+    
+    Settings::values.layout_option.SetValue((Settings::LayoutOption)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.layoutOption"]] unsignedIntValue]);
+    
+    Settings::values.render_3d.SetValue((Settings::StereoRenderOption)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.render3D"]] unsignedIntValue]);
+    Settings::values.mono_render_option.SetValue((Settings::MonoRenderOption)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.monoRender"]] unsignedIntValue]);
+    
+    Settings::values.custom_textures.SetValue([defaults boolForKey:@"cytrus.useCustomTextures"]);
+    Settings::values.preload_textures.SetValue([defaults boolForKey:@"cytrus.preloadTextures"]);
+    Settings::values.async_custom_loading.SetValue([defaults boolForKey:@"cytrus.asyncCustomLoading"]);
+    
+    Settings::values.audio_emulation.SetValue((Settings::AudioEmulation)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.audioEmulation"]] unsignedIntValue]);
+    Settings::values.enable_audio_stretching.SetValue([defaults boolForKey:@"cytrus.audioStretching"]);
+    Settings::values.output_type.SetValue((AudioCore::SinkType)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.audioOutputDevice"]] unsignedIntValue]);
+    Settings::values.input_type.SetValue((AudioCore::InputType)[[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.audioInputDevice"]] unsignedIntValue]);
+    
+    Settings::values.custom_layout.SetValue([defaults boolForKey:@"cytrus.useCustomLayout"]);
+    Settings::values.custom_top_left.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutTopLeft"]] unsignedIntValue]);
+    Settings::values.custom_top_top.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutTopTop"]] unsignedIntValue]);
+    Settings::values.custom_top_right.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutTopRight"]] unsignedIntValue]);
+    Settings::values.custom_top_bottom.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutTopBottom"]] unsignedIntValue]);
+    Settings::values.custom_bottom_left.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutBottomLeft"]] unsignedIntValue]);
+    Settings::values.custom_bottom_top.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutBottomTop"]] unsignedIntValue]);
+    Settings::values.custom_bottom_right.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutBottomRight"]] unsignedIntValue]);
+    Settings::values.custom_bottom_bottom.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.customLayoutBottomBottom"]] unsignedIntValue]);
+    
+    const auto path = Core::GetHomeMenuNcchPath([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.regionSelect"]] intValue]);
+    
+    u64 program_id{};
+    FileUtil::SetCurrentRomPath(path);
+    auto app_loader = Loader::GetLoader(path);
+    if (app_loader) {
+        app_loader->ReadProgramId(program_id);
+        system.RegisterAppLoaderEarly(app_loader);
+    }
+    
+    system.ApplySettings();
+    Settings::LogSettings();
+    
+    Frontend::RegisterDefaultApplets(system);
+    // system.RegisterMiiSelector(std::make_shared<MiiSelector::AndroidMiiSelector>());
+    system.RegisterSoftwareKeyboard(std::make_shared<SoftwareKeyboard::Keyboard>());
+    
+    InputManager::Init();
+    
+    void(system.Load(*window, path));
+    
+    stop_run = false;
+    pause_emulation = false;
+    
+    std::unique_ptr<Frontend::GraphicsContext> cpu_context;
+    system.GPU().Renderer().Rasterizer()->LoadDiskResources(stop_run, [](VideoCore::LoadCallbackStage, std::size_t, std::size_t) {});
+    
+    SCOPE_EXIT({
+        TryShutdown();
+    });
+    
+    while (!stop_run) {
+        if (!pause_emulation) {
+            void(system.RunLoop());
+        } else {
+            const float volume = Settings::values.volume.GetValue();
+            SCOPE_EXIT({
+                Settings::values.volume = volume;
+            });
+            Settings::values.volume = 0;
+
+            std::unique_lock pause_lock{paused_mutex};
+            running_cv.wait(pause_lock, [&] {
+                return !pause_emulation || stop_run;
+            });
+            window->PollEvents();
+        }
+    }
 }
 
 -(void) run:(NSURL *)url {

@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "core/core.h"
 #include "core/hle/service/am/am.h"
 #include "core/hle/service/fs/archive.h"
 #include "core/loader/loader.h"
@@ -148,6 +149,17 @@ std::u16string Title(std::string physical_name) {
     return title;
 }
 
+bool IsSystemTitle(std::string physical_name) {
+    std::unique_ptr<Loader::AppLoader> loader = Loader::GetLoader(physical_name);
+    if (!loader) {
+        return false;
+    }
+
+    u64 program_id ={};
+    loader->ReadProgramId(program_id);
+    return ((program_id >> 32) & 0xFFFFFFFF) == 0x00040010;
+}
+
 
 @implementation Information
 -(Information *) initWithIconData:(NSData *)iconData isSystem:(BOOL)isSystem publisher:(NSString *)publisher
@@ -182,11 +194,20 @@ std::u16string Title(std::string physical_name) {
     NSData *iconData = NULL;
     if (icon.size() > 0)
         iconData = [NSData dataWithBytes:icon.data() length:48 * 48 * sizeof(uint16_t)];
-        
     
-    return [[Information alloc] initWithIconData:iconData isSystem:FALSE
+    return [[Information alloc] initWithIconData:iconData isSystem:IsSystemTitle([url.path UTF8String])
                                        publisher:[NSString stringWithCharacters:(const unichar*)publisher.c_str() length:publisher.length()]
                                          regions:[NSString stringWithCString:regions.c_str() encoding:NSUTF8StringEncoding]
                                            title:[NSString stringWithCharacters:(const unichar*)title.c_str() length:title.length()]];
+}
+
+-(uint64_t) titleIdentifier:(NSURL *)url {
+    std::unique_ptr<Loader::AppLoader> loader = Loader::GetLoader([url.path UTF8String]);
+    if (!loader)
+        return 0;
+    
+    uint64_t program_id {};
+    loader->ReadProgramId(program_id);
+    return program_id;
 }
 @end

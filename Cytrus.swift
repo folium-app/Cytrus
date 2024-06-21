@@ -7,7 +7,7 @@
 
 import Foundation
 import QuartzCore.CAMetalLayer
-import MetalKit
+import MetalKit.MTKView
 
 @objc public class Cytrus : NSObject {
     public static let shared = Cytrus()
@@ -26,6 +26,10 @@ import MetalKit
         cytrusObjC.setMTKView(mtkView, size: size)
     }
     
+    public func bootHomeMenu() {
+        cytrusObjC.bootHomeMenu()
+    }
+    
     public func run(_ url: URL) {
         cytrusObjC.run(url)
     }
@@ -38,9 +42,9 @@ import MetalKit
         cytrusObjC.orientationChanged(orientation, mtkView: mtkView)
     }
     
-    public func information(_ url: URL) -> (title: String, iconData: Data?) {
+    public func information(_ url: URL) -> (title: String, titleIdentifier: UInt64, iconData: Data?) {
         let information = cytrusObjC.gameInformation.information(for: url)
-        return (information.title, information.iconData)
+        return (information.title, cytrusObjC.gameInformation.titleIdentifier(url), information.iconData)
     }
     
     public func thumbstickMoved(_ thumbstick: VirtualControllerAnalogType, _ x: Float, _ y: Float) {

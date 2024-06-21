@@ -103,6 +103,7 @@ typedef NS_ENUM(NSUInteger, InstallStatus) {
 -(void) getVulkanLibrary;
 -(void) setMTKViewSize:(CGSize)size;
 -(void) setMTKView:(MTKView *)mtkView size:(CGSize)size;
+-(void) bootHomeMenu;
 -(void) run:(NSURL *)url;
 
 -(void) updateSettings;
