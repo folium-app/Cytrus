@@ -5,13 +5,10 @@
 #include <algorithm>
 #include <limits>
 #include "common/logging/log.h"
-#include "common/microprofile.h"
+#include "common/profiling.h"
 #include "common/settings.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_swapchain.h"
-
-MICROPROFILE_DEFINE(Vulkan_Acquire, "Vulkan", "Swapchain Acquire", MP_RGB(185, 66, 245));
-MICROPROFILE_DEFINE(Vulkan_Present, "Vulkan", "Swapchain Present", MP_RGB(66, 185, 245));
 
 namespace Vulkan {
 
@@ -78,9 +75,13 @@ void Swapchain::Create(u32 width_, u32 height_, vk::SurfaceKHR surface_) {
 }
 
 bool Swapchain::AcquireNextImage() {
-    MICROPROFILE_SCOPE(Vulkan_Acquire);
-    vk::Device device = instance.GetDevice();
-    vk::Result result =
+    if (needs_recreation) {
+        return false;
+    }
+
+    CITRA_PROFILE("Vulkan", "Swapchain Acquire");
+    const vk::Device device = instance.GetDevice();
+    const vk::Result result =
         device.acquireNextImageKHR(swapchain, std::numeric_limits<u64>::max(),
                                    image_acquired[frame_index], VK_NULL_HANDLE, &image_index);
 
@@ -102,10 +103,6 @@ bool Swapchain::AcquireNextImage() {
 }
 
 void Swapchain::Present() {
-    if (needs_recreation) {
-        return;
-    }
-
     const vk::PresentInfoKHR present_info = {
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = &present_ready[image_index],
@@ -114,11 +111,15 @@ void Swapchain::Present() {
         .pImageIndices = &image_index,
     };
 
-    MICROPROFILE_SCOPE(Vulkan_Present);
+    CITRA_PROFILE("Vulkan", "Swapchain Present");
     try {
         [[maybe_unused]] vk::Result result = instance.GetPresentQueue().presentKHR(present_info);
     } catch (vk::OutOfDateKHRError&) {
         needs_recreation = true;
+        return;
+    } catch (vk::SurfaceLostKHRError&) {
+        needs_recreation = true;
+        return;
     } catch (const vk::SystemError& err) {
         LOG_CRITICAL(Render_Vulkan, "Swapchain presentation failed {}", err.what());
         UNREACHABLE();

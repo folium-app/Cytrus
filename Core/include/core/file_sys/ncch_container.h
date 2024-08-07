@@ -272,8 +272,6 @@ public:
      * Get the RomFS of the NCCH container
      * Since the RomFS can be huge, we return a file reference instead of copying to a buffer
      * @param romfs_file The file containing the RomFS
-     * @param offset The offset the romfs begins on
-     * @param size The size of the romfs
      * @return ResultStatus result of function
      */
     Loader::ResultStatus ReadRomFS(std::shared_ptr<RomFSReader>& romfs_file,
@@ -290,8 +288,6 @@ public:
      * Get the override RomFS of the NCCH container
      * Since the RomFS can be huge, we return a file reference instead of copying to a buffer
      * @param romfs_file The file containing the RomFS
-     * @param offset The offset the romfs begins on
-     * @param size The size of the romfs
      * @return ResultStatus result of function
      */
     Loader::ResultStatus ReadOverrideRomFS(std::shared_ptr<RomFSReader>& romfs_file);

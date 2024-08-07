@@ -1,8 +1,8 @@
 //
 //  GraphicsContext_Apple.h
-//  Limon
+//  Folium-iOS
 //
-//  Created by Jarrod Norwell on 1/20/24.
+//  Created by Jarrod Norwell on 25/7/2024.
 //
 
 #pragma once

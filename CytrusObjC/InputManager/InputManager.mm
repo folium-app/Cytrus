@@ -1,11 +1,13 @@
-// Copyright 2017 Citra Emulator Project
-// Licensed under GPLv2 or any later version
-// Refer to the license.txt file included.
+//
+//  InputManager.mm
+//  Folium-iOS
+//
+//  Created by Jarrod Norwell on 25/7/2024.
+//
 
-#import "InputManager.h"
+#include "InputManager.h"
 
-#import <CoreMotion/CoreMotion.h>
-
+#ifdef __cplusplus
 #include <cmath>
 #include <list>
 #include <mutex>
@@ -19,6 +21,7 @@
 #include <vector>
 #include <unordered_map>
 #include <utility>
+
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "common/math_util.h"
@@ -26,12 +29,13 @@
 #include "common/vector_math.h"
 #include "input_common/main.h"
 #include "input_common/sdl/sdl.h"
+#endif
 
 namespace InputManager {
 
 static std::shared_ptr<ButtonFactory> button;
 static std::shared_ptr<AnalogFactory> analog;
-static std::shared_ptr<MotionFactory> motion;
+// static std::shared_ptr<MotionFactory> motion;
 
 // Button Handler
 class KeyButton final : public Input::ButtonDevice {
@@ -277,6 +281,7 @@ bool AnalogFactory::MoveJoystick(int analog_id, float x, float y) {
     return analog_list->ChangeJoystickStatus(analog_id, x, y);
 }
 
+/*
 namespace {
 using Common::Vec3;
 }
@@ -391,6 +396,7 @@ void MotionFactory::EnableSensors() {
 void MotionFactory::DisableSensors() {
     _motion->DisableSensors();
 };
+ */
 
 ButtonFactory* ButtonHandler() {
     return button.get();
@@ -400,9 +406,11 @@ AnalogFactory* AnalogHandler() {
     return analog.get();
 }
 
+/*
 MotionFactory* MotionHandler() {
     return motion.get();
 }
+ */
 
 std::string GenerateButtonParamPackage(int button) {
     Common::ParamPackage param{
@@ -436,18 +444,13 @@ std::string GenerateAnalogParamPackage(int axis_id) {
     return param.Serialize();
 }
 
-// NDKMotionFactory* NDKMotionHandler() {
-//     return motion.get();
-// }
-
 void Init() {
     button = std::make_shared<ButtonFactory>();
     analog = std::make_shared<AnalogFactory>();
-    motion = std::make_shared<MotionFactory>();
-    // motion = std::make_shared<NDKMotionFactory>();
+    // motion = std::make_shared<MotionFactory>();
     Input::RegisterFactory<Input::ButtonDevice>("gamepad", button);
     Input::RegisterFactory<Input::AnalogDevice>("gamepad", analog);
-    Input::RegisterFactory<Input::MotionDevice>("motion_emu", motion);
+    // Input::RegisterFactory<Input::MotionDevice>("motion_emu", motion);
 }
 
 void Shutdown() {
@@ -456,7 +459,7 @@ void Shutdown() {
     Input::UnregisterFactory<Input::MotionDevice>("motion_emu");
     button.reset();
     analog.reset();
-    motion.reset();
+    // motion.reset();
 }
 
 } // namespace InputManager

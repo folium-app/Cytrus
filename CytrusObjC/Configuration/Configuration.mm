@@ -1,15 +1,21 @@
-// Copyright 2014 Citra Emulator Project
-// Licensed under GPLv2 or any later version
-// Refer to the license.txt file included.
+//
+//  Configuration.mm
+//  Folium-iOS
+//
+//  Created by Jarrod Norwell on 25/7/2024.
+//
 
-#import "../Configuration/Configuration.h"
-#import "../InputManager/InputManager.h"
+#include "Configuration.h"
+#include "DefaultINI.h"
+#include "InputManager.h"
 
 #include <iomanip>
 #include <memory>
 #include <sstream>
 #include <unordered_map>
+
 #include <inih/INIReader.h>
+
 #include "common/file_util.h"
 #include "common/logging/backend.h"
 #include "common/logging/log.h"
@@ -22,7 +28,7 @@
 #include "input_common/udp/client.h"
 #include "network/network_settings.h"
 
-Config::Config() {
+Configuration::Configuration() {
     // TODO: Don't hardcode the path; let the frontend decide where to put the config files.
     sdl2_config_loc = FileUtil::GetUserPath(FileUtil::UserPath::ConfigDir) + "config.ini";
     std::string ini_buffer;
@@ -34,9 +40,9 @@ Config::Config() {
     Reload();
 }
 
-Config::~Config() = default;
+Configuration::~Configuration() = default;
 
-bool Config::LoadINI(const std::string& default_contents, bool retry) {
+bool Configuration::LoadINI(const std::string& default_contents, bool retry) {
     const std::string& location = this->sdl2_config_loc;
     if (sdl2_config == nullptr || sdl2_config->ParseError() < 0) {
         if (retry) {
@@ -75,7 +81,7 @@ static const std::array<int, Settings::NativeAnalog::NumAnalogs> default_analogs
 }};
 
 template <>
-void Config::ReadSetting(const std::string& group, Settings::Setting<std::string>& setting) {
+void Configuration::ReadSetting(const std::string& group, Settings::Setting<std::string>& setting) {
     std::string setting_value = sdl2_config->Get(group, setting.GetLabel(), setting.GetDefault());
     if (setting_value.empty()) {
         setting_value = setting.GetDefault();
@@ -84,12 +90,12 @@ void Config::ReadSetting(const std::string& group, Settings::Setting<std::string
 }
 
 template <>
-void Config::ReadSetting(const std::string& group, Settings::Setting<bool>& setting) {
+void Configuration::ReadSetting(const std::string& group, Settings::Setting<bool>& setting) {
     setting = sdl2_config->GetBoolean(group, setting.GetLabel(), setting.GetDefault());
 }
 
 template <typename Type, bool ranged>
-void Config::ReadSetting(const std::string& group, Settings::Setting<Type, ranged>& setting) {
+void Configuration::ReadSetting(const std::string& group, Settings::Setting<Type, ranged>& setting) {
     if constexpr (std::is_floating_point_v<Type>) {
         setting = sdl2_config->GetReal(group, setting.GetLabel(), setting.GetDefault());
     } else {
@@ -98,7 +104,7 @@ void Config::ReadSetting(const std::string& group, Settings::Setting<Type, range
     }
 }
 
-void Config::ReadValues() {
+void Configuration::ReadValues() {
     // Controls
     for (int i = 0; i < Settings::NativeButton::NumButtons; ++i) {
         std::string default_param = InputManager::GenerateButtonParamPackage(default_buttons[i]);
@@ -127,9 +133,16 @@ void Config::ReadValues() {
         static_cast<u16>(sdl2_config->GetInteger("Controls", "udp_input_port",
                                                  InputCommon::CemuhookUDP::DEFAULT_PORT));
 
+    // ReadSetting("Controls", Settings::values.use_artic_base_controller);
+
     // Core
     ReadSetting("Core", Settings::values.use_cpu_jit);
     ReadSetting("Core", Settings::values.cpu_clock_percentage);
+    ReadSetting("Core", Settings::values.frame_skip);
+    // ReadSetting("Core", Settings::values.enable_custom_cpu_ticks);
+    // ReadSetting("Core", Settings::values.custom_cpu_ticks);
+    // ReadSetting("Core", Settings::values.reduce_downcount_slice);
+    // ReadSetting("Core", Settings::values.priority_boost_starved_threads);
 
     // Renderer
     Settings::values.use_gles = sdl2_config->GetBoolean("Renderer", "use_gles", true);
@@ -158,7 +171,7 @@ void Config::ReadValues() {
     ReadSetting("Renderer", Settings::values.factor_3d);
     std::string default_shader = "none (builtin)";
     if (Settings::values.render_3d.GetValue() == Settings::StereoRenderOption::Anaglyph)
-        default_shader = "dubois (builtin)";
+        default_shader = "rendepth (builtin)";
     else if (Settings::values.render_3d.GetValue() == Settings::StereoRenderOption::Interlaced)
         default_shader = "horizontal (builtin)";
     Settings::values.pp_shader_name =
@@ -168,19 +181,23 @@ void Config::ReadValues() {
     ReadSetting("Renderer", Settings::values.bg_red);
     ReadSetting("Renderer", Settings::values.bg_green);
     ReadSetting("Renderer", Settings::values.bg_blue);
+    // ReadSetting("Renderer", Settings::values.delay_game_render_thread_us);
+    // ReadSetting("Renderer", Settings::values.force_hw_vertex_shaders);
+    // ReadSetting("Renderer", Settings::values.disable_surface_texture_copy);
+    // ReadSetting("Renderer", Settings::values.disable_flush_cpu_write);
 
     // Layout
     Settings::values.layout_option = static_cast<Settings::LayoutOption>(sdl2_config->GetInteger(
         "Layout", "layout_option", static_cast<int>(Settings::LayoutOption::MobileLandscape)));
     ReadSetting("Layout", Settings::values.custom_layout);
-    ReadSetting("Layout", Settings::values.custom_top_left);
-    ReadSetting("Layout", Settings::values.custom_top_top);
-    ReadSetting("Layout", Settings::values.custom_top_right);
-    ReadSetting("Layout", Settings::values.custom_top_bottom);
-    ReadSetting("Layout", Settings::values.custom_bottom_left);
-    ReadSetting("Layout", Settings::values.custom_bottom_top);
-    ReadSetting("Layout", Settings::values.custom_bottom_right);
-    ReadSetting("Layout", Settings::values.custom_bottom_bottom);
+    ReadSetting("Layout", Settings::values.custom_top_x);
+    ReadSetting("Layout", Settings::values.custom_top_y);
+    ReadSetting("Layout", Settings::values.custom_top_width);
+    ReadSetting("Layout", Settings::values.custom_top_height);
+    ReadSetting("Layout", Settings::values.custom_bottom_x);
+    ReadSetting("Layout", Settings::values.custom_bottom_y);
+    ReadSetting("Layout", Settings::values.custom_bottom_width);
+    ReadSetting("Layout", Settings::values.custom_bottom_height);
     ReadSetting("Layout", Settings::values.cardboard_screen_size);
     ReadSetting("Layout", Settings::values.cardboard_x_shift);
     ReadSetting("Layout", Settings::values.cardboard_y_shift);
@@ -194,6 +211,7 @@ void Config::ReadValues() {
     // Audio
     ReadSetting("Audio", Settings::values.audio_emulation);
     ReadSetting("Audio", Settings::values.enable_audio_stretching);
+    ReadSetting("Audio", Settings::values.enable_realtime_audio);
     ReadSetting("Audio", Settings::values.volume);
     ReadSetting("Audio", Settings::values.output_type);
     ReadSetting("Audio", Settings::values.output_device);
@@ -224,31 +242,33 @@ void Config::ReadValues() {
     using namespace Service::CAM;
     Settings::values.camera_name[OuterRightCamera] =
         sdl2_config->GetString("Camera", "camera_outer_right_name", "ndk");
-    Settings::values.camera_config[OuterRightCamera] = sdl2_config->GetString(
-        "Camera", "camera_outer_right_config", std::string{""});
+    // Settings::values.camera_config[OuterRightCamera] = sdl2_config->GetString(
+    //     "Camera", "camera_outer_right_config", std::string{Camera::NDK::BackCameraPlaceholder});
     Settings::values.camera_flip[OuterRightCamera] =
         sdl2_config->GetInteger("Camera", "camera_outer_right_flip", 0);
     Settings::values.camera_name[InnerCamera] =
         sdl2_config->GetString("Camera", "camera_inner_name", "ndk");
-    Settings::values.camera_config[InnerCamera] = sdl2_config->GetString(
-        "Camera", "camera_inner_config", std::string{""});
+    // Settings::values.camera_config[InnerCamera] = sdl2_config->GetString(
+    //     "Camera", "camera_inner_config", std::string{Camera::NDK::FrontCameraPlaceholder});
     Settings::values.camera_flip[InnerCamera] =
         sdl2_config->GetInteger("Camera", "camera_inner_flip", 0);
     Settings::values.camera_name[OuterLeftCamera] =
         sdl2_config->GetString("Camera", "camera_outer_left_name", "ndk");
-    Settings::values.camera_config[OuterLeftCamera] = sdl2_config->GetString(
-        "Camera", "camera_outer_left_config", std::string{""});
+    // Settings::values.camera_config[OuterLeftCamera] = sdl2_config->GetString(
+    //     "Camera", "camera_outer_left_config", std::string{Camera::NDK::BackCameraPlaceholder});
     Settings::values.camera_flip[OuterLeftCamera] =
         sdl2_config->GetInteger("Camera", "camera_outer_left_flip", 0);
 
     // Miscellaneous
     ReadSetting("Miscellaneous", Settings::values.log_filter);
+    ReadSetting("Miscellaneous", Settings::values.log_regex_filter);
 
     // Apply the log_filter setting as the logger has already been initialized
     // and doesn't pick up the filter on its own.
     Common::Log::Filter filter;
     filter.ParseFilterString(Settings::values.log_filter.GetValue());
     Common::Log::SetGlobalFilter(filter);
+    Common::Log::SetRegexFilter(Settings::values.log_regex_filter.GetValue());
 
     // Debugging
     Settings::values.record_frame_times =
@@ -256,11 +276,20 @@ void Config::ReadValues() {
     ReadSetting("Debugging", Settings::values.renderer_debug);
     ReadSetting("Debugging", Settings::values.use_gdbstub);
     ReadSetting("Debugging", Settings::values.gdbstub_port);
+    // ReadSetting("Debugging", Settings::values.instant_debug_log);
 
     for (const auto& service_module : Service::service_module_map) {
         bool use_lle = sdl2_config->GetBoolean("Debugging", "LLE\\" + service_module.name, false);
         Settings::values.lle_modules.emplace(service_module.name, use_lle);
     }
+    
+    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.raise_cpu_ticks);
+    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.skip_slow_draw);
+    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.skip_texture_copy);
+    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.skip_cpu_write);
+    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.core_downcount_hack);
+    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.priority_boost);
+    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.upscaling_hack);
 
     // Web Service
     NetSettings::values.web_api_url =
@@ -269,8 +298,7 @@ void Config::ReadValues() {
     NetSettings::values.citra_token = sdl2_config->GetString("WebService", "citra_token", "");
 }
 
-#import "DefaultConfiguration.h"
-void Config::Reload() {
+void Configuration::Reload() {
     LoadINI(DefaultINI::sdl2_config_file);
     ReadValues();
 }

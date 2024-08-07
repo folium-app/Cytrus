@@ -5,7 +5,7 @@
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "common/memory_detect.h"
-#include "common/microprofile.h"
+#include "common/profiling.h"
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/frontend/emu_window.h"
@@ -21,8 +21,6 @@
 #include "video_core/host_shaders/vulkan_present_vert.h"
 
 #include <vk_mem_alloc.h>
-
-MICROPROFILE_DEFINE(Vulkan_RenderFrame, "Vulkan", "Render Frame", MP_RGB(128, 128, 64));
 
 namespace Vulkan {
 
@@ -65,6 +63,7 @@ RendererVulkan::RendererVulkan(Core::System& system, Pica::PicaCore& pica_,
     CompileShaders();
     BuildLayouts();
     BuildPipelines();
+    ReloadPipeline();
     if (secondary_window) {
         second_window = std::make_unique<PresentWindow>(*secondary_window, instance, scheduler);
     }
@@ -453,7 +452,7 @@ void RendererVulkan::ConfigureFramebufferTexture(TextureInfo& texture,
 }
 
 void RendererVulkan::FillScreen(Common::Vec3<u8> color, const TextureInfo& texture) {
-    return;
+    return; // MARK: (jarrodnorwell) does this do anything
     const vk::ClearColorValue clear_color = {
         .float32 =
             std::array{

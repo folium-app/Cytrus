@@ -1,16 +1,22 @@
-// Copyright 2014 Citra Emulator Project
-// Licensed under GPLv2 or any later version
-// Refer to the license.txt file included.
+//
+//  Configuration.h
+//  Folium-iOS
+//
+//  Created by Jarrod Norwell on 25/7/2024.
+//
 
 #pragma once
 
+#ifdef __cplusplus
 #include <memory>
 #include <string>
+
 #include "common/settings.h"
+#endif
 
 class INIReader;
 
-class Config {
+class Configuration {
 private:
     std::unique_ptr<INIReader> sdl2_config;
     std::string sdl2_config_loc;
@@ -19,8 +25,8 @@ private:
     void ReadValues();
 
 public:
-    Config();
-    ~Config();
+    Configuration();
+    ~Configuration();
 
     void Reload();
 

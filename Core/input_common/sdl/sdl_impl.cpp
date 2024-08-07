@@ -14,7 +14,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "common/math_util.h"

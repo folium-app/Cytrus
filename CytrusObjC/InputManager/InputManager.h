@@ -1,12 +1,18 @@
-// Copyright 2013 Dolphin Emulator Project / 2017 Citra Emulator Project
-// Licensed under GPLv2+
-// Refer to the license.txt file included.
+//
+//  InputManager.h
+//  Folium-iOS
+//
+//  Created by Jarrod Norwell on 25/7/2024.
+//
 
 #pragma once
 
+#ifdef __cplusplus
 #include <memory>
 #include <string>
+
 #include "core/frontend/input.h"
+#endif
 
 namespace InputManager {
 
@@ -44,7 +50,7 @@ enum ButtonType {
 class ButtonList;
 class AnalogButtonList;
 class AnalogList;
-class Motion;
+// class Motion;
 
 /**
  * A button device factory representing a gamepad. It receives input events and forward them
@@ -117,12 +123,10 @@ private:
     std::shared_ptr<AnalogList> analog_list;
 };
 
+/*
 inline std::atomic<int> screen_rotation;
 class MotionFactory final : public Input::Factory<Input::MotionDevice> {
 public:
-    /**
-     * Creates a motion device that obtains data from device sensors
-     */
     std::unique_ptr<Input::MotionDevice> Create(const Common::ParamPackage& params) override;
 
     void EnableSensors();
@@ -131,6 +135,7 @@ public:
 private:
     Motion* _motion;
 };
+ */
 
 /// Initializes and registers all built-in input device factories.
 void Init();
@@ -144,10 +149,7 @@ ButtonFactory* ButtonHandler();
 /// Gets the gamepad analog device factory.
 AnalogFactory* AnalogHandler();
 
-MotionFactory* MotionHandler();
-
-/// Gets the NDK Motion device factory.
-// NDKMotionFactory* NDKMotionHandler();
+// MotionFactory* MotionHandler();
 
 std::string GenerateButtonParamPackage(int type);
 

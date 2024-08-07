@@ -51,7 +51,6 @@ public:
 
     /**
      * Sets the Information that gets used for the announce
-     * @param uid The Id of the room
      * @param name The name of the room
      * @param description The room description
      * @param port The port of the room

@@ -3,7 +3,9 @@
 // Refer to the license.txt file included.
 
 #include "common/archives.h"
-#include "common/microprofile.h"
+#include "common/common_types.h"
+#include "common/profiling.h"
+#include "common/settings.h"
 #include "core/core.h"
 #include "core/core_timing.h"
 #include "core/hle/service/gsp/gsp_gpu.h"
@@ -22,8 +24,12 @@ namespace VideoCore {
 constexpr VAddr VADDR_LCD = 0x1ED02000;
 constexpr VAddr VADDR_GPU = 0x1EF00000;
 
-MICROPROFILE_DEFINE(GPU_DisplayTransfer, "GPU", "DisplayTransfer", MP_RGB(100, 100, 255));
-MICROPROFILE_DEFINE(GPU_CmdlistProcessing, "GPU", "Cmdlist Processing", MP_RGB(100, 255, 100));
+/// True if the current frame was skipped
+bool g_skip_frame;
+/// Total number of frames drawn
+static u64 frame_count;
+/// True if the last frame was skipped
+static bool last_skip_frame;
 
 struct GPU::Impl {
     Core::Timing& timing;
@@ -51,6 +57,9 @@ struct GPU::Impl {
 GPU::GPU(Core::System& system, Frontend::EmuWindow& emu_window,
          Frontend::EmuWindow* secondary_window)
     : impl{std::make_unique<Impl>(system, emu_window, secondary_window)} {
+    frame_count = 0;
+    last_skip_frame = false;
+    g_skip_frame = false;
     impl->vblank_event = impl->timing.RegisterEvent(
         "GPU::VBlankCallback",
         [this](uintptr_t user_data, s64 cycles_late) { VBlankCallback(user_data, cycles_late); });
@@ -230,7 +239,6 @@ void GPU::SetBufferSwap(u32 screen_id, const Service::GSP::FrameBufferInfo& info
     }
 
     if (screen_id == 0) {
-        MicroProfileFlip();
         impl->system.perf_stats->EndGameFrame();
     }
 }
@@ -339,7 +347,7 @@ void GPU::SubmitCmdList(u32 index) {
         return;
     }
 
-    MICROPROFILE_SCOPE(GPU_CmdlistProcessing);
+    CITRA_PROFILE("GPU", "Command List Processing");
 
     // Forward command list processing to the PICA core.
     const PAddr addr = config.GetPhysicalAddress(index);
@@ -383,8 +391,6 @@ void GPU::MemoryTransfer() {
         return;
     }
 
-    MICROPROFILE_SCOPE(GPU_DisplayTransfer);
-
     // Notify debugger about the display transfer.
     if (impl->debug_context) {
         impl->debug_context->OnEvent(Pica::DebugContext::Event::IncomingDisplayTransfer, nullptr);
@@ -392,10 +398,12 @@ void GPU::MemoryTransfer() {
 
     // Perform memory transfer
     if (config.is_texture_copy) {
+        CITRA_PROFILE("GPU", "Texture Copy");
         if (!impl->rasterizer->AccelerateTextureCopy(config)) {
             impl->sw_blitter->TextureCopy(config);
         }
     } else {
+        CITRA_PROFILE("GPU", "Display Transfer");
         if (!impl->rasterizer->AccelerateDisplayTransfer(config)) {
             impl->sw_blitter->DisplayTransfer(config);
         }
@@ -407,8 +415,22 @@ void GPU::MemoryTransfer() {
 }
 
 void GPU::VBlankCallback(std::uintptr_t user_data, s64 cycles_late) {
-    // Present renderered frame.
-    impl->renderer->SwapBuffers();
+    frame_count++;
+    last_skip_frame = g_skip_frame;
+    g_skip_frame = (frame_count & Settings::values.frame_skip.GetValue()) != 0;
+
+    // Swap buffers based on the frameskip mode, which is a little bit tricky. When
+    // a frame is being skipped, nothing is being rendered to the internal framebuffer(s).
+    // So, we should only swap frames if the last frame was rendered. The rules are:
+    //  - If frameskip == 0 (disabled), always swap buffers
+    //  - If frameskip == 1, swap buffers every other frame (starting from the first frame)
+    //  - If frameskip > 1, swap buffers every frameskip^n frames (starting from the second frame)
+    if ((((Settings::values.frame_skip.GetValue() != 1) ^ last_skip_frame) &&
+         last_skip_frame != g_skip_frame) ||
+        Settings::values.frame_skip.GetValue() == 0) {
+        // Present renderered frame.
+        impl->renderer->SwapBuffers();
+    }
 
     // Signal to GSP that GPU interrupt has occurred
     impl->signal_interrupt(Service::GSP::InterruptId::PDC0);

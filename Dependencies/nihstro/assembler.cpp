@@ -256,7 +256,7 @@ static size_t FindOrAddSwizzlePattern(std::vector<SwizzlePattern>& swizzle_patte
     SwizzlePattern swizzle_pattern;
     swizzle_pattern.hex = 0;
     
-    for (int i = 0, active_component = 0; i < 4; ++i) {
+    for (int i = 0; i < 4; ++i) {
         if (dest_mask.component_set[i])
             swizzle_pattern.SetDestComponentEnabled(i, true);
         
@@ -295,7 +295,7 @@ static size_t FindOrAddSwizzlePattern(std::vector<SwizzlePattern>& swizzle_patte
     SwizzlePattern swizzle_pattern;
     swizzle_pattern.hex = 0;
     
-    for (int i = 0, active_component = 0; i < 4; ++i) {
+    for (int i = 0; i < 4; ++i) {
         if (dest_mask.component_set[i])
             swizzle_pattern.SetDestComponentEnabled(i, true);
         
@@ -329,7 +329,7 @@ static size_t FindOrAddSwizzlePattern(std::vector<SwizzlePattern>& swizzle_patte
     SwizzlePattern swizzle_pattern;
     swizzle_pattern.hex = 0;
     
-    for (int i = 0, active_component = 0; i < 4; ++i) {
+    for (int i = 0; i < 4; ++i) {
         if (mask_src1.components[i] != SourceSwizzlerMask::Unspecified)
             swizzle_pattern.SetSelectorSrc1(i, static_cast<SwizzlePattern::Selector>(mask_src1.components[i]));
         
@@ -359,7 +359,7 @@ static size_t FindOrAddSwizzlePattern(std::vector<SwizzlePattern>& swizzle_patte
     SwizzlePattern swizzle_pattern;
     swizzle_pattern.hex = 0;
     
-    for (int i = 0, active_component = 0; i < 4; ++i) {
+    for (int i = 0; i < 4; ++i) {
         if (mask_src1.components[i] != SourceSwizzlerMask::Unspecified)
             swizzle_pattern.SetSelectorSrc1(i, static_cast<SwizzlePattern::Selector>(mask_src1.components[i]));
     }

@@ -8,8 +8,14 @@
 #include <vector>
 #include "audio_core/null_sink.h"
 #include "audio_core/sink_details.h"
+#ifdef ANDROID
+#include "audio_core/oboe_sink.h"
+#endif
 #ifdef HAVE_SDL2
 #include "audio_core/sdl2_sink.h"
+#endif
+#ifdef HAVE_CUBEB
+#include "audio_core/cubeb_sink.h"
 #endif
 #ifdef HAVE_OPENAL
 #include "audio_core/openal_sink.h"
@@ -20,12 +26,26 @@ namespace AudioCore {
 namespace {
 // sink_details is ordered in terms of desirability, with the best choice at the top.
 constexpr std::array sink_details = {
+#ifdef HAVE_CUBEB
+    SinkDetails{SinkType::Cubeb, "Cubeb",
+                [](std::string_view device_id) -> std::unique_ptr<Sink> {
+                    return std::make_unique<CubebSink>(device_id);
+                },
+                &ListCubebSinkDevices},
+#endif
 #ifdef HAVE_OPENAL
     SinkDetails{SinkType::OpenAL, "OpenAL",
                 [](std::string_view device_id) -> std::unique_ptr<Sink> {
                     return std::make_unique<OpenALSink>(std::string(device_id));
                 },
                 &ListOpenALSinkDevices},
+#endif
+#ifdef ANDROID
+    SinkDetails{SinkType::Oboe, "Oboe",
+                [](std::string_view device_id) -> std::unique_ptr<Sink> {
+                    return std::make_unique<OboeSink>(device_id);
+                },
+                &ListOboeSinkDevices},
 #endif
 #ifdef HAVE_SDL2
     SinkDetails{SinkType::SDL2, "SDL2",

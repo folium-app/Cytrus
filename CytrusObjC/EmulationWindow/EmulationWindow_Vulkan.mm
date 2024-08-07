@@ -1,14 +1,14 @@
 //
 //  EmulationWindow_Vulkan.mm
-//  Limon
+//  Folium-iOS
 //
-//  Created by Jarrod Norwell on 1/20/24.
+//  Created by Jarrod Norwell on 25/7/2024.
 //
+
+#import "EmulationWindow_Vulkan.h"
+#include "GraphicsContext_Apple.h"
 
 #import <UIKit/UIKit.h>
-
-#include "EmulationWindow_Vulkan.h"
-#include "GraphicsContext_Apple.h"
 
 EmulationWindow_Vulkan::EmulationWindow_Vulkan(CA::MetalLayer* surface, std::shared_ptr<Common::DynamicLibrary> driver_library, bool is_secondary, CGSize size) : EmulationWindow_Apple(surface, is_secondary, size), surface{surface}, driver_library(driver_library) {
     CreateWindowSurface();

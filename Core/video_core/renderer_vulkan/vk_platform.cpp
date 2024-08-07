@@ -8,7 +8,6 @@
 #elif defined(WIN32)
 #define VK_USE_PLATFORM_WIN32_KHR
 #elif defined(__APPLE__)
-#import <TargetConditionals.h>
 #define VK_USE_PLATFORM_METAL_EXT
 #else
 #define VK_USE_PLATFORM_WAYLAND_KHR
@@ -100,34 +99,8 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugReportCallback(VkDebugReportFlagsEXT 
 
 std::shared_ptr<Common::DynamicLibrary> OpenLibrary(
     [[maybe_unused]] Frontend::GraphicsContext* context) {
-#ifdef ANDROID
-    // Android may override the Vulkan driver from the frontend.
-    if (auto library = context->GetDriverLibrary(); library) {
-        return library;
-    }
-#endif
     auto library = std::make_shared<Common::DynamicLibrary>();
-#ifdef __APPLE__
-#if defined(TARGET_OS_IPHONE)
     void(library->Load("@rpath/MoltenVK.framework/MoltenVK"));
-#else
-    const std::string filename = Common::DynamicLibrary::GetLibraryName("vulkan");
-    if (!library->Load(filename)) {
-        // Fall back to directly loading bundled MoltenVK library.
-        const std::string mvk_filename = Common::DynamicLibrary::GetLibraryName("MoltenVK");
-        void(library->Load(mvk_filename));
-    }
-#endif
-#else
-    std::string filename = Common::DynamicLibrary::GetLibraryName("vulkan", 1);
-    LOG_DEBUG(Render_Vulkan, "Trying Vulkan library: {}", filename);
-    if (!library->Load(filename)) {
-        // Android devices may not have libvulkan.so.1, only libvulkan.so.
-        filename = Common::DynamicLibrary::GetLibraryName("vulkan");
-        LOG_DEBUG(Render_Vulkan, "Trying Vulkan library (second attempt): {}", filename);
-        void(library->Load(filename));
-    }
-#endif
     return library;
 }
 

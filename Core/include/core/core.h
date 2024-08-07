@@ -184,6 +184,8 @@ public:
 
     [[nodiscard]] PerfStats::Results GetLastPerfStats();
 
+    double GetStableFrameTimeScale();
+
     /**
      * Gets a reference to the emulated CPU.
      * @returns A reference to the emulated CPU.
@@ -356,6 +358,9 @@ public:
         return false;
     }
 
+    /// Downcount will be limited to a smaller time slice.
+    void SetDowncountHack(bool enabled, u32 num_cores);
+
     /// Applies any changes to settings to this core instance.
     void ApplySettings();
 
@@ -366,7 +371,6 @@ private:
      * Initialize the emulated system.
      * @param emu_window Reference to the host-system window used for video output and keyboard
      *                   input.
-     * @param system_mode The system mode.
      * @return ResultStatus code, indicating if the operation succeeded.
      */
     [[nodiscard]] ResultStatus Init(Frontend::EmuWindow& emu_window,
@@ -392,7 +396,7 @@ private:
     std::unique_ptr<AudioCore::DspInterface> dsp_core;
 
     /// When true, signals that a reschedule should happen
-    bool reschedule_pending{};
+    bool reschedule_pending = false;
 
     std::unique_ptr<VideoCore::GPU> gpu;
 

@@ -1,8 +1,8 @@
 //
 //  EmulationWindow_Apple.h
-//  Limon
+//  Folium-iOS
 //
-//  Created by Jarrod Norwell on 1/20/24.
+//  Created by Jarrod Norwell on 25/7/2024.
 //
 
 #import <Metal/Metal.hpp>
@@ -25,6 +25,9 @@ public:
 
     virtual void StopPresenting();
     virtual void TryPresenting();
+    
+    int window_width;
+    int window_height;
 protected:
     void OnFramebufferSizeChanged();
     
@@ -32,13 +35,12 @@ protected:
     virtual void DestroyContext();
     virtual void DestroyWindowSurface();
 protected:
-    CA::MetalLayer* render_window, *host_window;
+    CA::MetalLayer* render_window;
+    CA::MetalLayer* host_window;
 
     bool is_portrait;
     
     CGSize m_size;
-    int window_width;
-    int window_height;
     
     std::unique_ptr<Frontend::GraphicsContext> core_context;
 };

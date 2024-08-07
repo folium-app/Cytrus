@@ -6,7 +6,7 @@
 #include <dynarmic/interface/A32/a32.h>
 #include <dynarmic/interface/optimization_flags.h>
 #include "common/assert.h"
-#include "common/microprofile.h"
+#include "common/profiling.h"
 #include "core/arm/dynarmic/arm_dynarmic.h"
 #include "core/arm/dynarmic/arm_dynarmic_cp15.h"
 #include "core/arm/dynarmic/arm_exclusive_monitor.h"
@@ -25,41 +25,50 @@ public:
         : parent(parent), svc_context(parent.system), memory(parent.memory) {}
     ~DynarmicUserCallbacks() = default;
 
-    std::uint8_t MemoryRead8(VAddr vaddr) override {
+    u8 MemoryRead8(VAddr vaddr) override {
         return memory.Read8(vaddr);
     }
-    std::uint16_t MemoryRead16(VAddr vaddr) override {
+
+    u16 MemoryRead16(VAddr vaddr) override {
         return memory.Read16(vaddr);
     }
-    std::uint32_t MemoryRead32(VAddr vaddr) override {
+
+    u32 MemoryRead32(VAddr vaddr) override {
         return memory.Read32(vaddr);
     }
-    std::uint64_t MemoryRead64(VAddr vaddr) override {
+
+    u64 MemoryRead64(VAddr vaddr) override {
         return memory.Read64(vaddr);
     }
 
-    void MemoryWrite8(VAddr vaddr, std::uint8_t value) override {
+    void MemoryWrite8(VAddr vaddr, u8 value) override {
         memory.Write8(vaddr, value);
     }
-    void MemoryWrite16(VAddr vaddr, std::uint16_t value) override {
+
+    void MemoryWrite16(VAddr vaddr, u16 value) override {
         memory.Write16(vaddr, value);
     }
-    void MemoryWrite32(VAddr vaddr, std::uint32_t value) override {
+
+    void MemoryWrite32(VAddr vaddr, u32 value) override {
         memory.Write32(vaddr, value);
     }
-    void MemoryWrite64(VAddr vaddr, std::uint64_t value) override {
+
+    void MemoryWrite64(VAddr vaddr, u64 value) override {
         memory.Write64(vaddr, value);
     }
 
     bool MemoryWriteExclusive8(u32 vaddr, u8 value, u8 expected) override {
         return memory.WriteExclusive8(vaddr, value, expected);
     }
+
     bool MemoryWriteExclusive16(u32 vaddr, u16 value, u16 expected) override {
         return memory.WriteExclusive16(vaddr, value, expected);
     }
+
     bool MemoryWriteExclusive32(u32 vaddr, u32 value, u32 expected) override {
         return memory.WriteExclusive32(vaddr, value, expected);
     }
+
     bool MemoryWriteExclusive64(u32 vaddr, u64 value, u64 expected) override {
         return memory.WriteExclusive64(vaddr, value, expected);
     }
@@ -70,7 +79,7 @@ public:
                         pc, MemoryReadCode(pc).value(), num_instructions);
     }
 
-    void CallSVC(std::uint32_t swi) override {
+    void CallSVC(u32 swi) override {
         svc_context.CallSVC(swi);
     }
 
@@ -103,14 +112,16 @@ public:
                    pc, MemoryReadCode(pc).value());
     }
 
-    void AddTicks(std::uint64_t ticks) override {
+    void AddTicks(u64 ticks) override {
         parent.GetTimer().AddTicks(ticks);
     }
-    std::uint64_t GetTicksRemaining() override {
+
+    u64 GetTicksRemaining() override {
         s64 ticks = parent.GetTimer().GetDowncount();
         return static_cast<u64>(ticks <= 0 ? 0 : ticks);
     }
-    std::uint64_t GetTicksForCode(bool is_thumb, VAddr, std::uint32_t instruction) override {
+
+    u64 GetTicksForCode(bool is_thumb, VAddr, u32 instruction) override {
         return Core::TicksForInstruction(is_thumb, instruction);
     }
 
@@ -130,11 +141,9 @@ ARM_Dynarmic::ARM_Dynarmic(Core::System& system_, Memory::MemorySystem& memory_,
 
 ARM_Dynarmic::~ARM_Dynarmic() = default;
 
-MICROPROFILE_DEFINE(ARM_Jit, "ARM JIT", "ARM JIT", MP_RGB(255, 64, 64));
-
 void ARM_Dynarmic::Run() {
     ASSERT(memory.GetCurrentPageTable() == current_page_table);
-    MICROPROFILE_SCOPE(ARM_Jit);
+    CITRA_PROFILE("Dynarmic", "ARM JIT");
 
     jit->Run();
 }

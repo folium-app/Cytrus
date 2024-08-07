@@ -42,6 +42,9 @@ enum class LayoutOption : u32 {
     SeparateWindows,
 #endif
     HybridScreen,
+#ifndef ANDROID // TODO: Implement custom layouts on Android
+    CustomLayout,
+#endif
     // Similiar to default, but better for mobile devices in portrait mode. Top screen in clamped to
     // the top of the frame, and the bottom screen is enlarged to match the top screen.
     MobilePortrait,
@@ -471,30 +474,37 @@ struct Values {
     SwitchableSetting<bool> async_presentation{true, "async_presentation"};
     SwitchableSetting<bool> use_hw_shader{true, "use_hw_shader"};
     SwitchableSetting<bool> use_disk_shader_cache{true, "use_disk_shader_cache"};
-    SwitchableSetting<bool> shaders_accurate_mul{true, "shaders_accurate_mul"};
+    SwitchableSetting<bool> shaders_accurate_mul{false, "shaders_accurate_mul"};
     SwitchableSetting<bool> use_vsync_new{true, "use_vsync_new"};
-    Setting<bool> use_shader_jit{false, "use_shader_jit"};
+    Setting<bool> use_shader_jit{true, "use_shader_jit"};
     SwitchableSetting<u32, true> resolution_factor{1, 0, 10, "resolution_factor"};
     SwitchableSetting<u16, true> frame_limit{100, 0, 1000, "frame_limit"};
     SwitchableSetting<TextureFilter> texture_filter{TextureFilter::None, "texture_filter"};
     SwitchableSetting<TextureSampling> texture_sampling{TextureSampling::GameControlled,
                                                         "texture_sampling"};
 
-    SwitchableSetting<LayoutOption> layout_option{LayoutOption::MobilePortrait, "layout_option"};
+    SwitchableSetting<LayoutOption> layout_option{LayoutOption::Default, "layout_option"};
     SwitchableSetting<bool> swap_screen{false, "swap_screen"};
     SwitchableSetting<bool> upright_screen{false, "upright_screen"};
     SwitchableSetting<float, true> large_screen_proportion{4.f, 1.f, 16.f,
                                                            "large_screen_proportion"};
     Setting<bool> custom_layout{false, "custom_layout"};
-    Setting<u16> custom_top_left{0, "custom_top_left"};
-    Setting<u16> custom_top_top{0, "custom_top_top"};
-    Setting<u16> custom_top_right{400, "custom_top_right"};
-    Setting<u16> custom_top_bottom{240, "custom_top_bottom"};
-    Setting<u16> custom_bottom_left{40, "custom_bottom_left"};
-    Setting<u16> custom_bottom_top{240, "custom_bottom_top"};
-    Setting<u16> custom_bottom_right{360, "custom_bottom_right"};
-    Setting<u16> custom_bottom_bottom{480, "custom_bottom_bottom"};
+    Setting<u16> custom_top_x{0, "custom_top_x"};
+    Setting<u16> custom_top_y{0, "custom_top_y"};
+    Setting<u16> custom_top_width{400, "custom_top_width"};
+    Setting<u16> custom_top_height{240, "custom_top_height"};
+    Setting<u16> custom_bottom_x{40, "custom_bottom_x"};
+    Setting<u16> custom_bottom_y{240, "custom_bottom_y"};
+    Setting<u16> custom_bottom_width{320, "custom_bottom_width"};
+    Setting<u16> custom_bottom_height{240, "custom_bottom_height"};
     Setting<u16> custom_second_layer_opacity{100, "custom_second_layer_opacity"};
+
+    SwitchableSetting<bool> screen_top_stretch{false, "screen_top_stretch"};
+    Setting<u16> screen_top_leftright_padding{0, "screen_top_leftright_padding"};
+    Setting<u16> screen_top_topbottom_padding{0, "screen_top_topbottom_padding"};
+    SwitchableSetting<bool> screen_bottom_stretch{false, "screen_bottom_stretch"};
+    Setting<u16> screen_bottom_leftright_padding{0, "screen_bottom_leftright_padding"};
+    Setting<u16> screen_bottom_topbottom_padding{0, "screen_bottom_topbottom_padding"};
 
     SwitchableSetting<float> bg_red{0.f, "bg_red"};
     SwitchableSetting<float> bg_green{0.f, "bg_green"};
@@ -511,7 +521,8 @@ struct Values {
 
     SwitchableSetting<bool> filter_mode{true, "filter_mode"};
     SwitchableSetting<std::string> pp_shader_name{"none (builtin)", "pp_shader_name"};
-    SwitchableSetting<std::string> anaglyph_shader_name{"dubois (builtin)", "anaglyph_shader_name"};
+    SwitchableSetting<std::string> anaglyph_shader_name{"rendepth (builtin)",
+                                                        "anaglyph_shader_name"};
 
     SwitchableSetting<bool> dump_textures{false, "dump_textures"};
     SwitchableSetting<bool> custom_textures{false, "custom_textures"};
@@ -522,6 +533,7 @@ struct Values {
     bool audio_muted;
     SwitchableSetting<AudioEmulation> audio_emulation{AudioEmulation::HLE, "audio_emulation"};
     SwitchableSetting<bool> enable_audio_stretching{true, "enable_audio_stretching"};
+    SwitchableSetting<bool> enable_realtime_audio{false, "enable_realtime_audio"};
     SwitchableSetting<float, true> volume{1.f, 0.f, 1.f, "volume"};
     Setting<AudioCore::SinkType> output_type{AudioCore::SinkType::Auto, "output_type"};
     Setting<std::string> output_device{"auto", "output_device"};
@@ -539,6 +551,20 @@ struct Values {
     Setting<bool> delay_start_for_lle_modules{true, "delay_start_for_lle_modules"};
     Setting<bool> use_gdbstub{false, "use_gdbstub"};
     Setting<u16> gdbstub_port{24689, "gdbstub_port"};
+
+    // Citra Enhanced Stuff / Tweaks
+    SwitchableSetting<bool> raise_cpu_ticks{false, "raise_cpu_ticks"};
+    SwitchableSetting<bool> skip_slow_draw{false, "skip_slow_draw"};
+    SwitchableSetting<bool> skip_texture_copy{false, "skip_texture_copy"};
+    SwitchableSetting<bool> skip_cpu_write{false, "skip_cpu_write"};
+    SwitchableSetting<bool> core_downcount_hack{false, "core_downcount_hack"};
+    SwitchableSetting<bool> priority_boost{true, "priority_boost"};
+    SwitchableSetting<bool> upscaling_hack{false, "upscaling_hack"};
+    // Reimplementation of old (and a bit broken) citra frameskip
+    // See https://github.com/CitraEnhanced/citra/commit/e279a6955edf644cf832dd329ac72931aea8add7
+    SwitchableSetting<u64> frame_skip{0, "frame_skip"};
+    // OpenGL Hack
+    SwitchableSetting<bool> gl_stream_buffer_hack{true, "gl_stream_buffer_hack"};
 
     // Miscellaneous
     Setting<std::string> log_filter{"*:Info", "log_filter"};

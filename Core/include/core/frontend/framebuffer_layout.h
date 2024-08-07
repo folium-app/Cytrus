@@ -123,7 +123,7 @@ FramebufferLayout LargeFrameLayout(u32 width, u32 height, bool is_swapped, bool 
  * and 1x top and bottom screen on the left
  * @param width Window framebuffer width in pixels
  * @param height Window framebuffer height in pixels
- * @param is_swapped if true, the bottom screen will be the large display
+ * @param swapped if true, the bottom screen will be the large display
  * @param upright if true, the screens will be rotated 90 degrees anti-clockwise
  * @return Newly created FramebufferLayout object with default screen regions initialized
  */

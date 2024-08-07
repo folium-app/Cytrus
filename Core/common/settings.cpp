@@ -81,12 +81,20 @@ void LogSettings() {
     };
 
     LOG_INFO(Config, "Citra Configuration:");
+    log_setting("Core_FrameSkip", values.frame_skip.GetValue());
     log_setting("Core_UseCpuJit", values.use_cpu_jit.GetValue());
     log_setting("Core_CPUClockPercentage", values.cpu_clock_percentage.GetValue());
+    log_setting("Core_RaiseCPUTicks", values.raise_cpu_ticks.GetValue());
+    log_setting("Core_DowncountHack", values.core_downcount_hack.GetValue());
+    log_setting("Core_PriorityBoost", values.priority_boost.GetValue());
     log_setting("Renderer_UseGLES", values.use_gles.GetValue());
     log_setting("Renderer_GraphicsAPI", GetGraphicsAPIName(values.graphics_api.GetValue()));
     log_setting("Renderer_AsyncShaders", values.async_shader_compilation.GetValue());
     log_setting("Renderer_AsyncPresentation", values.async_presentation.GetValue());
+    log_setting("Renderer_SkipSlowDraw", values.skip_slow_draw.GetValue());
+    log_setting("Renderer_SkipTextureCopy", values.skip_texture_copy.GetValue());
+    log_setting("Renderer_SkipCPUWrite", values.skip_cpu_write.GetValue());
+    log_setting("Renderer_UpscalingHack", values.upscaling_hack.GetValue());
     log_setting("Renderer_SpirvShaderGen", values.spirv_shader_gen.GetValue());
     log_setting("Renderer_Debug", values.renderer_debug.GetValue());
     log_setting("Renderer_UseHwShader", values.use_hw_shader.GetValue());
@@ -121,6 +129,7 @@ void LogSettings() {
     log_setting("Audio_InputType", values.input_type.GetValue());
     log_setting("Audio_InputDevice", values.input_device.GetValue());
     log_setting("Audio_EnableAudioStretching", values.enable_audio_stretching.GetValue());
+    log_setting("Audio_EnableRealtime", values.enable_realtime_audio.GetValue());
     using namespace Service::CAM;
     log_setting("Camera_OuterRightName", values.camera_name[OuterRightCamera]);
     log_setting("Camera_OuterRightConfig", values.camera_config[OuterRightCamera]);
@@ -171,10 +180,15 @@ void RestoreGlobalState(bool is_powered_on) {
     // Audio
     values.audio_emulation.SetGlobal(true);
     values.enable_audio_stretching.SetGlobal(true);
+    values.enable_realtime_audio.SetGlobal(true);
     values.volume.SetGlobal(true);
 
     // Core
+    values.frame_skip.SetGlobal(true);
     values.cpu_clock_percentage.SetGlobal(true);
+    values.raise_cpu_ticks.SetGlobal(true);
+    values.core_downcount_hack.SetGlobal(true);
+    values.priority_boost.SetGlobal(true);
     values.is_new_3ds.SetGlobal(true);
     values.lle_applets.SetGlobal(true);
 
@@ -184,6 +198,10 @@ void RestoreGlobalState(bool is_powered_on) {
     values.spirv_shader_gen.SetGlobal(true);
     values.async_shader_compilation.SetGlobal(true);
     values.async_presentation.SetGlobal(true);
+    values.skip_slow_draw.SetGlobal(true);
+    values.skip_texture_copy.SetGlobal(true);
+    values.skip_cpu_write.SetGlobal(true);
+    values.upscaling_hack.SetGlobal(true);
     values.use_hw_shader.SetGlobal(true);
     values.use_disk_shader_cache.SetGlobal(true);
     values.shaders_accurate_mul.SetGlobal(true);

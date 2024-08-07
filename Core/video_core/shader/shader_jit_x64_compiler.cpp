@@ -1260,4 +1260,4 @@ Xbyak::Label JitShader::CompilePrelude_Exp2() {
 
 } // namespace Pica::Shader
 
-#endif // CITRA_ARCH(x86_64)
+#endif // MANDARINE_ARCH(x86_64)

@@ -509,7 +509,7 @@ public:
     /**
      * Marks each page within the specified address range as cached or uncached.
      *
-     * @param vaddr  The virtual address indicating the start of the address range.
+     * @param start  The virtual address indicating the start of the address range.
      * @param size   The size of the address range in bytes.
      * @param cached Whether or not any pages within the address range should be
      *               marked as cached or uncached.

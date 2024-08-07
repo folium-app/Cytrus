@@ -253,6 +253,91 @@ System::ResultStatus System::SingleStep() {
     return RunLoop(false);
 }
 
+static void LoadOverrides(u64 title_id) {
+    // This gamelist gets better performance with these hacks
+    if (title_id == 0x00040000000D0000 || title_id == 0x0004000000076400 ||
+        title_id == 0x0004000000055F00 || title_id == 0x0004000000076500) {
+        // Luigi's Mansion: Dark Moon
+        Settings::values.raise_cpu_ticks = true;
+#if defined(ENABLE_VULKAN)
+    } else if (title_id == 0x0004000000030500 || title_id == 0x0004000000032D00 ||
+               title_id == 0x0004000000033C00) {
+        // Super Street Fighter IV: 3D Edition
+        // Fixes FPS drops while using vulkan for some devices
+        Settings::values.raise_cpu_ticks = true;
+#endif
+    } else if (title_id == 0x000400000008B400 || title_id == 0x0004000000030600 ||
+               title_id == 0x0004000000030800 || title_id == 0x0004000000030700) {
+        // Mario Kart 7
+        Settings::values.skip_texture_copy = true;
+    }
+
+#if defined(ENABLE_OPENGL)
+    // This gamelist have problems with stream buffer hack from opengl
+    const std::array<u64, 11> no_gl_sb_hack_ids = {
+        0x000400000019E700, // Armed Blue Gunvolt
+        0x00040000001A5600, // Armed Blue Gunvolt
+        0x000400000019B200, // Armed Blue Gunvolt 2
+        0x0004000000196A00, // Armed Blue Gunvolt 2
+        0x00040000001A6E00, // Armed Blue Gunvolt 2
+        0x0004000000149100, // Gravity Falls - Legend of the Gnome Gemulets
+        0x0004000000196900, // Shovel Knight
+        0x0004000000119A00, // Shovel Knight
+        0x000400000017C900, // Shovel Knight
+        0x000400000017E100, // Shovel Knight
+        0x000400000008FE00  // 1001 Spikes
+
+    };
+    for (auto id : no_gl_sb_hack_ids) {
+        if (title_id == id) {
+            Settings::values.gl_stream_buffer_hack = false;
+            break;
+        }
+    }
+#endif
+
+    // This gamelist may improve performance or rarely fix issues using this
+    const std::array<u64, 8> no_slow_draw_ids = {
+        0x0004000000068B00, // Tales of the Abyss / Pac Man Party 3D
+        0x0004000000061300, // Tales of the Abyss / Pac Man Party 3D
+        0x000400000004A700, // Tales of the Abyss / Pac Man Party 3D
+        0x000400000005D700, // Tales of the Abyss / Pac Man Party 3D
+        0x000400000015CB00, // New Atelier Rorona
+        0x000400000018E900, // My Hero Academia
+        0x000400000016AD00, // Dragon Quest Monsters Joker 3
+        0x00040000001ACB00  // Dragon Quest Monsters Joker 3 Professional
+    };
+    for (auto id : no_slow_draw_ids) {
+        if (title_id == id) {
+            Settings::values.skip_slow_draw = true;
+            break;
+        }
+    }
+
+    // This gamelist requires accurate multiplication to render properly
+    // Seems to be fine for PC platform, so enable for android only
+#if defined(ANDROID)
+    const std::array<u64, 10> accurate_mul_ids = {
+        0x0004000000033400, // The Legend of Zelda: Ocarina of Time 3D
+        0x0004000000033500, // The Legend of Zelda: Ocarina of Time 3D
+        0x0004000000033600, // The Legend of Zelda: Ocarina of Time 3D
+        0x000400000008F800, // The Legend of Zelda: Ocarina of Time 3D
+        0x000400000008F900, // The Legend of Zelda: Ocarina of Time 3D
+        0x00040000001B8F00, // Mario & Luigi: Superstar Saga + Bowsers Minions
+        0x00040000001B9000, // Mario & Luigi: Superstar Saga + Bowsers Minions
+        0x0004000000194B00, // Mario & Luigi: Superstar Saga + Bowsers Minions
+        0x00040000001D1400, // Mario & Luigi: Bowsers Inside Story + Bowser Jrs Journey
+        0x00040000001D1500  // Mario & Luigi: Bowsers Inside Story + Bowser Jrs Journey
+    };
+    for (auto id : accurate_mul_ids) {
+        if (title_id == id) {
+            Settings::values.shaders_accurate_mul = true;
+            break;
+        }
+    }
+#endif
+}
+
 System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::string& filepath,
                                   Frontend::EmuWindow* secondary_window) {
     FileUtil::SetCurrentRomPath(filepath);
@@ -296,6 +381,12 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
             return ResultStatus::ErrorSystemMode;
         }
     }
+
+    title_id = 0;
+    if (app_loader->ReadProgramId(title_id) != Loader::ResultStatus::Success) {
+        LOG_ERROR(Core, "Failed to find title id for ROM");
+    }
+    LoadOverrides(title_id);
 
     ASSERT(memory_mode.first);
     auto n3ds_hw_caps = app_loader->LoadNew3dsHwCapabilities();
@@ -347,11 +438,6 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
         }
     }
     kernel->SetCurrentProcess(process);
-    title_id = 0;
-    if (app_loader->ReadProgramId(title_id) != Loader::ResultStatus::Success) {
-        LOG_ERROR(Core, "Failed to find title id for ROM (Error {})",
-                  static_cast<u32>(load_result));
-    }
 
     cheat_engine.LoadCheatFile(title_id);
     cheat_engine.Connect();
@@ -389,6 +475,10 @@ PerfStats::Results System::GetAndResetPerfStats() {
 
 PerfStats::Results System::GetLastPerfStats() {
     return perf_stats ? perf_stats->GetLastStats() : PerfStats::Results{};
+}
+
+double System::GetStableFrameTimeScale() {
+    return perf_stats->GetStableFrameTimeScale();
 }
 
 void System::Reschedule() {
@@ -443,6 +533,10 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
 
     kernel->SetCPUs(cpu_cores);
     kernel->SetRunningCPU(cpu_cores[0].get());
+
+    if (Settings::values.core_downcount_hack) {
+        SetDowncountHack(true, num_cores);
+    }
 
     const auto audio_emulation = Settings::values.audio_emulation.GetValue();
     if (audio_emulation == Settings::AudioEmulation::HLE) {
@@ -581,6 +675,19 @@ void System::RegisterImageInterface(std::shared_ptr<Frontend::ImageInterface> im
     registered_image_interface = std::move(image_interface);
 }
 
+void System::SetDowncountHack(bool enabled, u32 num_cores) {
+    if (enabled) {
+        u32 hacks[4] = {1, 4, 2, 2};
+        for (u32 i = 0; i < num_cores; ++i) {
+            timing->GetTimer(i)->SetDowncountHack(hacks[i]);
+        }
+    } else {
+        for (u32 i = 0; i < num_cores; ++i) {
+            timing->GetTimer(i)->SetDowncountHack(0);
+        }
+    }
+}
+
 void System::Shutdown(bool is_deserializing) {
 
     // Shutdown emulation session
@@ -603,6 +710,9 @@ void System::Shutdown(bool is_deserializing) {
     cpu_cores.clear();
     exclusive_monitor.reset();
     timing.reset();
+
+    running_core = nullptr;
+    reschedule_pending = false;
 
     if (video_dumper && video_dumper->IsDumping()) {
         video_dumper->StopDumping();

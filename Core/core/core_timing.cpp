@@ -117,7 +117,7 @@ void Timing::UnscheduleEvent(const TimingEventType* event_type, std::uintptr_t u
             std::make_heap(timer->event_queue.begin(), timer->event_queue.end(), std::greater<>());
         }
     }
-    // TODO:remove events from ts_queue
+    // TODO: remove events from ts_queue
 }
 
 void Timing::RemoveEvent(const TimingEventType* event_type) {
@@ -134,7 +134,7 @@ void Timing::RemoveEvent(const TimingEventType* event_type) {
             std::make_heap(timer->event_queue.begin(), timer->event_queue.end(), std::greater<>());
         }
     }
-    // TODO:remove events from ts_queue
+    // TODO: remove events from ts_queue
 }
 
 void Timing::SetCurrentTimer(std::size_t core_id) {
@@ -176,7 +176,8 @@ u64 Timing::Timer::GetTicks() const {
 }
 
 void Timing::Timer::AddTicks(u64 ticks) {
-    downcount -= static_cast<u64>(ticks * cpu_clock_scale);
+    downcount -=
+        static_cast<u64>((Settings::values.raise_cpu_ticks ? 16000 : ticks) * cpu_clock_scale);
 }
 
 u64 Timing::Timer::GetIdleTicks() const {
@@ -216,6 +217,7 @@ void Timing::Timer::Advance() {
     executed_ticks += cycles_executed;
     slice_length = 0;
     downcount = 0;
+    downcount_hack = 0;
 
     is_timer_sane = true;
 
@@ -242,7 +244,7 @@ void Timing::Timer::SetNextSlice(s64 max_slice_length) {
             std::min<s64>(event_queue.front().time - executed_ticks, max_slice_length));
     }
 
-    downcount = slice_length;
+    downcount = slice_length >> downcount_hack;
 }
 
 void Timing::Timer::Idle() {

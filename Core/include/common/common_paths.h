@@ -52,10 +52,11 @@
 #define LOAD_DIR "load"
 #define SHADER_DIR "shaders"
 #define STATES_DIR "states"
+#define ICONS_DIR "icons"
 
 // Filenames
 // Files in the directory returned by GetUserPath(UserPath::LogDir)
-#define LOG_FILE "citra_log.txt"
+#define LOG_FILE "cytrus_log.txt"
 
 // Files in the directory returned by GetUserPath(UserPath::ConfigDir)
 #define EMU_CONFIG "emu.ini"

@@ -4,20 +4,19 @@
 
 #include "common/arch.h"
 #include "common/archives.h"
-#include "common/microprofile.h"
+#include "common/profiling.h"
 #include "common/scope_exit.h"
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/memory.h"
 #include "video_core/debug_utils/debug_utils.h"
+#include "video_core/gpu.h"
 #include "video_core/pica/pica_core.h"
 #include "video_core/pica/vertex_loader.h"
 #include "video_core/rasterizer_interface.h"
 #include "video_core/shader/shader.h"
 
 namespace Pica {
-
-MICROPROFILE_DEFINE(GPU_Drawing, "GPU", "Drawing", MP_RGB(50, 50, 240));
 
 using namespace DebugUtils;
 
@@ -134,6 +133,10 @@ void PicaCore::WriteInternalReg(u32 id, u32 value, u32 mask) {
         0x00ffff00, 0x00ffffff, 0xff000000, 0xff0000ff, 0xff00ff00, 0xff00ffff,
         0xffff0000, 0xffff00ff, 0xffffff00, 0xffffffff,
     };
+
+    // If we're skipping this frame, only allow trigger IRQ
+    if (VideoCore::g_skip_frame && id != PICA_REG_INDEX(trigger_irq))
+        return;
 
     // TODO: Figure out how register masking acts on e.g. vs.uniform_setup.set_value
     const u32 old_value = regs.internal.reg_array[id];
@@ -450,6 +453,8 @@ void PicaCore::SubmitImmediate(u32 value) {
 }
 
 void PicaCore::DrawImmediate() {
+    CITRA_PROFILE("PicaCore", "Draw Immediate");
+
     // Compile the vertex shader.
     shader_engine->SetupBatch(vs_setup, regs.internal.vs.main_offset);
 
@@ -486,7 +491,7 @@ void PicaCore::DrawImmediate() {
 }
 
 void PicaCore::DrawArrays(bool is_indexed) {
-    MICROPROFILE_SCOPE(GPU_Drawing);
+    CITRA_PROFILE("PicaCore", "Draw Arrays");
 
     // Track vertex in the debug recorder.
     if (debug_context) {
@@ -519,6 +524,8 @@ void PicaCore::DrawArrays(bool is_indexed) {
 
     // Attempt to use hardware vertex shaders if possible.
     if (accelerate_draw && rasterizer->AccelerateDrawBatch(is_indexed)) {
+        return;
+    } else if (Settings::values.skip_slow_draw) {
         return;
     }
 

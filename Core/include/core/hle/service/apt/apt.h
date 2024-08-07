@@ -592,7 +592,7 @@ public:
          *      4 : Media type
          *  Outputs:
          *      1 : Result of function, 0 on success, otherwise error code
-         * @param ctx
+         * @param ctx hle context request
          */
         void PrepareToDoApplicationJump(Kernel::HLERequestContext& ctx);
 

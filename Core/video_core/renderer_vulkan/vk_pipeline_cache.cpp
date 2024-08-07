@@ -7,7 +7,7 @@
 #include "common/common_paths.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
-#include "common/microprofile.h"
+#include "common/profiling.h"
 #include "common/scope_exit.h"
 #include "common/settings.h"
 #include "video_core/renderer_vulkan/pica_to_vk.h"
@@ -20,11 +20,10 @@
 #include "video_core/shader/generator/glsl_fs_shader_gen.h"
 #include "video_core/shader/generator/glsl_shader_gen.h"
 #include "video_core/shader/generator/spv_fs_shader_gen.h"
+#include "video_core/shader/generator/spv_shader_gen.h"
 
 using namespace Pica::Shader::Generator;
 using Pica::Shader::FSConfig;
-
-MICROPROFILE_DEFINE(Vulkan_Bind, "Vulkan", "Pipeline Bind", MP_RGB(192, 32, 32));
 
 namespace Vulkan {
 
@@ -88,8 +87,7 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
           DescriptorHeap{instance, scheduler.GetMasterSemaphore(), TEXTURE_BINDINGS<1>},
           DescriptorHeap{instance, scheduler.GetMasterSemaphore(), UTILITY_BINDINGS, 32}},
       trivial_vertex_shader{
-          instance, vk::ShaderStageFlagBits::eVertex,
-          GLSL::GenerateTrivialVertexShader(instance.IsShaderClipDistanceSupported(), true)} {
+          instance, SPIRV::GenerateTrivialVertexShader(instance.IsShaderClipDistanceSupported())} {
     scheduler.RegisterOnDispatch([this] { update_queue.Flush(); });
     profile = Pica::Shader::Profile{
         .has_separable_shaders = true,
@@ -193,7 +191,7 @@ void PipelineCache::SaveDiskCache() {
 }
 
 bool PipelineCache::BindPipeline(const PipelineInfo& info, bool wait_built) {
-    MICROPROFILE_SCOPE(Vulkan_Bind);
+    CITRA_PROFILE("Vulkan", "Pipeline Bind");
 
     u64 shader_hash = 0;
     for (u32 i = 0; i < MAX_SHADER_STAGES; i++) {
@@ -358,21 +356,36 @@ bool PipelineCache::UseProgrammableVertexShader(const Pica::RegsInternal& regs,
 
     const auto [it, new_config] = programmable_vertex_map.try_emplace(config);
     if (new_config) {
-        auto program = GLSL::GenerateVertexShader(setup, config, true);
-        if (program.empty()) {
-            LOG_ERROR(Render_Vulkan, "Failed to retrieve programmable vertex shader");
-            programmable_vertex_map[config] = nullptr;
-            return false;
+        const bool use_spirv = Settings::values.spirv_shader_gen.GetValue();
+        const vk::Device device = instance.GetDevice();
+
+        std::vector<u32> code;
+
+        if (use_spirv && false) {
+            // TODO: Generate vertex shader SPIRV from the given VS program
+            // code = SPIRV::GenerateVertexShader(setup, config, profile);
+        } else {
+            // Generate GLSL
+            const std::string program = GLSL::GenerateVertexShader(setup, config, true);
+            if (program.empty()) {
+                LOG_ERROR(Render_Vulkan, "Failed to retrieve programmable vertex shader");
+                programmable_vertex_map[config] = nullptr;
+                return false;
+            }
+            // Compile GLSL to SPIRV
+            code = CompileGLSLtoSPIRV(program, vk::ShaderStageFlagBits::eVertex, device);
         }
 
-        auto [iter, new_program] = programmable_vertex_cache.try_emplace(program, instance);
+        const u64 code_hash = Common::ComputeHash64(std::as_bytes(std::span(code)));
+
+        const auto [iter, new_program] = programmable_vertex_cache.try_emplace(code_hash, instance);
         auto& shader = iter->second;
 
+        // Queue worker thread to create shader module
         if (new_program) {
-            shader.program = std::move(program);
-            const vk::Device device = instance.GetDevice();
+            shader.program = std::move(code);
             workers.QueueWork([device, &shader] {
-                shader.module = Compile(shader.program, vk::ShaderStageFlagBits::eVertex, device);
+                shader.module = CompileSPV(shader.program, device);
                 shader.MarkDone();
             });
         }

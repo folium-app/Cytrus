@@ -1,8 +1,8 @@
 //
-//  DefaultConfiguration.h
+//  DefaultINI.h
 //  Folium
 //
-//  Created by Jarrod Norwell on 1/20/24.
+//  Created by Jarrod Norwell on 25/7/2024.
 //
 
 #pragma once
@@ -73,7 +73,7 @@ motion_device=
 #  - "emu_window" (default) for emulating touch input from mouse input to the emulation window. No parameters required
 #  - "cemuhookudp" reads touch input from a udp server that uses cemuhook's udp protocol
 #      - "min_x", "min_y", "max_x", "max_y": defines the udp device's touch screen coordinate system
-touch_device=
+touch_device= engine:emu_window
 
 # Most desktop operating systems do not expose a way to poll the motion state of the controllers
 # so as a way around it, cemuhook created a udp client/server protocol to broadcast the data directly
@@ -89,6 +89,9 @@ udp_input_port=
 # The pad to request data on. Should be between 0 (Pad 1) and 3 (Pad 4). (Default 0)
 udp_pad_index=
 
+# Use Artic Controller when connected to Artic Base Server. (Default 0)
+use_artic_base_controller=
+
 [Core]
 # Whether to use the Just-In-Time (JIT) compiler for CPU emulation
 # 0: Interpreter (slow), 1 (default): JIT (fast)
@@ -100,21 +103,41 @@ use_cpu_jit =
 # Range is any positive integer (but we suspect 25 - 400 is a good idea) Default is 100
 cpu_clock_percentage =
 
+# The applied frameskip amount. Must be a power of two.
+# 0 (default): No frameskip, 1: x2 frameskip, 2: x4 frameskip, 3: x8 frameskip, etc.
+frame_skip =
+
+# Set a custom value of CPU ticks.
+# 0 (default): Off, 1: On
+enable_custom_cpu_ticks =
+
+# Downcount will be limited to a smaller time slice.
+# 0 (default): Off, 1: On
+reduce_downcount_slice =
+
+# Boost low priority starved threads during kernel rescheduling.
+# 0: Off, 1 (default): On
+priority_boost_starved_threads =
+
 [Renderer]
-# Whether to render using OpenGL or Software
-# 0: Software, 1: OpenGL (default), 2: Vulkan
+# Whether to render using OpenGL
+# 1: OpenGL ES (default), 2: Vulkan
 graphics_api =
 
-# Whether to render using GLES or OpenGL
-# 0 (default): OpenGL, 1: GLES
-use_gles =
+# Whether to compile shaders on multiple worker threads (Vulkan only)
+# 0: Off, 1: On (default)
+async_shader_compilation =
+
+# Whether to emit PICA fragment shader using SPIRV or GLSL (Vulkan only)
+# 0: GLSL, 1: SPIR-V (default)
+spirv_shader_gen =
 
 # Whether to use hardware shaders to emulate 3DS shaders
 # 0: Software, 1 (default): Hardware
 use_hw_shader =
 
 # Whether to use accurate multiplication in hardware shaders
-# 0: Off (Faster, but causes issues in some games) 1: On (Default. Slower, but correct)
+# 0: Off (Default. Faster, but causes issues in some games) 1: On (Slower, but correct)
 shaders_accurate_mul =
 
 # Whether to use the Just-In-Time (JIT) compiler for shader emulation
@@ -126,6 +149,10 @@ use_shader_jit =
 # 0: Off, 1 (default): On
 use_vsync_new =
 
+# Increases graphics throughput on supported devices, improving performance.
+# 0 (default): Off, 1: On
+adreno_gpu_boost =
+
 # Reduce stuttering by storing and loading generated shaders to disk
 # 0: Off, 1 (default. On)
 use_disk_shader_cache =
@@ -135,22 +162,17 @@ use_disk_shader_cache =
 # factor for the 3DS resolution
 resolution_factor =
 
-# Texture filter
-# 0: None, 1: Anime4K, 2: Bicubic, 3: Nearest Neighbor, 4: ScaleForce, 5: xBRZ
-texture_filter =
+# Whether to enable V-Sync (caps the framerate at 60FPS) or not.
+# 0 (default): Off, 1: On
+vsync_enabled =
 
-# Limits the speed of the game to run no faster than this value as a percentage of target speed.
-# Will not have an effect if unthrottled is enabled.
-# 5 - 995: Speed limit as a percentage of target game speed. 0 for unthrottled. 100 (default)
+# Turns on the frame limiter, which will limit frames output to the target game speed
+# 0: Off, 1: On (default)
+use_frame_limit =
+
+# Limits the speed of the game to run no faster than this value as a percentage of target speed
+# 1 - 9999: Speed limit as a percentage of target game speed. 100 (default)
 frame_limit =
-
-# Overrides the frame limiter to use frame_limit_alternate instead of frame_limit.
-# 0: Off (default), 1: On
-use_frame_limit_alternate =
-
-# Alternate speed limit to be used instead of frame_limit if use_frame_limit_alternate is enabled
-# 5 - 995: Speed limit as a percentage of target game speed. 0 for unthrottled. 200 (default)
-frame_limit_alternate =
 
 # The clear color for the renderer. What shows up on the sides of the bottom screen.
 # Must be in range of 0.0-1.0. Defaults to 0.0 for all.
@@ -159,16 +181,12 @@ bg_blue =
 bg_green =
 
 # Whether and how Stereoscopic 3D should be rendered
-# 0 (default): Off, 1: Side by Side, 2: Anaglyph, 3: Interlaced, 4: Reverse Interlaced
+# 0 (default): Off, 1: Side by Side, 2: Anaglyph, 3: Interlaced, 4: Reverse Interlaced, 5: Cardboard VR
 render_3d =
 
 # Change 3D Intensity
 # 0 - 100: Intensity. 0 (default)
 factor_3d =
-
-# Change Default Eye to Render When in Monoscopic Mode
-# 0 (default): Left, 1: Right
-mono_render_option =
 
 # The name of the post processing shader to apply.
 # Loaded from shaders if render_3d is off or side by side.
@@ -183,16 +201,25 @@ anaglyph_shader_name =
 # 0: Nearest, 1 (default): Linear
 filter_mode =
 
+# Delays the game render thread by the specified amount of microseconds
+# Set to 0 for no delay, only useful in dynamic-fps games to simulate GPU delay.
+delay_game_render_thread_us =
+
+# Ignores software vertex shaders from PICA core
+# 0: Off, 1 (default): On
+force_hw_vertex_shaders =
+
+# Ignores texture copies if src_surface_id is null
+# 0: Off, 1 (default): On
+disable_surface_texture_copy =
+
+# Ignores CPU write if there is a region to invalidate from rasterizer cache
+# 0: Off, 1 (default): On
+disable_flush_cpu_write =
+
 [Layout]
 # Layout for the screen inside the render window.
-# 0 (default): Default Top Bottom Screen
-# 1: Single Screen Only
-# 2: Large Screen Small Screen
-# 3: Side by Side
-# 4: Separate Windows
-# 5: Hybrid Screen
-# 6: Mobile Portrait
-# 7: Mobile Landscape
+# 0 (default): Default Top Bottom Screen, 1: Single Screen Only, 2: Large Screen Small Screen, 3: Side by Side
 layout_option =
 
 # Toggle custom layout (using the settings below) on or off.
@@ -201,31 +228,29 @@ custom_layout =
 
 # Screen placement when using Custom layout option
 # 0x, 0y is the top left corner of the render window.
-custom_top_left =
-custom_top_top =
-custom_top_right =
-custom_top_bottom =
-custom_bottom_left =
-custom_bottom_top =
-custom_bottom_right =
-custom_bottom_bottom =
-
-# Opacity of second layer when using custom layout option (bottom screen unless swapped)
-custom_second_layer_opacity =
+custom_top_x =
+custom_top_y =
+custom_top_width =
+custom_top_height =
+custom_bottom_x =
+custom_bottom_y =
+custom_bottom_width =
+custom_bottom_height =
 
 # Swaps the prominent screen with the other screen.
 # For example, if Single Screen is chosen, setting this to 1 will display the bottom screen instead of the top screen.
 # 0 (default): Top Screen is prominent, 1: Bottom Screen is prominent
 swap_screen =
 
-# Toggle upright orientation, for book style games.
-# 0 (default): Off, 1: On
-upright_screen =
+# Screen placement settings when using Cardboard VR (render3d = 4)
+# 30 - 100: Screen size as a percentage of the viewport. 85 (default)
+cardboard_screen_size =
+# -100 - 100: Screen X-Coordinate shift as a percentage of empty space. 0 (default)
+cardboard_x_shift =
+# -100 - 100: Screen Y-Coordinate shift as a percentage of empty space. 0 (default)
+cardboard_y_shift =
 
-# The proportion between the large and small screens when playing in Large Screen Small Screen layout.
-# Must be a real value between 1.0 and 16.0. Default is 4
-large_screen_proportion =
-
+[Utility]
 # Dumps textures as PNG to dump/textures/[Title ID]/.
 # 0 (default): Off, 1: On
 dump_textures =
@@ -257,12 +282,16 @@ enable_dsp_lle_thread =
 # 0: No, 1 (default): Yes
 enable_audio_stretching =
 
+# Scales audio playback speed to account for drops in emulation framerate
+# 0 (default): No, 1: Yes
+enable_realtime_audio =
+
 # Output volume.
 # 1.0 (default): 100%, 0.0; mute
 volume =
 
 # Which audio output type to use.
-# 0 (default): Auto-select, 1: CoreAudio, 2: No audio input, 3: OpenAL, 4: SDL2
+# 0 (default): Auto-select, 1: No audio output, 2: Cubeb (if available), 3: OpenAL (if available), 4: SDL2 (if available)
 output_type =
 
 # Which audio output device to use.
@@ -270,7 +299,7 @@ output_type =
 output_device =
 
 # Which audio input type to use.
-# 0 (default): Auto-select, 1: No audio input, 2: OpenAL, 3: Static Noise
+# 0 (default): Auto-select, 1: No audio input, 2: Static noise, 3: Cubeb (if available), 4: OpenAL (if available)
 input_type =
 
 # Which audio input device to use.
@@ -282,21 +311,9 @@ input_device =
 # 1 (default): Yes, 0: No
 use_virtual_sd =
 
-# Whether to use custom storage locations
-# 1: Yes, 0 (default): No
-use_custom_storage =
-
-# The path of the virtual SD card directory.
-# empty (default) will use the user_path
-sdmc_directory =
-
-# The path of NAND directory.
-# empty (default) will use the user_path
-nand_directory =
-
 [System]
 # The system model that Citra will try to emulate
-# 0: Old 3DS, 1: New 3DS (default)
+# 0: Old 3DS (default), 1: New 3DS
 is_new_3ds =
 
 # Whether to use LLE system applets, if installed
@@ -306,6 +323,11 @@ lle_applets =
 # The system region that Citra will use during emulation
 # -1: Auto-select (default), 0: Japan, 1: USA, 2: Europe, 3: Australia, 4: China, 5: Korea, 6: Taiwan
 region_value =
+
+# The system language that Citra will use during emulation
+# 0: Japanese, 1: English (default), 2: French, 3: German, 4: Italian, 5: Spanish,
+# 6: Simplified Chinese, 7: Korean, 8: Dutch, 9: Portuguese, 10: Russian, 11: Traditional Chinese
+language =
 
 # The clock to use when citra starts
 # 0: System clock (default), 1: fixed time
@@ -324,9 +346,20 @@ init_ticks_type =
 # Defaults to 0.
 init_ticks_override =
 
+# Plugin loader state, if enabled plugins will be loaded from the SD card.
+# You can also set if homebrew apps are allowed to enable the plugin loader
+plugin_loader =
+allow_plugin_loader =
+
 [Camera]
 # Which camera engine to use for the right outer camera
-# blank (default): a dummy camera that always returns black image
+# blank: a dummy camera that always returns black image
+# image: loads a still image from the storage. When the camera is started, you will be prompted
+#        to select an image.
+# ndk (Default): uses the device camera. You can specify the camera ID to use in the config field.
+#                If you don't specify an ID, the default setting will be used. For outer cameras,
+#                the back-facing camera will be used. For the inner camera, the front-facing
+#                camera will be used. Please note that 'Legacy' cameras are not supported.
 camera_outer_right_name =
 
 # A config string for the right outer camera. Its meaning is defined by the camera engine
@@ -355,13 +388,17 @@ log_filter = *:Info
 # Record frame time data, can be found in the log directory. Boolean value
 record_frame_times =
 
+# Whether to enable additional debugging information during emulation
+# 0 (default): Off, 1: On
+renderer_debug =
+
 # Port for listening to GDB connections.
 use_gdbstub=false
 gdbstub_port=24689
 
-# Whether to enable additional debugging information during emulation
-# 0 (default): Off, 1: On
-renderer_debug =
+# Flush log output on every message
+# Immediately commits the debug log to file. Use this if citra crashes and the log output is being cut.
+instant_debug_log =
 
 # To LLE a service module add "LLE\<module name>=true"
 
@@ -373,30 +410,13 @@ web_api_url = https://api.citra-emu.org
 citra_username =
 citra_token =
 
-[Video Dumping]
-# Format of the video to output, default: webm
-output_format =
-
-# Options passed to the muxer (optional)
-# This is a param package, format: [key1]:[value1],[key2]:[value2],...
-format_options =
-
-# Video encoder used, default: libvpx-vp9
-video_encoder =
-
-# Options passed to the video codec (optional)
-video_encoder_options =
-
-# Video bitrate, default: 2500000
-video_bitrate =
-
-# Audio encoder used, default: libvorbis
-audio_encoder =
-
-# Options passed to the audio codec (optional)
-audio_encoder_options =
-
-# Audio bitrate, default: 64000
-audio_bitrate =
+[Citra Enhanced Stuff / Tweaks]
+raise_cpu_ticks =
+skip_slow_draw =
+skip_texture_copy =
+skip_cpu_write =
+core_downcount_hack =
+priority_boost =
+upscaling_hack =
 )";
 }

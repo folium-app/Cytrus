@@ -9,6 +9,9 @@
 #include "audio_core/input_details.h"
 #include "audio_core/null_input.h"
 #include "audio_core/static_input.h"
+#ifdef HAVE_CUBEB
+#include "audio_core/cubeb_input.h"
+#endif
 #ifdef HAVE_OPENAL
 #include "audio_core/openal_input.h"
 #endif
@@ -19,6 +22,18 @@ namespace AudioCore {
 namespace {
 // input_details is ordered in terms of desirability, with the best choice at the top.
 constexpr std::array input_details = {
+#ifdef HAVE_CUBEB
+    InputDetails{InputType::Cubeb, "Real Device (Cubeb)", true,
+                 [](Core::System& system, std::string_view device_id) -> std::unique_ptr<Input> {
+                     if (!system.HasMicPermission()) {
+                         LOG_WARNING(Audio,
+                                     "Microphone permission denied, falling back to null input.");
+                         return std::make_unique<NullInput>();
+                     }
+                     return std::make_unique<CubebInput>(std::string(device_id));
+                 },
+                 &ListCubebInputDevices},
+#endif
 #ifdef HAVE_OPENAL
     InputDetails{InputType::OpenAL, "Real Device (OpenAL)", true,
                  [](Core::System& system, std::string_view device_id) -> std::unique_ptr<Input> {

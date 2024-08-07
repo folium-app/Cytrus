@@ -2,56 +2,43 @@
 //  Cytrus.swift
 //  Cytrus
 //
-//  Created by Jarrod Norwell on 21/5/2024.
+//  Created by Jarrod Norwell on 12/7/2024.
 //
 
 import Foundation
-import QuartzCore.CAMetalLayer
-import MetalKit.MTKView
+import MetalKit
+import UIKit
 
-@objc public class Cytrus : NSObject {
+public struct Cytrus : @unchecked Sendable {
     public static let shared = Cytrus()
     
-    public let cytrusObjC = CytrusObjC.shared()
+    fileprivate let cytrusObjC = CytrusObjC.shared()
     
-    public func getVulkanLibrary() {
-        cytrusObjC.getVulkanLibrary()
+    public func informationForGame(at url: URL) -> CytrusGameInformation {
+        cytrusObjC.informationForGame(at: url)
     }
     
-    public func setMTKViewSize( size: CGSize) {
-        cytrusObjC.setMTKViewSize(size)
+    public func allocateVulkanLibrary() {
+        cytrusObjC.allocateVulkanLibrary()
     }
     
-    public func setMTKView(_ mtkView: MTKView, _ size: CGSize) {
-        cytrusObjC.setMTKView(mtkView, size: size)
+    public func deallocateVulkanLibrary() {
+        cytrusObjC.deallocateVulkanLibrary()
     }
     
-    public func bootHomeMenu() {
-        cytrusObjC.bootHomeMenu()
+    public func allocateMetalLayer(for layer: CAMetalLayer, with size: CGSize, isSecondary: Bool = false) {
+        cytrusObjC.allocateMetalLayer(layer, with: size, isSecondary: isSecondary)
     }
     
-    public func run(_ url: URL) {
-        cytrusObjC.run(url)
+    public func deallocateMetalLayers() {
+        cytrusObjC.deallocateMetalLayers()
     }
     
-    public func updateSettings() {
-        cytrusObjC.updateSettings()
+    public func insertCartridgeAndBoot(with url: URL) {
+        cytrusObjC.insertCartridgeAndBoot(url)
     }
     
-    public func orientationChanged(_ orientation: UIInterfaceOrientation, _ mtkView: MTKView) {
-        cytrusObjC.orientationChanged(orientation, mtkView: mtkView)
-    }
-    
-    public func information(_ url: URL) -> (title: String, titleIdentifier: UInt64, iconData: Data?) {
-        let information = cytrusObjC.gameInformation.information(for: url)
-        return (information.title, cytrusObjC.gameInformation.titleIdentifier(url), information.iconData)
-    }
-    
-    public func thumbstickMoved(_ thumbstick: VirtualControllerAnalogType, _ x: Float, _ y: Float) {
-        cytrusObjC.thumbstickMoved(thumbstick, x: CGFloat(x), y: CGFloat(y))
-    }
-    
-    public func touchBegan(_ point: CGPoint) {
+    public func touchBegan(at point: CGPoint) {
         cytrusObjC.touchBegan(at: point)
     }
     
@@ -59,7 +46,7 @@ import MetalKit.MTKView
         cytrusObjC.touchEnded()
     }
     
-    public func touchMoved(_ point: CGPoint) {
+    public func touchMoved(at point: CGPoint) {
         cytrusObjC.touchMoved(at: point)
     }
     
@@ -69,6 +56,10 @@ import MetalKit.MTKView
     
     public func virtualControllerButtonUp(_ button: VirtualControllerButtonType) {
         cytrusObjC.virtualControllerButtonUp(button)
+    }
+    
+    public func thumbstickMoved(_ thumbstick: VirtualControllerAnalogType, _ x: Float, _ y: Float) {
+        cytrusObjC.thumbstickMoved(thumbstick, x: CGFloat(x), y: CGFloat(y))
     }
     
     public func isPaused() -> Bool {
@@ -83,15 +74,15 @@ import MetalKit.MTKView
         cytrusObjC.stop()
     }
     
-    public func `import`(game url: URL) -> InstallStatus {
-        cytrusObjC.importGame(url)
+    public func running() -> Bool {
+        cytrusObjC.running()
     }
     
-    public func installed() -> [URL] {
-        cytrusObjC.installedGamePaths() as! [URL]
+    public func stopped() -> Bool {
+        cytrusObjC.stopped()
     }
     
-    public func system() -> [URL] {
-        cytrusObjC.systemGamePaths() as! [URL]
+    public func orientationChange(with orientation: UIInterfaceOrientation, using mtkView: MTKView) {
+        cytrusObjC.orientationChanged(orientation, metalView: mtkView)
     }
 }

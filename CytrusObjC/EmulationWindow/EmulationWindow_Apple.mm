@@ -1,14 +1,15 @@
 //
 //  EmulationWindow_Apple.mm
-//  Limon
+//  Folium-iOS
 //
-//  Created by Jarrod Norwell on 1/20/24.
+//  Created by Jarrod Norwell on 25/7/2024.
 //
+
+#import "EmulationWindow_Apple.h"
 
 #import <UIKit/UIKit.h>
 
-#include "EmulationWindow_Apple.h"
-
+#ifdef __cplusplus
 #include <algorithm>
 #include <array>
 #include <cstdlib>
@@ -22,7 +23,8 @@
 #include "video_core/renderer_base.h"
 #include "video_core/video_core.h"
 
-#import <SDL2/SDL.h>
+#include <SDL2/SDL.h>
+#endif
 
 EmulationWindow_Apple::EmulationWindow_Apple(CA::MetalLayer* surface, bool is_secondary, CGSize size) : Frontend::EmuWindow(is_secondary), host_window(surface), m_size(size) {
     is_portrait = true;
