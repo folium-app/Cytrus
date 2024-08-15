@@ -357,7 +357,7 @@ private:
     /**
      * Opens the message file for a notification ID and loads it to the message buffer
      * @param notification_index The index of the notification ID
-     * @param message The message buffer
+     * @param mesasge The message buffer
      * @returns Number of bytes read, or error code
      */
     ResultVal<std::size_t> GetNotificationMessage(const u32 notification_index,

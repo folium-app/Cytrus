@@ -99,8 +99,25 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugReportCallback(VkDebugReportFlagsEXT 
 
 std::shared_ptr<Common::DynamicLibrary> OpenLibrary(
     [[maybe_unused]] Frontend::GraphicsContext* context) {
+#ifdef ANDROID
+    // Android may override the Vulkan driver from the frontend.
+    if (auto library = context->GetDriverLibrary(); library) {
+        return library;
+    }
+#endif
     auto library = std::make_shared<Common::DynamicLibrary>();
+#ifdef __APPLE__
     void(library->Load("@rpath/MoltenVK.framework/MoltenVK"));
+#else
+    std::string filename = Common::DynamicLibrary::GetLibraryName("vulkan", 1);
+    LOG_DEBUG(Render_Vulkan, "Trying Vulkan library: {}", filename);
+    if (!library->Load(filename)) {
+        // Android devices may not have libvulkan.so.1, only libvulkan.so.
+        filename = Common::DynamicLibrary::GetLibraryName("vulkan");
+        LOG_DEBUG(Render_Vulkan, "Trying Vulkan library (second attempt): {}", filename);
+        void(library->Load(filename));
+    }
+#endif
     return library;
 }
 
@@ -283,9 +300,9 @@ vk::UniqueInstance CreateInstance(const Common::DynamicLibrary& library,
     const auto extensions = GetInstanceExtensions(window_type, enable_validation);
 
     const vk::ApplicationInfo application_info = {
-        .pApplicationName = "Citra",
+        .pApplicationName = "Mandarine",
         .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-        .pEngineName = "Citra Vulkan",
+        .pEngineName = "Mandarine Vulkan",
         .engineVersion = VK_MAKE_VERSION(1, 0, 0),
         .apiVersion = TargetVulkanApiVersion,
     };

@@ -5,7 +5,7 @@
 //  Created by Jarrod Norwell on 12/7/2024.
 //
 
-#include "Configuration.h"
+#import "Configuration.h"
 #import "CytrusObjC.h"
 #import "EmulationWindow_Vulkan.h"
 
@@ -94,6 +94,21 @@ static void TryShutdown() {
     Core::System& system{Core::System::GetInstance()};
         
     Configuration config{};
+    
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    
+    Settings::values.cpu_clock_percentage.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.v1.7.cpuClockPercentage"]] unsignedIntValue]);
+    Settings::values.is_new_3ds.SetValue([defaults boolForKey:@"cytrus.v1.7.useNew3DS"]);
+    Settings::values.lle_applets.SetValue([defaults boolForKey:@"cytrus.v1.7.useLLEApplets"]);
+    
+    Settings::values.region_value.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.v1.7.regionValue"]] intValue]);
+    
+    Settings::values.spirv_shader_gen.SetValue([defaults boolForKey:@"cytrus.v1.7.spirvShaderGeneration"]);
+    Settings::values.async_shader_compilation.SetValue([defaults boolForKey:@"cytrus.v1.7.useAsyncShaderCompilation"]);
+    Settings::values.async_presentation.SetValue([defaults boolForKey:@"cytrus.v1.7.useAsyncPresentation"]);
+    Settings::values.use_hw_shader.SetValue([defaults boolForKey:@"cytrus.v1.7.useHardwareShaders"]);
+    Settings::values.use_disk_shader_cache.SetValue([defaults boolForKey:@"cytrus.v1.7.useDiskShaderCache"]);
+    Settings::values.shaders_accurate_mul.SetValue([defaults boolForKey:@"cytrus.v1.7.useShadersAccurateMul"]);
     
     u64 program_id{};
     FileUtil::SetCurrentRomPath([url.path UTF8String]);
@@ -209,7 +224,6 @@ static void TryShutdown() {
     if (!Core::System::GetInstance().IsPoweredOn())
         return;
     
-    NSLog(@"%f, %f", metalView.bounds.size.width, metalView.bounds.size.height);
     top_window->SizeChanged(metalView.bounds.size);
     
     top_window->OrientationChanged(orientation, (__bridge CA::MetalLayer*)metalView.layer);

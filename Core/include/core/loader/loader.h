@@ -269,7 +269,7 @@ public:
     /**
      * Get the long title of the application
      * @param title Referencec to store the application title into
-     * @return ResultStatus result of function
+     * @param ResultStatus result of function
      */
     virtual ResultStatus ReadTitleLong([[maybe_unused]] std::string& title) {
         return ResultStatus::ErrorNotImplemented;

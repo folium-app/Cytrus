@@ -58,7 +58,7 @@ void Module::Interface::AddNotificationImpl(Kernel::HLERequestContext& ctx, bool
     const u32 message_size = rp.Pop<u32>();
     const u32 image_size = rp.Pop<u32>();
 
-    u32 process_id = 0;
+    u32 process_id;
     if (!news_s) {
         process_id = rp.PopPID();
         LOG_INFO(Service_NEWS,

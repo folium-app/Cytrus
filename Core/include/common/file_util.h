@@ -32,17 +32,20 @@ enum class UserPath {
     ConfigDir,
     DLLDir,
     DumpDir,
+    IconsDir,
+    LegacyCacheDir,  // LegacyCacheDir and LegacyConfigDir are only defined if migrating these
+    LegacyConfigDir, // directories is necessary (aka not a child of LegacyUserDir)
+    LegacyUserDir,
     LoadDir,
     LogDir,
     NANDDir,
+    PlayTimeDir,
     RootDir,
     SDMCDir,
     ShaderDir,
     StatesDir,
     SysDataDir,
     UserDir,
-    IconsDir,
-    PlayTimeDir,
 };
 
 // Replaces install-specific paths with standard placeholders, and back again
@@ -165,7 +168,7 @@ u64 ScanDirectoryTree(const std::string& directory, FSTEntry& parent_entry,
 /**
  * Recursively searches through a FSTEntry for files, and stores them.
  * @param directory The FSTEntry to start scanning from
- * @param output FSTEntry vector where the results will be stored.
+ * @param parent_entry FSTEntry vector where the results will be stored.
  */
 void GetAllFilesFromNestedEntries(FSTEntry& directory, std::vector<FSTEntry>& output);
 
@@ -185,11 +188,11 @@ void SetUserPath(const std::string& path = "");
 
 void SetCurrentRomPath(const std::string& path);
 
-// Returns a pointer to a string with a Citra data dir in the user's home
+// Returns a pointer to a string with a Mandarine data dir in the user's home
 // directory. To be used in "multi-user" mode (that is, installed).
 [[nodiscard]] const std::string& GetUserPath(UserPath path);
 
-// Returns a pointer to a string with the default Citra data dir in the user's home
+// Returns a pointer to a string with the default Mandarine data dir in the user's home
 // directory.
 [[nodiscard]] const std::string& GetDefaultUserPath(UserPath path);
 
@@ -271,8 +274,9 @@ public:
     IOFile();
 
     // flags is used for windows specific file open mode flags, which
-    // allows citra to open the logs in shared write mode, so that the file
-    // isn't considered "locked" while citra is open and people can open the log file and view it
+    // allows mandarine to open the logs in shared write mode, so that the file
+    // isn't considered "locked" while mandarine is open and people can open the log file and view
+    // it
     IOFile(const std::string& filename, const char openmode[], int flags = 0);
 
     ~IOFile();

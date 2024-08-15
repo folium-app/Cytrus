@@ -18,7 +18,8 @@
 #define EMU_DATA_DIR USER_DIR
 #else
 #ifdef _WIN32
-#define EMU_DATA_DIR "Citra"
+#define EMU_DATA_DIR "Mandarine"
+#define LEGACY_EMU_DATA_DIR "Citra"
 #elif defined(__APPLE__)
 #include <TargetConditionals.h>
 #if TARGET_OS_IPHONE
@@ -26,10 +27,13 @@
 #else
 #define APPLE_EMU_DATA_DIR "Library" DIR_SEP "Application Support" DIR_SEP "Citra"
 #endif
+#define LEGACY_APPLE_EMU_DATA_DIR "Library" DIR_SEP "Application Support" DIR_SEP "Citra"
 // For compatibility with XDG paths.
-#define EMU_DATA_DIR "citra-emu"
+#define EMU_DATA_DIR "mandarine-emu"
+#define LEGACY_EMU_DATA_DIR "citra-emu"
 #else
-#define EMU_DATA_DIR "citra-emu"
+#define EMU_DATA_DIR "mandarine-emu"
+#define LEGACY_EMU_DATA_DIR "citra-emu"
 #endif
 #endif
 

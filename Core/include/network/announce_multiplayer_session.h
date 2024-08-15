@@ -60,6 +60,7 @@ public:
 
     /**
      *  Returns a list of all room information the backend got
+     * @param func A function that gets executed when the async get finished, e.g. a signal
      * @return a list of rooms received from the web service
      */
     AnnounceMultiplayerRoom::RoomList GetRoomList();

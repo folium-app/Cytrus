@@ -3,7 +3,7 @@
 // Refer to the license.txt file included.
 
 #include "common/arch.h"
-#if CITRA_ARCH(x86_64)
+#if MANDARINE_ARCH(x86_64)
 
 #include <nihstro/shader_bytecode.h>
 #include <smmintrin.h>

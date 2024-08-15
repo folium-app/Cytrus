@@ -20,6 +20,7 @@
 #include "core/hle/kernel/mutex.h"
 #include "core/hle/result.h"
 #include "core/hle/service/service.h"
+#include "network/artic_base/artic_base_client.h"
 
 namespace Core {
 class System;
@@ -176,7 +177,7 @@ InstallStatus InstallFromNus(u64 title_id, int version = -1);
 
 /**
  * Get the update title ID for a title
- * @param title_id the title ID
+ * @param titleId the title ID
  * @returns The update title ID
  */
 u64 GetTitleUpdateId(u64 title_id);
@@ -245,7 +246,13 @@ public:
             return am;
         }
 
+        void UseArticClient(std::shared_ptr<Network::ArticBase::Client>& client) {
+            artic_client = client;
+        }
+
     protected:
+        void GetProgramInfosImpl(Kernel::HLERequestContext& ctx, bool ignore_platform);
+
         /**
          * AM::GetNumPrograms service function
          * Gets the number of installed titles in the requested media type
@@ -753,6 +760,9 @@ public:
 
     protected:
         std::shared_ptr<Module> am;
+
+        // Placed on the interface level so that only am:net and am:app have it.
+        std::shared_ptr<Network::ArticBase::Client> artic_client = nullptr;
     };
 
     /**

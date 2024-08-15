@@ -203,7 +203,7 @@ bool RasterizerCache<T>::AccelerateTextureCopy(const Pica::DisplayTransferConfig
 
     const auto [src_surface_id, src_rect] = GetTexCopySurface(src_params);
     if (!src_surface_id) {
-        return Settings::values.skip_texture_copy.GetValue();
+        return Settings::values.disable_surface_texture_copy.GetValue();
     }
 
     const SurfaceParams src_info = slot_surfaces[src_surface_id];
@@ -220,17 +220,7 @@ bool RasterizerCache<T>::AccelerateTextureCopy(const Pica::DisplayTransferConfig
     dst_params.stride =
         dst_params.width + src_info.PixelsInBytes(src_info.is_tiled ? output_gap / 8 : output_gap);
     dst_params.height = src_rect.GetHeight() / src_info.res_scale;
-
-    // some games like pokemon ultra sun have texture ghosting issues if we use
-    // more res than 240p. Do not upscale dst_params to fix it as a workaround.
-    // this may improve the performance as well, because we skip upscaling here
-    if (Settings::values.upscaling_hack && src_info.res_scale > 1 &&
-        (dst_params.height < 400 || dst_params.width < 240)) {
-        dst_params.res_scale = 1;
-    } else {
-        dst_params.res_scale = src_info.res_scale;
-    }
-
+    dst_params.res_scale = src_info.res_scale;
     dst_params.UpdateParams();
 
     // Since we are going to invalidate the gap if there is one, we will have to load it first
@@ -414,7 +404,7 @@ typename T::Sampler& RasterizerCache<T>::GetSampler(
 template <class T>
 void RasterizerCache<T>::CopySurface(Surface& src_surface, Surface& dst_surface,
                                      SurfaceInterval copy_interval) {
-    CITRA_PROFILE("RasterizerCache", "Copy Surface");
+    MANDARINE_PROFILE("RasterizerCache", "Copy Surface");
     const PAddr copy_addr = copy_interval.lower();
     const SurfaceParams subrect_params = dst_surface.FromInterval(copy_interval);
     ASSERT(subrect_params.GetInterval() == copy_interval);
@@ -1009,7 +999,7 @@ void RasterizerCache<T>::ValidateSurface(SurfaceId surface_id, PAddr addr, u32 s
 
 template <class T>
 void RasterizerCache<T>::UploadSurface(Surface& surface, SurfaceInterval interval) {
-    CITRA_PROFILE("RasterizerCache", "Upload Surface");
+    MANDARINE_PROFILE("RasterizerCache", "Upload Surface");
 
     const SurfaceParams load_info = surface.FromInterval(interval);
     ASSERT(load_info.addr >= surface.addr && load_info.end <= surface.end);
@@ -1059,7 +1049,7 @@ u64 RasterizerCache<T>::ComputeHash(const SurfaceParams& load_info, std::span<u8
 
 template <class T>
 bool RasterizerCache<T>::UploadCustomSurface(SurfaceId surface_id, SurfaceInterval interval) {
-    CITRA_PROFILE("RasterizerCache", "Upload Custom Surface");
+    MANDARINE_PROFILE("RasterizerCache", "Upload Custom Surface");
 
     Surface& surface = slot_surfaces[surface_id];
     const SurfaceParams load_info = surface.FromInterval(interval);
@@ -1107,7 +1097,7 @@ bool RasterizerCache<T>::UploadCustomSurface(SurfaceId surface_id, SurfaceInterv
 
 template <class T>
 void RasterizerCache<T>::DownloadSurface(Surface& surface, SurfaceInterval interval) {
-    CITRA_PROFILE("RasterizerCache", "Download Surface");
+    MANDARINE_PROFILE("RasterizerCache", "Download Surface");
 
     const SurfaceParams flush_info = surface.FromInterval(interval);
     const u32 flush_start = boost::icl::first(interval);
@@ -1170,18 +1160,6 @@ void RasterizerCache<T>::DownloadFillSurface(Surface& surface, SurfaceInterval i
 template <class T>
 bool RasterizerCache<T>::ValidateByReinterpretation(Surface& surface, SurfaceParams params,
                                                     const SurfaceInterval& interval) {
-    // Check if any part of the interval is owned by a dirty surface with a different stride
-    // than ours. If so, return true without further validation.
-    const auto it = std::find_if(
-        dirty_regions.begin(), dirty_regions.end(), [&interval, &surface, this](const auto& entry) {
-            return entry.second && slot_surfaces[entry.second].stride != surface.stride &&
-                   boost::icl::intersects(interval, entry.first);
-        });
-    if (it != dirty_regions.end()) {
-        return true;
-    }
-
-    // Look for a surface with matching parameters in the cache
     SurfaceId reinterpret_id =
         FindMatch<MatchFlags::Reinterpret>(params, ScaleMatch::Ignore, interval);
     if (reinterpret_id) {
@@ -1190,8 +1168,6 @@ bool RasterizerCache<T>::ValidateByReinterpretation(Surface& surface, SurfacePar
         if (boost::icl::is_empty(copy_interval & interval)) {
             return false;
         }
-
-        // Perform the reinterpretation if there's a matching surface in the cache
         const u32 res_scale = src_surface.res_scale;
         if (res_scale > surface.res_scale) {
             surface.ScaleUp(res_scale);
@@ -1210,8 +1186,17 @@ bool RasterizerCache<T>::ValidateByReinterpretation(Surface& surface, SurfacePar
         return runtime.Reinterpret(src_surface, surface, reinterpret);
     }
 
-    // No matching surface found in the cache
-    return false;
+    // No surfaces were found in the cache that had a matching bit-width.
+    // Before entering the slow path, check if part of the interval is owned
+    // by a gpu modified surface with a different stride than ours. This is indicative
+    // of texture aliasing by the guest, which for the vast majority of cases we don't
+    // need to validate.
+    // TODO: While this works for the vast majority of cases, in Fire Emblem: Shadows of Valentia
+    // the warping effect when running in dugeons relies on this stride reinterpretation.
+    // In the future this transformation should be properly implemented with a GPU shader.
+    const auto it = dirty_regions.find(interval);
+    return it != dirty_regions.end() && it->second &&
+           slot_surfaces[it->second].stride != surface.stride;
 }
 
 template <class T>
@@ -1225,8 +1210,10 @@ void RasterizerCache<T>::ClearAll(bool flush) {
     for (auto& pair : RangeFromInterval(cached_pages, flush_interval)) {
         const auto interval = pair.first & flush_interval;
 
-        const PAddr interval_start_addr = boost::icl::first(interval) << Memory::CITRA_PAGE_BITS;
-        const PAddr interval_end_addr = boost::icl::last_next(interval) << Memory::CITRA_PAGE_BITS;
+        const PAddr interval_start_addr = boost::icl::first(interval)
+                                          << Memory::MANDARINE_PAGE_BITS;
+        const PAddr interval_end_addr = boost::icl::last_next(interval)
+                                        << Memory::MANDARINE_PAGE_BITS;
         const u32 interval_size = interval_end_addr - interval_start_addr;
 
         memory.RasterizerMarkRegionCached(interval_start_addr, interval_size, false);
@@ -1306,7 +1293,7 @@ void RasterizerCache<T>::InvalidateRegion(PAddr addr, u32 size, SurfaceId region
         region_owner.MarkValid(invalid_interval);
     }
 
-    CITRA_PROFILE("RasterizerCache", "Invalidate Region");
+    MANDARINE_PROFILE("RasterizerCache", "Invalidate Region");
 
     boost::container::small_vector<SurfaceId, 4> remove_surfaces;
     ForEachSurfaceInRegion(addr, size, [&](SurfaceId surface_id, Surface& surface) {
@@ -1316,7 +1303,7 @@ void RasterizerCache<T>::InvalidateRegion(PAddr addr, u32 size, SurfaceId region
         // If the CPU is invalidating this region we want to remove it
         // to (likely) mark the memory pages as uncached
         if (!region_owner_id && size <= 8) {
-            if (Settings::values.skip_cpu_write) {
+            if (Settings::values.disable_flush_cpu_write) {
                 return;
             }
             FlushRegion(surface.addr, surface.size, surface_id);
@@ -1386,14 +1373,14 @@ void RasterizerCache<T>::UnregisterSurface(SurfaceId surface_id) {
     ForEachPage(surface.addr, surface.size, [this, surface_id](u64 page) {
         const auto page_it = page_table.find(page);
         if (page_it == page_table.end()) {
-            ASSERT_MSG(false, "Unregistering unregistered page=0x{:x}", page << CITRA_PAGEBITS);
+            ASSERT_MSG(false, "Unregistering unregistered page=0x{:x}", page << MANDARINE_PAGEBITS);
             return;
         }
         std::vector<SurfaceId>& surfaces = page_it.value();
         const auto vector_it = std::find(surfaces.begin(), surfaces.end(), surface_id);
         if (vector_it == surfaces.end()) {
             ASSERT_MSG(false, "Unregistering unregistered surface in page=0x{:x}",
-                       page << CITRA_PAGEBITS);
+                       page << MANDARINE_PAGEBITS);
             return;
         }
         surfaces.erase(vector_it);
@@ -1423,9 +1410,9 @@ void RasterizerCache<T>::UnregisterAll() {
 
 template <class T>
 void RasterizerCache<T>::UpdatePagesCachedCount(PAddr addr, u32 size, int delta) {
-    const u32 num_pages =
-        ((addr + size - 1) >> Memory::CITRA_PAGE_BITS) - (addr >> Memory::CITRA_PAGE_BITS) + 1;
-    const u32 page_start = addr >> Memory::CITRA_PAGE_BITS;
+    const u32 num_pages = ((addr + size - 1) >> Memory::MANDARINE_PAGE_BITS) -
+                          (addr >> Memory::MANDARINE_PAGE_BITS) + 1;
+    const u32 page_start = addr >> Memory::MANDARINE_PAGE_BITS;
     const u32 page_end = page_start + num_pages;
 
     // Interval maps will erase segments if count reaches 0, so if delta is negative we have to
@@ -1439,8 +1426,10 @@ void RasterizerCache<T>::UpdatePagesCachedCount(PAddr addr, u32 size, int delta)
         const auto interval = pair.first & pages_interval;
         const int count = pair.second;
 
-        const PAddr interval_start_addr = boost::icl::first(interval) << Memory::CITRA_PAGE_BITS;
-        const PAddr interval_end_addr = boost::icl::last_next(interval) << Memory::CITRA_PAGE_BITS;
+        const PAddr interval_start_addr = boost::icl::first(interval)
+                                          << Memory::MANDARINE_PAGE_BITS;
+        const PAddr interval_end_addr = boost::icl::last_next(interval)
+                                        << Memory::MANDARINE_PAGE_BITS;
         const u32 interval_size = interval_end_addr - interval_start_addr;
 
         if (delta > 0 && count == delta) {

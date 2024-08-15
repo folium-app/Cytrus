@@ -5,17 +5,15 @@
 //  Created by Jarrod Norwell on 25/7/2024.
 //
 
-#include "Configuration.h"
-#include "DefaultINI.h"
-#include "InputManager.h"
+#import "Configuration.h"
+#import "DefaultINI.h"
+#import "InputManager.h"
 
 #include <iomanip>
 #include <memory>
 #include <sstream>
 #include <unordered_map>
-
 #include <inih/INIReader.h>
-
 #include "common/file_util.h"
 #include "common/logging/backend.h"
 #include "common/logging/log.h"
@@ -133,16 +131,16 @@ void Configuration::ReadValues() {
         static_cast<u16>(sdl2_config->GetInteger("Controls", "udp_input_port",
                                                  InputCommon::CemuhookUDP::DEFAULT_PORT));
 
-    // ReadSetting("Controls", Settings::values.use_artic_base_controller);
+    ReadSetting("Controls", Settings::values.use_artic_base_controller);
 
     // Core
     ReadSetting("Core", Settings::values.use_cpu_jit);
     ReadSetting("Core", Settings::values.cpu_clock_percentage);
     ReadSetting("Core", Settings::values.frame_skip);
-    // ReadSetting("Core", Settings::values.enable_custom_cpu_ticks);
-    // ReadSetting("Core", Settings::values.custom_cpu_ticks);
-    // ReadSetting("Core", Settings::values.reduce_downcount_slice);
-    // ReadSetting("Core", Settings::values.priority_boost_starved_threads);
+    ReadSetting("Core", Settings::values.enable_custom_cpu_ticks);
+    ReadSetting("Core", Settings::values.custom_cpu_ticks);
+    ReadSetting("Core", Settings::values.reduce_downcount_slice);
+    ReadSetting("Core", Settings::values.priority_boost_starved_threads);
 
     // Renderer
     Settings::values.use_gles = sdl2_config->GetBoolean("Renderer", "use_gles", true);
@@ -160,7 +158,8 @@ void Configuration::ReadValues() {
     ReadSetting("Renderer", Settings::values.texture_filter);
     ReadSetting("Renderer", Settings::values.texture_sampling);
 
-    // Work around to map Android setting for enabling the frame limiter to the format Citra expects
+    // Work around to map Android setting for enabling the frame limiter to the format Mandarine
+    // expects
     if (sdl2_config->GetBoolean("Renderer", "use_frame_limit", true)) {
         ReadSetting("Renderer", Settings::values.frame_limit);
     } else {
@@ -181,10 +180,10 @@ void Configuration::ReadValues() {
     ReadSetting("Renderer", Settings::values.bg_red);
     ReadSetting("Renderer", Settings::values.bg_green);
     ReadSetting("Renderer", Settings::values.bg_blue);
-    // ReadSetting("Renderer", Settings::values.delay_game_render_thread_us);
-    // ReadSetting("Renderer", Settings::values.force_hw_vertex_shaders);
-    // ReadSetting("Renderer", Settings::values.disable_surface_texture_copy);
-    // ReadSetting("Renderer", Settings::values.disable_flush_cpu_write);
+    ReadSetting("Renderer", Settings::values.delay_game_render_thread_us);
+    ReadSetting("Renderer", Settings::values.force_hw_vertex_shaders);
+    ReadSetting("Renderer", Settings::values.disable_surface_texture_copy);
+    ReadSetting("Renderer", Settings::values.disable_flush_cpu_write);
 
     // Layout
     Settings::values.layout_option = static_cast<Settings::LayoutOption>(sdl2_config->GetInteger(
@@ -276,26 +275,20 @@ void Configuration::ReadValues() {
     ReadSetting("Debugging", Settings::values.renderer_debug);
     ReadSetting("Debugging", Settings::values.use_gdbstub);
     ReadSetting("Debugging", Settings::values.gdbstub_port);
-    // ReadSetting("Debugging", Settings::values.instant_debug_log);
+    ReadSetting("Debugging", Settings::values.instant_debug_log);
 
     for (const auto& service_module : Service::service_module_map) {
         bool use_lle = sdl2_config->GetBoolean("Debugging", "LLE\\" + service_module.name, false);
         Settings::values.lle_modules.emplace(service_module.name, use_lle);
     }
-    
-    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.raise_cpu_ticks);
-    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.skip_slow_draw);
-    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.skip_texture_copy);
-    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.skip_cpu_write);
-    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.core_downcount_hack);
-    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.priority_boost);
-    ReadSetting("Citra Enhanced Stuff / Tweaks", Settings::values.upscaling_hack);
 
     // Web Service
     NetSettings::values.web_api_url =
         sdl2_config->GetString("WebService", "web_api_url", "https://api.citra-emu.org");
-    NetSettings::values.citra_username = sdl2_config->GetString("WebService", "citra_username", "");
-    NetSettings::values.citra_token = sdl2_config->GetString("WebService", "citra_token", "");
+    NetSettings::values.mandarine_username =
+        sdl2_config->GetString("WebService", "mandarine_username", "");
+    NetSettings::values.mandarine_token =
+        sdl2_config->GetString("WebService", "mandarine_token", "");
 }
 
 void Configuration::Reload() {

@@ -418,7 +418,7 @@ struct TouchFromButtonMap {
     std::vector<std::string> buttons;
 };
 
-/// A special region value indicating that citra will automatically select a region
+/// A special region value indicating that mandarine will automatically select a region
 /// value to fit the region lockout info of the game
 static constexpr s32 REGION_VALUE_AUTO_SELECT = -1;
 
@@ -428,6 +428,7 @@ struct Values {
     int current_input_profile_index;          ///< The current input profile index
     std::vector<InputProfile> input_profiles; ///< The list of input profiles
     std::vector<TouchFromButtonMap> touch_from_button_maps;
+    Setting<bool> use_artic_base_controller{false, "use_artic_base_controller"};
 
     SwitchableSetting<bool> enable_gamemode{true, "enable_gamemode"};
 
@@ -476,12 +477,14 @@ struct Values {
     SwitchableSetting<bool> use_disk_shader_cache{true, "use_disk_shader_cache"};
     SwitchableSetting<bool> shaders_accurate_mul{false, "shaders_accurate_mul"};
     SwitchableSetting<bool> use_vsync_new{true, "use_vsync_new"};
-    Setting<bool> use_shader_jit{true, "use_shader_jit"};
+    Setting<bool> use_shader_jit{false, "use_shader_jit"};
     SwitchableSetting<u32, true> resolution_factor{1, 0, 10, "resolution_factor"};
     SwitchableSetting<u16, true> frame_limit{100, 0, 1000, "frame_limit"};
     SwitchableSetting<TextureFilter> texture_filter{TextureFilter::None, "texture_filter"};
     SwitchableSetting<TextureSampling> texture_sampling{TextureSampling::GameControlled,
                                                         "texture_sampling"};
+    SwitchableSetting<u16, true> delay_game_render_thread_us{0, 0, 16000,
+                                                             "delay_game_render_thread_us"};
 
     SwitchableSetting<LayoutOption> layout_option{LayoutOption::Default, "layout_option"};
     SwitchableSetting<bool> swap_screen{false, "swap_screen"};
@@ -529,6 +532,18 @@ struct Values {
     SwitchableSetting<bool> preload_textures{false, "preload_textures"};
     SwitchableSetting<bool> async_custom_loading{true, "async_custom_loading"};
 
+    // Tweaks
+    SwitchableSetting<bool> enable_custom_cpu_ticks{false, "enable_custom_cpu_ticks"};
+    SwitchableSetting<u64, true> custom_cpu_ticks{16000, 77, 65535, "custom_cpu_ticks"};
+    SwitchableSetting<bool> force_hw_vertex_shaders{false, "force_hw_vertex_shaders"};
+    SwitchableSetting<bool> disable_surface_texture_copy{false, "disable_surface_texture_copy"};
+    SwitchableSetting<bool> disable_flush_cpu_write{false, "disable_flush_cpu_write"};
+    SwitchableSetting<bool> priority_boost_starved_threads{true, "priority_boost_starved_threads"};
+    SwitchableSetting<bool> reduce_downcount_slice{false, "reduce_downcount_slice"};
+    // Reimplementation of old (and fixed) citra frameskip
+    // See https://github.com/mandarine3ds/mandarine/commit/e279a6955edf644cf832dd329ac72931aea8add7
+    SwitchableSetting<u64> frame_skip{0, "frame_skip"};
+
     // Audio
     bool audio_muted;
     SwitchableSetting<AudioEmulation> audio_emulation{AudioEmulation::HLE, "audio_emulation"};
@@ -551,20 +566,7 @@ struct Values {
     Setting<bool> delay_start_for_lle_modules{true, "delay_start_for_lle_modules"};
     Setting<bool> use_gdbstub{false, "use_gdbstub"};
     Setting<u16> gdbstub_port{24689, "gdbstub_port"};
-
-    // Citra Enhanced Stuff / Tweaks
-    SwitchableSetting<bool> raise_cpu_ticks{false, "raise_cpu_ticks"};
-    SwitchableSetting<bool> skip_slow_draw{false, "skip_slow_draw"};
-    SwitchableSetting<bool> skip_texture_copy{false, "skip_texture_copy"};
-    SwitchableSetting<bool> skip_cpu_write{false, "skip_cpu_write"};
-    SwitchableSetting<bool> core_downcount_hack{false, "core_downcount_hack"};
-    SwitchableSetting<bool> priority_boost{true, "priority_boost"};
-    SwitchableSetting<bool> upscaling_hack{false, "upscaling_hack"};
-    // Reimplementation of old (and a bit broken) citra frameskip
-    // See https://github.com/CitraEnhanced/citra/commit/e279a6955edf644cf832dd329ac72931aea8add7
-    SwitchableSetting<u64> frame_skip{0, "frame_skip"};
-    // OpenGL Hack
-    SwitchableSetting<bool> gl_stream_buffer_hack{true, "gl_stream_buffer_hack"};
+    Setting<bool> instant_debug_log{false, "instant_debug_log"};
 
     // Miscellaneous
     Setting<std::string> log_filter{"*:Info", "log_filter"};

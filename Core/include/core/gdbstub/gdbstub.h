@@ -108,7 +108,7 @@ bool GetCpuStepFlag();
 /**
  * When set to true, the CPU will step one instruction when the CPU is halted next.
  *
- * @param is_step step once when enabled
+ * @param is_step
  */
 void SetCpuStepFlag(bool is_step);
 

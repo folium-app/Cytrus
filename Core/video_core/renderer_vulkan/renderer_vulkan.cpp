@@ -72,6 +72,7 @@ RendererVulkan::RendererVulkan(Core::System& system, Pica::PicaCore& pica_,
 RendererVulkan::~RendererVulkan() {
     vk::Device device = instance.GetDevice();
     scheduler.Finish();
+    main_window.WaitPresent();
     device.waitIdle();
 
     device.destroyShaderModule(present_vertex_shader);
@@ -452,7 +453,7 @@ void RendererVulkan::ConfigureFramebufferTexture(TextureInfo& texture,
 }
 
 void RendererVulkan::FillScreen(Common::Vec3<u8> color, const TextureInfo& texture) {
-    return; // MARK: (jarrodnorwell) does this do anything
+    return;
     const vk::ClearColorValue clear_color = {
         .float32 =
             std::array{

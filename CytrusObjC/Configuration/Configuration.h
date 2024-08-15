@@ -7,12 +7,9 @@
 
 #pragma once
 
-#ifdef __cplusplus
 #include <memory>
 #include <string>
-
 #include "common/settings.h"
-#endif
 
 class INIReader;
 
