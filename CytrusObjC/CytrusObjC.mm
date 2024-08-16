@@ -97,18 +97,23 @@ static void TryShutdown() {
     
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     
-    Settings::values.cpu_clock_percentage.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.v1.7.cpuClockPercentage"]] unsignedIntValue]);
-    Settings::values.is_new_3ds.SetValue([defaults boolForKey:@"cytrus.v1.7.useNew3DS"]);
-    Settings::values.lle_applets.SetValue([defaults boolForKey:@"cytrus.v1.7.useLLEApplets"]);
+    Settings::values.cpu_clock_percentage.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.cpuClockPercentage"]] unsignedIntValue]);
+    Settings::values.is_new_3ds.SetValue([defaults boolForKey:@"cytrus.useNew3DS"]);
+    Settings::values.lle_applets.SetValue([defaults boolForKey:@"cytrus.useLLEApplets"]);
     
-    Settings::values.region_value.SetValue([[NSNumber numberWithInteger:[defaults integerForKey:@"cytrus.v1.7.regionValue"]] intValue]);
+    Settings::values.region_value.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.regionValue"]] unsignedIntValue]);
     
-    Settings::values.spirv_shader_gen.SetValue([defaults boolForKey:@"cytrus.v1.7.spirvShaderGeneration"]);
-    Settings::values.async_shader_compilation.SetValue([defaults boolForKey:@"cytrus.v1.7.useAsyncShaderCompilation"]);
-    Settings::values.async_presentation.SetValue([defaults boolForKey:@"cytrus.v1.7.useAsyncPresentation"]);
-    Settings::values.use_hw_shader.SetValue([defaults boolForKey:@"cytrus.v1.7.useHardwareShaders"]);
-    Settings::values.use_disk_shader_cache.SetValue([defaults boolForKey:@"cytrus.v1.7.useDiskShaderCache"]);
-    Settings::values.shaders_accurate_mul.SetValue([defaults boolForKey:@"cytrus.v1.7.useShadersAccurateMul"]);
+    Settings::values.spirv_shader_gen.SetValue([defaults boolForKey:@"cytrus.spirvShaderGeneration"]);
+    Settings::values.async_shader_compilation.SetValue([defaults boolForKey:@"cytrus.useAsyncShaderCompilation"]);
+    Settings::values.async_presentation.SetValue([defaults boolForKey:@"cytrus.useAsyncPresentation"]);
+    Settings::values.use_hw_shader.SetValue([defaults boolForKey:@"cytrus.useHardwareShaders"]);
+    Settings::values.use_disk_shader_cache.SetValue([defaults boolForKey:@"cytrus.useDiskShaderCache"]);
+    Settings::values.shaders_accurate_mul.SetValue([defaults boolForKey:@"cytrus.useShadersAccurateMul"]);
+    Settings::values.use_vsync_new.SetValue([defaults boolForKey:@"cytrus.useNewVSync"]);
+    Settings::values.use_shader_jit.SetValue([defaults boolForKey:@"cytrus.useShaderJIT"]);
+    Settings::values.resolution_factor.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.resolutionFactor"]] unsignedIntValue]);
+    Settings::values.texture_filter.SetValue((Settings::TextureFilter)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.textureFilter"]] unsignedIntValue]);
+    Settings::values.texture_sampling.SetValue((Settings::TextureSampling)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.textureSampling"]] unsignedIntValue]);
     
     u64 program_id{};
     FileUtil::SetCurrentRomPath([url.path UTF8String]);
