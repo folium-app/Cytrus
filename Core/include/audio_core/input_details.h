@@ -22,8 +22,7 @@ enum class InputType : u32 {
     Auto = 0,
     Null = 1,
     Static = 2,
-    Cubeb = 3,
-    OpenAL = 4,
+    OpenAL = 3
 };
 
 struct InputDetails {

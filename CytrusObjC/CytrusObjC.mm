@@ -97,12 +97,13 @@ static void TryShutdown() {
     
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     
+    // core
     Settings::values.cpu_clock_percentage.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.cpuClockPercentage"]] unsignedIntValue]);
-    Settings::values.is_new_3ds.SetValue([defaults boolForKey:@"cytrus.useNew3DS"]);
-    Settings::values.lle_applets.SetValue([defaults boolForKey:@"cytrus.useLLEApplets"]);
-    
+    Settings::values.is_new_3ds.SetValue([defaults boolForKey:@"cytrus.new3DS"]);
+    Settings::values.lle_applets.SetValue([defaults boolForKey:@"cytrus.lleApplets"]);
     Settings::values.region_value.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.regionValue"]] unsignedIntValue]);
     
+    // renderer
     Settings::values.spirv_shader_gen.SetValue([defaults boolForKey:@"cytrus.spirvShaderGeneration"]);
     Settings::values.async_shader_compilation.SetValue([defaults boolForKey:@"cytrus.useAsyncShaderCompilation"]);
     Settings::values.async_presentation.SetValue([defaults boolForKey:@"cytrus.useAsyncPresentation"]);
@@ -114,6 +115,25 @@ static void TryShutdown() {
     Settings::values.resolution_factor.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.resolutionFactor"]] unsignedIntValue]);
     Settings::values.texture_filter.SetValue((Settings::TextureFilter)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.textureFilter"]] unsignedIntValue]);
     Settings::values.texture_sampling.SetValue((Settings::TextureSampling)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.textureSampling"]] unsignedIntValue]);
+    Settings::values.render_3d.SetValue((Settings::StereoRenderOption)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.render3D"]] unsignedIntValue]);
+    Settings::values.factor_3d.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.factor3D"]] unsignedIntValue]);
+    Settings::values.mono_render_option.SetValue((Settings::MonoRenderOption)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.monoRender"]] unsignedIntValue]);
+    Settings::values.preload_textures.SetValue([defaults boolForKey:@"cytrus.preloadTextures"]);
+    
+    // audio
+    Settings::values.audio_muted = [defaults boolForKey:@"cytrus.audioMuted"];
+    Settings::values.audio_emulation.SetValue((Settings::AudioEmulation)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.audioEmulation"]] unsignedIntValue]);
+    Settings::values.enable_audio_stretching.SetValue([defaults boolForKey:@"cytrus.audioStretching"]);
+    Settings::values.enable_realtime_audio.SetValue([defaults boolForKey:@"cytrus.realtimeAudio"]);
+    Settings::values.output_type.SetValue((AudioCore::SinkType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.outputType"]] unsignedIntValue]);
+    Settings::values.input_type.SetValue((AudioCore::InputType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.inputType"]] unsignedIntValue]);
+    
+    // tweaks
+    Settings::values.force_hw_vertex_shaders.SetValue([defaults boolForKey:@"cytrus.hardwareVertexShaders"]);
+    Settings::values.disable_surface_texture_copy.SetValue([defaults boolForKey:@"cytrus.surfaceTextureCopy"]);
+    Settings::values.disable_flush_cpu_write.SetValue([defaults boolForKey:@"cytrus.flushCPUWrite"]);
+    Settings::values.priority_boost_starved_threads.SetValue([defaults boolForKey:@"cytrus.priorityBoostStarvedThreads"]);
+    Settings::values.reduce_downcount_slice.SetValue([defaults boolForKey:@"cytrus.reduceDowncountSlice"]);
     
     u64 program_id{};
     FileUtil::SetCurrentRomPath([url.path UTF8String]);
