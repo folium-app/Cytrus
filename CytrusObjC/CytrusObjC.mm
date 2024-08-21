@@ -186,6 +186,10 @@ static void TryShutdown() {
     }
 }
 
+-(ImportResultStatus) importGameAt:(NSURL *)url {
+    return (ImportResultStatus)Service::AM::InstallCIA([url.path UTF8String], [](std::size_t total_bytes_read, std::size_t file_size) {});
+}
+
 -(void) touchBeganAtPoint:(CGPoint)point {
     float h_ratio, w_ratio;
     h_ratio = top_window->GetFramebufferLayout().height / (top_window->window_height * [[UIScreen mainScreen] nativeScale]);
@@ -253,5 +257,61 @@ static void TryShutdown() {
     
     top_window->OrientationChanged(orientation, (__bridge CA::MetalLayer*)metalView.layer);
     Core::System::GetInstance().GPU().Renderer().NotifySurfaceChanged();
+}
+
+-(NSMutableArray<NSURL *> *) installedGamePaths {
+    NSMutableArray<NSURL *> *paths = @[].mutableCopy;
+    
+    const FileUtil::DirectoryEntryCallable ScanDir = [&paths, &ScanDir](u64*, const std::string& directory, const std::string& virtual_name) {
+        std::string path = directory + virtual_name;
+        if (FileUtil::IsDirectory(path)) {
+            path += '/';
+            FileUtil::ForeachDirectoryEntry(nullptr, path, ScanDir);
+        } else {
+            if (!FileUtil::Exists(path))
+                return false;
+            auto loader = Loader::GetLoader(path);
+            if (loader) {
+                bool executable{};
+                const Loader::ResultStatus result = loader->IsExecutable(executable);
+                if (Loader::ResultStatus::Success == result && executable) {
+                    [paths addObject:[NSURL fileURLWithPath:[NSString stringWithCString:path.c_str() encoding:NSUTF8StringEncoding]]];
+                }
+            }
+        }
+        return true;
+    };
+    
+    ScanDir(nullptr, "", FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir) + "Nintendo " "3DS/00000000000000000000000000000000/" "00000000000000000000000000000000/title/00040000");
+    
+    return paths;
+}
+
+-(NSMutableArray<NSURL *> *) systemGamePaths {
+    NSMutableArray<NSURL *> *paths = @[].mutableCopy;
+    
+    const FileUtil::DirectoryEntryCallable ScanDir = [&paths, &ScanDir](u64*, const std::string& directory, const std::string& virtual_name) {
+        std::string path = directory + virtual_name;
+        if (FileUtil::IsDirectory(path)) {
+            path += '/';
+            FileUtil::ForeachDirectoryEntry(nullptr, path, ScanDir);
+        } else {
+            if (!FileUtil::Exists(path))
+                return false;
+            auto loader = Loader::GetLoader(path);
+            if (loader) {
+                bool executable{};
+                const Loader::ResultStatus result = loader->IsExecutable(executable);
+                if (Loader::ResultStatus::Success == result && executable) {
+                    [paths addObject:[NSURL fileURLWithPath:[NSString stringWithCString:path.c_str() encoding:NSUTF8StringEncoding]]];
+                }
+            }
+        }
+        return true;
+    };
+    
+    ScanDir(nullptr, "", FileUtil::GetUserPath(FileUtil::UserPath::NANDDir) + "00000000000000000000000000000000/title/00040030");
+    
+    return paths;
 }
 @end

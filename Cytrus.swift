@@ -38,6 +38,10 @@ public struct Cytrus : @unchecked Sendable {
         cytrusObjC.insertCartridgeAndBoot(url)
     }
     
+    public func importGame(at url: URL) -> ImportResultStatus {
+        cytrusObjC.importGame(at: url)
+    }
+    
     public func touchBegan(at point: CGPoint) {
         cytrusObjC.touchBegan(at: point)
     }
@@ -84,5 +88,13 @@ public struct Cytrus : @unchecked Sendable {
     
     public func orientationChange(with orientation: UIInterfaceOrientation, using mtkView: MTKView) {
         cytrusObjC.orientationChanged(orientation, metalView: mtkView)
+    }
+    
+    public func installed() -> [URL] {
+        cytrusObjC.installedGamePaths() as? [URL] ?? []
+    }
+        
+    public func system() -> [URL] {
+        cytrusObjC.systemGamePaths() as? [URL] ?? []
     }
 }

@@ -207,6 +207,15 @@ typedef NS_ENUM(NSUInteger, VirtualControllerButtonType) {
     VirtualControllerButtonTypeGPIO14 = 782
 };
 
+typedef NS_ENUM(NSUInteger, ImportResultStatus) {
+    ImportResultStatusSuccess,
+    ImportResultStatusErrorFailedToOpenFile,
+    ImportResultStatusErrorFileNotFound,
+    ImportResultStatusErrorAborted,
+    ImportResultStatusErrorInvalid,
+    ImportResultStatusErrorEncrypted,
+};
+
 @interface CytrusGameInformation : NSObject
 @property (nonatomic, strong) NSString *company, *regions, *title;
 @property (nonatomic, strong) NSData *icon;
@@ -237,6 +246,8 @@ typedef NS_ENUM(NSUInteger, VirtualControllerButtonType) {
 
 -(void) insertCartridgeAndBoot:(NSURL *)url;
 
+-(ImportResultStatus) importGameAt:(NSURL *)url NS_SWIFT_NAME(importGame(at:));
+
 -(void) touchBeganAtPoint:(CGPoint)point;
 -(void) touchEnded;
 -(void) touchMovedAtPoint:(CGPoint)point;
@@ -254,6 +265,9 @@ typedef NS_ENUM(NSUInteger, VirtualControllerButtonType) {
 -(BOOL) stopped;
 
 -(void) orientationChanged:(UIInterfaceOrientation)orientation metalView:(MTKView *)metalView;
+
+-(NSMutableArray<NSURL *> *) installedGamePaths;
+-(NSMutableArray<NSURL *> *) systemGamePaths;
 @end
 
 NS_ASSUME_NONNULL_END
