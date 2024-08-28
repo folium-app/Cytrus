@@ -268,6 +268,8 @@ typedef NS_ENUM(NSUInteger, ImportResultStatus) {
 
 -(NSMutableArray<NSURL *> *) installedGamePaths;
 -(NSMutableArray<NSURL *> *) systemGamePaths;
+
+-(void) updateSettings;
 @end
 
 NS_ASSUME_NONNULL_END

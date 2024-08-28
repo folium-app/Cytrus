@@ -97,4 +97,8 @@ public struct Cytrus : @unchecked Sendable {
     public func system() -> [URL] {
         cytrusObjC.systemGamePaths() as? [URL] ?? []
     }
+    
+    public func updateSettings() {
+        cytrusObjC.updateSettings()
+    }
 }
