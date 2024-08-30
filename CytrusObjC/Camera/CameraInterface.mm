@@ -12,67 +12,23 @@
 #import <CoreImage/CoreImage.h>
 #import <CoreVideo/CoreVideo.h>
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
 #include "core/hle/service/cam/cam.h"
 
-void convertYUV420ToRGB565(uint8_t *yPlane, uint8_t *uvPlane, std::vector<uint16_t>& rgb565Buffer, int width, int height) {
-    rgb565Buffer.clear();
-    rgb565Buffer.reserve(width * height);
-    
-    for (int j = 0; j < height; j++) {
-        for (int i = 0; i < width; i++) {
-            uint8_t y = yPlane[j * width + i];
-            uint8_t u = uvPlane[(j / 2) * width + (i & ~1)];
-            uint8_t v = uvPlane[(j / 2) * width + (i & ~1) + 1];
-            
-            int c = y - 16;
-            int d = u - 128;
-            int e = v - 128;
-            
-            int r = (298 * c + 409 * e + 128) >> 8;
-            int g = (298 * c - 100 * d - 208 * e + 128) >> 8;
-            int b = (298 * c + 516 * d + 128) >> 8;
-            
-            r = std::max(0, std::min(255, r));
-            g = std::max(0, std::min(255, g));
-            b = std::max(0, std::min(255, b));
-            
-            uint16_t rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-            
-            rgb565Buffer.push_back(rgb565);
-        }
-    }
-}
-
-void convertYUV420ToYUV422(uint8_t *yPlane, uint8_t *uvPlane, std::vector<uint16_t>& yuv422Buffer, int width, int height) {
-    yuv422Buffer.clear();
-    yuv422Buffer.reserve(width * height);
-    
-    for (int j = 0; j < height; j++) {
-        for (int i = 0; i < width; i += 2) {
-            uint8_t y0 = yPlane[j * width + i];
-            uint8_t y1 = yPlane[j * width + i + 1];
-            
-            uint8_t u = uvPlane[(j / 2) * width + (i & ~1)];
-            uint8_t v = uvPlane[(j / 2) * width + (i & ~1) + 1];
-            
-            uint16_t yuv1 = (y0 << 8) | u;
-            uint16_t yuv2 = (y1 << 8) | v;
-            
-            yuv422Buffer.push_back(yuv1);
-            yuv422Buffer.push_back(yuv2);
-        }
-    }
-}
+#include <libyuv/libyuv.h> // unused for now
 
 @interface ObjCCamera : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate> {
-    AVCaptureSession *captureSession;
-    AVCaptureVideoDataOutput *videoOutput;
+    AVCaptureDevice *device;
+    AVCaptureSession *session;
+    AVCaptureDeviceInput *input;
+    AVCaptureVideoDataOutput *output;
     
     BOOL isRGB565;
     
     std::vector<uint16_t> framebuffer;
     
+    int64_t minFramesPerSecond, maxFramesPerSecond;
     CGFloat _width, _height;
 }
 
@@ -81,6 +37,7 @@ void convertYUV420ToYUV422(uint8_t *yPlane, uint8_t *uvPlane, std::vector<uint16
 -(void) stop;
 -(void) start;
 
+-(void) framesPerSecond:(Service::CAM::FrameRate)arg1;
 -(void) resolution:(Service::CAM::Resolution)arg1;
 -(void) format:(Service::CAM::OutputFormat)arg1;
 
@@ -92,15 +49,19 @@ void convertYUV420ToYUV422(uint8_t *yPlane, uint8_t *uvPlane, std::vector<uint16
 @implementation ObjCCamera
 -(ObjCCamera *) init {
     if (self = [super init]) {
-        captureSession = [[AVCaptureSession alloc] init];
-        captureSession.sessionPreset = AVCaptureSessionPresetHigh;
-
-        AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
-        NSError *error = NULL;
-        AVCaptureDeviceInput *input = [AVCaptureDeviceInput deviceInputWithDevice:device error:&error];
-
-        if (!error && [captureSession canAddInput:input])
-            [captureSession addInput:input];
+        session = [[AVCaptureSession alloc] init];
+        [session setSessionPreset:AVCaptureSessionPresetHigh];
+        
+        NSArray<AVCaptureDevice *> *devices = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[
+            AVCaptureDeviceTypeBuiltInWideAngleCamera
+        ] mediaType:AVMediaTypeVideo position:AVCaptureDevicePositionUnspecified].devices;
+        
+        [devices enumerateObjectsUsingBlock:^(AVCaptureDevice *obj, NSUInteger idx, BOOL *stop) {
+            if ([obj position] == AVCaptureDevicePositionBack) {
+                device = obj;
+                *stop = TRUE;
+            }
+        }];
     } return self;
 }
 
@@ -114,31 +75,97 @@ void convertYUV420ToYUV422(uint8_t *yPlane, uint8_t *uvPlane, std::vector<uint16
 }
 
 -(void) stop {
-    if ([captureSession isRunning])
-        [captureSession stopRunning];
+    if ([session isRunning])
+        [session stopRunning];
+    
+    [session removeInput:input];
+    [session removeOutput:output];
 }
 
 -(void) start {
-    videoOutput = [[AVCaptureVideoDataOutput alloc] init];
-    NSDictionary *outputSettings = @{
-        (NSString *)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange),
-        (NSString *)kCVPixelBufferWidthKey : @(_width),
-        (NSString *)kCVPixelBufferHeightKey : @(_height)
+    [device lockForConfiguration:NULL];
+    // configure
+    [device setActiveVideoMinFrameDuration:CMTimeMake(1, minFramesPerSecond)];
+    [device setActiveVideoMaxFrameDuration:CMTimeMake(1, maxFramesPerSecond)];
+    [device unlockForConfiguration];
+    
+    input = [AVCaptureDeviceInput deviceInputWithDevice:device error:NULL];
+    
+    if ([session canAddInput:input])
+        [session addInput:input];
+    
+    output = [[AVCaptureVideoDataOutput alloc] init];
+    
+    NSDictionary *settings = @{
+        (NSString *)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA)
     };
-    [videoOutput setVideoSettings:outputSettings];
-    [videoOutput setAlwaysDiscardsLateVideoFrames:YES];
-    [videoOutput setSampleBufferDelegate:self queue:dispatch_get_main_queue()];
     
-    if ([captureSession canAddOutput:videoOutput])
-        [captureSession addOutput:videoOutput];
+    [output setVideoSettings:settings];
+    [output setAlwaysDiscardsLateVideoFrames:YES];
+    [output setSampleBufferDelegate:self queue:dispatch_get_main_queue()];
     
-    if (![captureSession isRunning])
-        [captureSession startRunning];
+    if ([session canAddOutput:output])
+        [session addOutput:output];
+    
+    if (![session isRunning])
+        [session startRunning];
+}
+
+-(void) framesPerSecond:(Service::CAM::FrameRate)arg1 {
+    switch (arg1) {
+        case Service::CAM::FrameRate::Rate_15:
+            minFramesPerSecond = maxFramesPerSecond = 15;
+            break;
+        case Service::CAM::FrameRate::Rate_15_To_5:
+            minFramesPerSecond = 5;
+            maxFramesPerSecond = 15;
+            break;
+        case Service::CAM::FrameRate::Rate_15_To_2:
+            minFramesPerSecond = 2;
+            maxFramesPerSecond = 15;
+            break;
+        case Service::CAM::FrameRate::Rate_10:
+            minFramesPerSecond = maxFramesPerSecond = 15;
+            break;
+        case Service::CAM::FrameRate::Rate_8_5:
+            minFramesPerSecond = maxFramesPerSecond = 8.5;
+            break;
+        case Service::CAM::FrameRate::Rate_5:
+            minFramesPerSecond = maxFramesPerSecond = 5;
+            break;
+        case Service::CAM::FrameRate::Rate_20:
+            minFramesPerSecond = maxFramesPerSecond = 20;
+            break;
+        case Service::CAM::FrameRate::Rate_20_To_5:
+            minFramesPerSecond = 5;
+            maxFramesPerSecond = 20;
+            break;
+        case Service::CAM::FrameRate::Rate_30:
+            minFramesPerSecond = maxFramesPerSecond = 30;
+            break;
+        case Service::CAM::FrameRate::Rate_30_To_5:
+            minFramesPerSecond = 5;
+            maxFramesPerSecond = 30;
+            break;
+        case Service::CAM::FrameRate::Rate_15_To_10:
+            minFramesPerSecond = 10;
+            maxFramesPerSecond = 15;
+            break;
+        case Service::CAM::FrameRate::Rate_20_To_10:
+            minFramesPerSecond = 10;
+            maxFramesPerSecond = 20;
+            break;
+        case Service::CAM::FrameRate::Rate_30_To_10:
+            minFramesPerSecond = 10;
+            maxFramesPerSecond = 30;
+            break;
+    }
 }
 
 -(void) resolution:(Service::CAM::Resolution)arg1 {
     _width = arg1.width;
     _height = arg1.height;
+    framebuffer.resize(_height * _width);
 }
 
 -(void) format:(Service::CAM::OutputFormat)arg1 {
@@ -158,46 +185,71 @@ void convertYUV420ToYUV422(uint8_t *yPlane, uint8_t *uvPlane, std::vector<uint16
 }
 
 -(void) captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
-    CVPixelBufferRef pixelBuffer = [self scaledPixelBuffer:CMSampleBufferGetImageBuffer(sampleBuffer) toSize:{_width, _height}];
+    [connection setVideoOrientation:(AVCaptureVideoOrientation)[[UIDevice currentDevice] orientation]];
+    
+    CVPixelBufferRef ref = CMSampleBufferGetImageBuffer(sampleBuffer);
+    CVPixelBufferRef pixelBuffer = [self scaledPixelBuffer:ref toSize:{_width, _height}];
     
     CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
     
-    uint8_t *yPlane = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0);
-    uint8_t *uvPlane = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 1);
-    
-    if (isRGB565)
-        convertYUV420ToRGB565(yPlane, uvPlane, framebuffer, _width, _height);
-    else
-        convertYUV420ToYUV422(yPlane, uvPlane, framebuffer, _width, _height);
+    uint8_t *bgraData = (uint8_t *)CVPixelBufferGetBaseAddress(pixelBuffer);
+    size_t bgraStride = CVPixelBufferGetBytesPerRow(pixelBuffer);
+    size_t width = CVPixelBufferGetWidth(pixelBuffer);
+    size_t height = CVPixelBufferGetHeight(pixelBuffer);
     
     CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
+    
+    if (isRGB565) {
+        std::vector<uint16_t> rgb565Buffer(width * height);
+        
+        for (size_t y = 0; y < height; ++y) {
+            for (size_t x = 0; x < width; ++x) {
+                size_t bgraOffset = y * bgraStride + x * 4;
+                
+                uint8_t b = bgraData[bgraOffset];
+                uint8_t g = bgraData[bgraOffset + 1];
+                uint8_t r = bgraData[bgraOffset + 2];
+                
+                rgb565Buffer[y * width + x] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+            }
+        }
+        
+        memcpy(framebuffer.data(), rgb565Buffer.data(), width * height * sizeof(uint16_t));
+    }
 }
 
-- (CVPixelBufferRef)scaledPixelBuffer:(CVPixelBufferRef)pixelBuffer toSize:(CGSize)size {
-    // Create a CIImage from the CVPixelBuffer
+-(CVPixelBufferRef) scaledPixelBuffer:(CVPixelBufferRef)pixelBuffer toSize:(CGSize)size {
     CIImage *ciImage = [CIImage imageWithCVPixelBuffer:pixelBuffer];
-    
-    // Create a CIContext for rendering
     CIContext *context = [CIContext contextWithOptions:NULL];
     
-    // Define the target size for the output pixel buffer
-    CGSize targetSize = size;
+    CGSize inputSize = ciImage.extent.size;
     
-    // Create a new pixel buffer to hold the scaled image
+    CGFloat widthScale = size.width / inputSize.width;
+    CGFloat heightScale = size.height / inputSize.height;
+    CGFloat scaleFactor = MIN(widthScale, heightScale);
+    
+    CGSize scaledSize = CGSizeMake(inputSize.width * scaleFactor, inputSize.height * scaleFactor);
+    
     NSDictionary *pixelBufferAttributes = @{
         (NSString *)kCVPixelBufferCGImageCompatibilityKey: @YES,
         (NSString *)kCVPixelBufferCGBitmapContextCompatibilityKey: @YES
     };
-    CVPixelBufferRef scaledPixelBuffer;
-    CVPixelBufferCreate(kCFAllocatorDefault, targetSize.width, targetSize.height, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange, (__bridge CFDictionaryRef)pixelBufferAttributes, &scaledPixelBuffer);
     
-    // Lock the new pixel buffer
+    CVPixelBufferRef scaledPixelBuffer;
+    CVPixelBufferCreate(kCFAllocatorDefault, size.width, size.height, kCVPixelFormatType_32BGRA, (__bridge CFDictionaryRef)pixelBufferAttributes, &scaledPixelBuffer);
+    
     CVPixelBufferLockBaseAddress(scaledPixelBuffer, kCVPixelBufferLock_ReadOnly);
     
-    // Render the CIImage to the new pixel buffer
-    [context render:ciImage toCVPixelBuffer:scaledPixelBuffer];
+    CGAffineTransform scaleTransform = CGAffineTransformMakeScale(scaleFactor, scaleFactor);
+    CIImage *scaledImage = [ciImage imageByApplyingTransform:scaleTransform];
     
-    // Unlock the pixel buffer
+    CGFloat offsetX = (size.width - scaledSize.width) / 2.0;
+    CGFloat offsetY = (size.height - scaledSize.height) / 2.0;
+    CGAffineTransform translateTransform = CGAffineTransformMakeTranslation(offsetX, offsetY);
+    CIImage *centeredImage = [scaledImage imageByApplyingTransform:translateTransform];
+    
+    [context render:centeredImage toCVPixelBuffer:scaledPixelBuffer];
+    
     CVPixelBufferUnlockBaseAddress(scaledPixelBuffer, kCVPixelBufferLock_ReadOnly);
     
     return scaledPixelBuffer;
@@ -205,48 +257,55 @@ void convertYUV420ToYUV422(uint8_t *yPlane, uint8_t *uvPlane, std::vector<uint16
 @end
 
 namespace Camera {
-    iOSCameraInterface::~iOSCameraInterface() {}
-    
-    void iOSCameraInterface::StartCapture() {
-        NSLog(@"%s", __FUNCTION__);
-        [[ObjCCamera sharedInstance] start];
-    };
-    
-    void iOSCameraInterface::StopCapture() {
-        NSLog(@"%s", __FUNCTION__);
-        [[ObjCCamera sharedInstance] stop];
-    };
-    
-    void iOSCameraInterface::SetResolution(const Service::CAM::Resolution& resolution) {
-        NSLog(@"%s, %hu, %hu", __FUNCTION__, resolution.width, resolution.height);
-        [[ObjCCamera sharedInstance] resolution:resolution];
-    };
-    
-    void iOSCameraInterface::SetFlip(Service::CAM::Flip flip) {
-        NSLog(@"%s", __FUNCTION__);
-    };
-    
-    void iOSCameraInterface::SetEffect(Service::CAM::Effect effect) {
-        NSLog(@"%s", __FUNCTION__);
-    };
-    
-    void iOSCameraInterface::SetFormat(Service::CAM::OutputFormat format) {
-        NSLog(@"%s, %hhu", __FUNCTION__, format);
-        [[ObjCCamera sharedInstance] format:format];
-    };
-    
-    void iOSCameraInterface::SetFrameRate(Service::CAM::FrameRate frame_rate) {
-        NSLog(@"%s", __FUNCTION__);
-    };
-    
-    std::vector<u16> iOSCameraInterface::ReceiveFrame() {
-        NSLog(@"%s", __FUNCTION__);
-        
-        return [[ObjCCamera sharedInstance] frame];
-    };
-    
-    bool iOSCameraInterface::IsPreviewAvailable() {
-        NSLog(@"%s", __FUNCTION__);
-        return true;
-    };
+iOSCameraInterface::~iOSCameraInterface() {}
+
+void iOSCameraInterface::StartCapture() {
+    NSLog(@"%s", __FUNCTION__);
+    [[ObjCCamera sharedInstance] start];
+};
+
+void iOSCameraInterface::StopCapture() {
+    NSLog(@"%s", __FUNCTION__);
+    [[ObjCCamera sharedInstance] stop];
+};
+
+void iOSCameraInterface::SetResolution(const Service::CAM::Resolution& resolution) {
+    NSLog(@"%s, %hu, %hu", __FUNCTION__, resolution.width, resolution.height);
+    [[ObjCCamera sharedInstance] resolution:resolution];
+};
+
+void iOSCameraInterface::SetFlip(Service::CAM::Flip flip) {
+    NSLog(@"%s", __FUNCTION__);
+};
+
+void iOSCameraInterface::SetEffect(Service::CAM::Effect effect) {
+    NSLog(@"%s", __FUNCTION__);
+};
+
+void iOSCameraInterface::SetFormat(Service::CAM::OutputFormat format) {
+    NSLog(@"%s, %hhu", __FUNCTION__, format);
+    [[ObjCCamera sharedInstance] format:format];
+};
+
+void iOSCameraInterface::SetFrameRate(Service::CAM::FrameRate frame_rate) {
+    NSLog(@"%s", __FUNCTION__);
+    [[ObjCCamera sharedInstance] framesPerSecond:frame_rate];
+};
+
+std::vector<u16> iOSCameraInterface::ReceiveFrame() {
+    NSLog(@"%s", __FUNCTION__);
+    return [[ObjCCamera sharedInstance] frame];
+};
+
+bool iOSCameraInterface::IsPreviewAvailable() {
+    NSLog(@"%s", __FUNCTION__);
+    return true;
+};
 }
+
+// MARK: Missing from Citra
+/*
+ SetNoiseFilter
+ SetAutoExposure
+ SetAutoWhiteBalance
+ */
