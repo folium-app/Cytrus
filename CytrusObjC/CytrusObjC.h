@@ -26,6 +26,7 @@
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/frontend/applets/default_applets.h"
+#include "core/frontend/applets/swkbd.h"
 #include "core/hle/service/am/am.h"
 #include "core/hle/service/fs/archive.h"
 #include "core/loader/loader.h"
@@ -215,6 +216,20 @@ typedef NS_ENUM(NSUInteger, ImportResultStatus) {
     ImportResultStatusErrorInvalid,
     ImportResultStatusErrorEncrypted,
 };
+
+typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
+    KeyboardButtonConfigSingle,
+    KeyboardButtonConfigDual,
+    KeyboardButtonConfigTriple,
+    KeyboardButtonConfigNone
+};
+
+@interface KeyboardConfig : NSObject
+@property (nonatomic, strong) NSString * _Nullable hintText;
+@property (nonatomic, assign) KeyboardButtonConfig buttonConfig;
+
+-(KeyboardConfig *) initWithHintText:(NSString * _Nullable)hintText buttonConfig:(KeyboardButtonConfig)buttonConfig;
+@end
 
 @interface CytrusGameInformation : NSObject
 @property (nonatomic, strong) NSString *company, *regions, *title;

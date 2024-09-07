@@ -5,6 +5,8 @@
 //  Created by Jarrod Norwell on 12/7/2024.
 //
 
+#import <TargetConditionals.h>
+
 #import "Configuration.h"
 #import "CytrusObjC.h"
 #import "EmulationWindow_Vulkan.h"
@@ -13,6 +15,88 @@
 
 #import "CameraFactory.h"
 #import "InputManager.h"
+
+
+// MARK: Keyboard
+
+namespace SoftwareKeyboard {
+
+class Keyboard final : public Frontend::SoftwareKeyboard {
+public:
+    ~Keyboard();
+    
+    void Execute(const Frontend::KeyboardConfig& config) override;
+    void ShowError(const std::string& error) override;
+    
+    void KeyboardText(std::condition_variable& cv);
+    std::pair<std::string, uint8_t> GetKeyboardText(const Frontend::KeyboardConfig& config);
+    
+private:
+    __block NSString *_Nullable keyboardText = @"";
+    __block uint8_t buttonPressed = 0;
+    
+    __block BOOL isReady = FALSE;
+};
+
+} // namespace SoftwareKeyboard
+
+@implementation KeyboardConfig
+-(KeyboardConfig *) initWithHintText:(NSString *)hintText buttonConfig:(KeyboardButtonConfig)buttonConfig {
+    if (self = [super init]) {
+        self.hintText = hintText;
+        self.buttonConfig = buttonConfig;
+    } return self;
+}
+@end
+
+namespace SoftwareKeyboard {
+
+Keyboard::~Keyboard() = default;
+
+void Keyboard::Execute(const Frontend::KeyboardConfig& config) {
+    SoftwareKeyboard::Execute(config);
+    
+    std::pair<std::string, uint8_t> it = this->GetKeyboardText(config);
+    if (this->config.button_config != Frontend::ButtonConfig::None)
+        it.second = static_cast<uint8_t>(this->config.button_config);
+    
+    Finalize(it.first, it.second);
+}
+
+void Keyboard::ShowError(const std::string& error) {
+    printf("error = %s\n", error.c_str());
+}
+
+void Keyboard::KeyboardText(std::condition_variable& cv) {
+    [[NSNotificationCenter defaultCenter] addObserverForName:@"closeKeyboard" object:NULL queue:[NSOperationQueue mainQueue]
+                                                  usingBlock:^(NSNotification *notification) {
+        this->buttonPressed = (NSUInteger)notification.userInfo[@"buttonPressed"];
+        
+        NSString *_Nullable text = notification.userInfo[@"keyboardText"];
+        if (text != NULL)
+            this->keyboardText = text;
+        
+        isReady = TRUE;
+        cv.notify_all();
+    }];
+}
+
+std::pair<std::string, uint8_t> Keyboard::GetKeyboardText(const Frontend::KeyboardConfig& config) {
+    [[NSNotificationCenter defaultCenter] postNotification:[NSNotification notificationWithName:@"openKeyboard"
+                                                                                         object:[[KeyboardConfig alloc] initWithHintText:[NSString stringWithCString:config.hint_text.c_str() encoding:NSUTF8StringEncoding] buttonConfig:(KeyboardButtonConfig)config.button_config]]];
+    
+    std::condition_variable cv;
+    std::mutex mutex;
+    auto t1 = std::async(&Keyboard::KeyboardText, this, std::ref(cv));
+    std::unique_lock<std::mutex> lock(mutex);
+    while (!isReady)
+        cv.wait(lock);
+    
+    return std::make_pair([this->keyboardText UTF8String], this->buttonPressed);
+}
+}
+
+// MARK: Keyboard
 
 std::unique_ptr<EmulationWindow_Vulkan> top_window;
 std::shared_ptr<Common::DynamicLibrary> library;
@@ -153,7 +237,9 @@ static void TryShutdown() {
     
     Frontend::RegisterDefaultApplets(system);
     // system.RegisterMiiSelector(std::make_shared<MiiSelector::AndroidMiiSelector>());
-    // system.RegisterSoftwareKeyboard(std::make_shared<SoftwareKeyboard::Keyboard>());
+#if defined(TARGET_OS_IPHONE)
+    system.RegisterSoftwareKeyboard(std::make_shared<SoftwareKeyboard::Keyboard>());
+#endif
     
     InputManager::Init();
     
