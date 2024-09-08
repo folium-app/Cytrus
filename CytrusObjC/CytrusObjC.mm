@@ -182,6 +182,10 @@ static void TryShutdown() {
     
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     
+    Settings::values.camera_name[Service::CAM::InnerCamera] = "av_front";
+    Settings::values.camera_name[Service::CAM::OuterLeftCamera] = "av_rear";
+    Settings::values.camera_name[Service::CAM::OuterLeftCamera] = "av_rear";
+    
     // core
     Settings::values.use_cpu_jit.SetValue([defaults boolForKey:@"cytrus.cpuJIT"]);
     Settings::values.cpu_clock_percentage.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.cpuClockPercentage"]] unsignedIntValue]);
@@ -232,8 +236,10 @@ static void TryShutdown() {
     system.ApplySettings();
     Settings::LogSettings();
     
-    auto camera = std::make_unique<Camera::iOSCameraFactory>();
-    Camera::RegisterFactory("av", std::move(camera));
+    auto frontCamera = std::make_unique<Camera::iOSFrontCameraFactory>();
+    auto rearCamera = std::make_unique<Camera::iOSRearCameraFactory>();
+    Camera::RegisterFactory("av_front", std::move(frontCamera));
+    Camera::RegisterFactory("av_rear", std::move(rearCamera));
     
     Frontend::RegisterDefaultApplets(system);
     // system.RegisterMiiSelector(std::make_shared<MiiSelector::AndroidMiiSelector>());

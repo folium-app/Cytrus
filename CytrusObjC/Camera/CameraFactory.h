@@ -11,9 +11,19 @@
 #include "CameraInterface.h"
 
 namespace Camera {
-class iOSCameraFactory : public CameraFactory {
+class iOSRearCameraFactory : public CameraFactory {
 public:
-    ~iOSCameraFactory() override;
+    ~iOSRearCameraFactory() override;
+    
+    std::unique_ptr<CameraInterface> Create(const std::string& config,
+                                            const Service::CAM::Flip& flip) override;
+};
+}
+
+namespace Camera {
+class iOSFrontCameraFactory : public CameraFactory {
+public:
+    ~iOSFrontCameraFactory() override;
     
     std::unique_ptr<CameraInterface> Create(const std::string& config,
                                             const Service::CAM::Flip& flip) override;
