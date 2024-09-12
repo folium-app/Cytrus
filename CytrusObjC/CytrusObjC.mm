@@ -121,10 +121,12 @@ static void TryShutdown() {
         const auto regions = Regions(data);
         const auto title = Title(data);
         
-        self.icon = [NSData dataWithBytes:InformationForGame::Icon(data).data() length:48 * 48 * sizeof(uint16_t)];
-        self.company = [NSString stringWithCharacters:(const unichar*)publisher.c_str() length:publisher.length()];
-        self.regions = [NSString stringWithCString:regions.c_str() encoding:NSUTF8StringEncoding];
-        self.title = [NSString stringWithCharacters:(const unichar*)title.c_str() length:title.length()];
+        if (data.size() > 0) {
+            self.icon = [NSData dataWithBytes:InformationForGame::Icon(data).data() length:48 * 48 * sizeof(uint16_t)];
+            self.company = [NSString stringWithCharacters:(const unichar*)publisher.c_str() length:publisher.length()];
+            self.regions = [NSString stringWithCString:regions.c_str() encoding:NSUTF8StringEncoding];
+            self.title = [NSString stringWithCharacters:(const unichar*)title.c_str() length:title.length()];
+        }
     } return self;
 }
 @end
