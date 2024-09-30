@@ -380,10 +380,10 @@ static u32 vfp_double_fsqrt(ARMul_State* state, int dd, int unused, int dm, u32 
 }
 
 /*
- * Equal	:= ZC
- * Less than	:= N
- * Greater than	:= C
- * Unordered	:= CV
+ * Equal := ZC
+ * Less than := N
+ * Greater than := C
+ * Unordered := CV
  */
 static u32 vfp_compare(ARMul_State* state, int dd, int signal_on_qnan, s64 m, u32 fpscr) {
     s64 d;
@@ -1164,8 +1164,8 @@ static struct op fops[] = {
     {vfp_double_fnmul, 0}, {vfp_double_fsub, 0},  {vfp_double_fdiv, 0},
 };
 
-#define FREG_BANK(x) ((x)&0x0c)
-#define FREG_IDX(x) ((x)&3)
+#define FREG_BANK(x) ((x) & 0x0c)
+#define FREG_IDX(x) ((x) & 3)
 
 u32 vfp_double_cpdo(ARMul_State* state, u32 inst, u32 fpscr) {
     u32 op = inst & FOP_MASK;

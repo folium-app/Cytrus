@@ -40,7 +40,7 @@ private:
 namespace Vulkan {
 
 class Instance;
-class RenderManager;
+class RenderpassCache;
 
 constexpr u32 MAX_SHADER_STAGES = 3;
 constexpr u32 MAX_VERTEX_ATTRIBUTES = 16;
@@ -126,7 +126,7 @@ struct AttachmentInfo {
 };
 
 /**
- * Information about a graphics pipeline
+ * Information about a graphics/compute pipeline
  */
 struct PipelineInfo {
     BlendingState blending;
@@ -152,7 +152,6 @@ struct PipelineInfo {
 struct Shader : public Common::AsyncHandle {
     explicit Shader(const Instance& instance);
     explicit Shader(const Instance& instance, vk::ShaderStageFlagBits stage, std::string code);
-    explicit Shader(const Instance& instance, std::span<const u32> code);
     ~Shader();
 
     [[nodiscard]] vk::ShaderModule Handle() const noexcept {
@@ -161,12 +160,12 @@ struct Shader : public Common::AsyncHandle {
 
     vk::ShaderModule module;
     vk::Device device;
-    std::vector<u32> program;
+    std::string program;
 };
 
 class GraphicsPipeline : public Common::AsyncHandle {
 public:
-    explicit GraphicsPipeline(const Instance& instance, RenderManager& renderpass_cache,
+    explicit GraphicsPipeline(const Instance& instance, RenderpassCache& renderpass_cache,
                               const PipelineInfo& info, vk::PipelineCache pipeline_cache,
                               vk::PipelineLayout layout, std::array<Shader*, 3> stages,
                               Common::ThreadWorker* worker);
@@ -182,7 +181,7 @@ public:
 
 private:
     const Instance& instance;
-    RenderManager& renderpass_cache;
+    RenderpassCache& renderpass_cache;
     Common::ThreadWorker* worker;
 
     vk::UniquePipeline pipeline;

@@ -5,7 +5,7 @@
 #pragma once
 
 #include "common/arch.h"
-#if MANDARINE_ARCH(x86_64) || MANDARINE_ARCH(arm64)
+#if CYTRUS_ARCH(x86_64) || CYTRUS_ARCH(arm64)
 
 #include <memory>
 #include <unordered_map>
@@ -30,4 +30,4 @@ private:
 
 } // namespace Pica::Shader
 
-#endif // MANDARINE_ARCH(x86_64) || MANDARINE_ARCH(arm64)
+#endif // CYTRUS_ARCH(x86_64) || CYTRUS_ARCH(arm64)

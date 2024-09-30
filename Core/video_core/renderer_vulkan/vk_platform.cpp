@@ -32,9 +32,8 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data) {
 
-    switch (static_cast<u32>(callback_data->messageIdNumber)) {
+    switch (callback_data->messageIdNumber) {
     case 0x609a13b: // Vertex attribute at location not consumed by shader
-    case 0xc81ad50e:
         return VK_FALSE;
     default:
         break;
@@ -300,9 +299,9 @@ vk::UniqueInstance CreateInstance(const Common::DynamicLibrary& library,
     const auto extensions = GetInstanceExtensions(window_type, enable_validation);
 
     const vk::ApplicationInfo application_info = {
-        .pApplicationName = "Mandarine",
+        .pApplicationName = "Cytrus",
         .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-        .pEngineName = "Mandarine Vulkan",
+        .pEngineName = "Cytrus Vulkan",
         .engineVersion = VK_MAKE_VERSION(1, 0, 0),
         .apiVersion = TargetVulkanApiVersion,
     };

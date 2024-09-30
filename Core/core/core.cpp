@@ -16,7 +16,7 @@
 #include "core/hle/service/cam/cam.h"
 #include "core/hle/service/hid/hid.h"
 #include "core/hle/service/ir/ir_user.h"
-#if MANDARINE_ARCH(x86_64) || MANDARINE_ARCH(arm64)
+#if CYTRUS_ARCH(x86_64) || CYTRUS_ARCH(arm64)
 #include "core/arm/dynarmic/arm_dynarmic.h"
 #endif
 #include "core/arm/dyncom/arm_dyncom.h"
@@ -47,6 +47,7 @@
 #ifdef ENABLE_SCRIPTING
 #include "core/rpc/server.h"
 #endif
+#include "core/telemetry_session.h"
 #include "network/network.h"
 #include "video_core/custom_textures/custom_tex_manager.h"
 #include "video_core/gpu.h"
@@ -253,79 +254,13 @@ System::ResultStatus System::SingleStep() {
     return RunLoop(false);
 }
 
-static void LoadOverrides(u64 title_id) {
-    // Fully tested game that runs better and without issues with this tweak.
-    if (title_id == 0x000400000008B400 || title_id == 0x0004000000030600 ||
-        title_id == 0x0004000000030800 || title_id == 0x0004000000030700) {
-        // Mario Kart 7
-        Settings::values.disable_surface_texture_copy = true;
-    }
-
-    // Fully tested games that runs better and without issues with this tweak.
-    const std::array<u64, 8> force_hw_vertex_shaders_ids = {
-        0x0004000000068B00, // Tales of the Abyss / Pac Man Party 3D
-        0x0004000000061300, // Tales of the Abyss / Pac Man Party 3D
-        0x000400000004A700, // Tales of the Abyss / Pac Man Party 3D
-        0x000400000005D700, // Tales of the Abyss / Pac Man Party 3D
-        0x000400000015CB00, // New Atelier Rorona
-        0x000400000018E900, // My Hero Academia
-        0x000400000016AD00, // Dragon Quest Monsters Joker 3
-        0x00040000001ACB00  // Dragon Quest Monsters Joker 3 Professional
-    };
-    for (auto id : force_hw_vertex_shaders_ids) {
-        if (title_id == id) {
-            Settings::values.force_hw_vertex_shaders = true;
-            break;
-        }
-    }
-
-    // This gamelist requires accurate multiplication to render properly
-    // Seems to be fine for PC platform, so enable for android only
-#ifdef ANDROID
-    const std::array<u64, 10> accurate_mul_ids = {
-        0x0004000000033400, // The Legend of Zelda: Ocarina of Time 3D
-        0x0004000000033500, // The Legend of Zelda: Ocarina of Time 3D
-        0x0004000000033600, // The Legend of Zelda: Ocarina of Time 3D
-        0x000400000008F800, // The Legend of Zelda: Ocarina of Time 3D
-        0x000400000008F900, // The Legend of Zelda: Ocarina of Time 3D
-        0x00040000001B8F00, // Mario & Luigi: Superstar Saga + Bowsers Minions
-        0x00040000001B9000, // Mario & Luigi: Superstar Saga + Bowsers Minions
-        0x0004000000194B00, // Mario & Luigi: Superstar Saga + Bowsers Minions
-        0x00040000001D1400, // Mario & Luigi: Bowsers Inside Story + Bowser Jrs Journey
-        0x00040000001D1500  // Mario & Luigi: Bowsers Inside Story + Bowser Jrs Journey
-    };
-    for (auto id : accurate_mul_ids) {
-        if (title_id == id) {
-            Settings::values.shaders_accurate_mul = true;
-            break;
-        }
-    }
-#endif
-}
-
 System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::string& filepath,
                                   Frontend::EmuWindow* secondary_window) {
     FileUtil::SetCurrentRomPath(filepath);
-    if (early_app_loader) {
-        app_loader = std::move(early_app_loader);
-    } else {
-        app_loader = Loader::GetLoader(filepath);
-    }
+    app_loader = Loader::GetLoader(filepath);
     if (!app_loader) {
         LOG_CRITICAL(Core, "Failed to obtain loader for {}!", filepath);
         return ResultStatus::ErrorGetLoader;
-    }
-
-    if (restore_plugin_context.has_value() && restore_plugin_context->is_enabled &&
-        restore_plugin_context->use_user_load_parameters) {
-        u64_le program_id = 0;
-        app_loader->ReadProgramId(program_id);
-        if (restore_plugin_context->user_load_parameters.low_title_Id ==
-                static_cast<u32_le>(program_id) &&
-            restore_plugin_context->user_load_parameters.plugin_memory_strategy ==
-                Service::PLGLDR::PLG_LDR::PluginMemoryStrategy::PLG_STRATEGY_MODE3) {
-            app_loader->SetKernelMemoryModeOverride(Kernel::MemoryMode::Dev2);
-        }
     }
 
     auto memory_mode = app_loader->LoadKernelMemoryMode();
@@ -340,18 +275,10 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
             return ResultStatus::ErrorLoader_ErrorInvalidFormat;
         case Loader::ResultStatus::ErrorGbaTitle:
             return ResultStatus::ErrorLoader_ErrorGbaTitle;
-        case Loader::ResultStatus::ErrorArtic:
-            return ResultStatus::ErrorArticDisconnected;
         default:
             return ResultStatus::ErrorSystemMode;
         }
     }
-
-    title_id = 0;
-    if (app_loader->ReadProgramId(title_id) != Loader::ResultStatus::Success) {
-        LOG_ERROR(Core, "Failed to find title id for ROM");
-    }
-    LoadOverrides(title_id);
 
     ASSERT(memory_mode.first);
     auto n3ds_hw_caps = app_loader->LoadNew3dsHwCapabilities();
@@ -383,6 +310,7 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
         restore_plugin_context.reset();
     }
 
+    telemetry_session->AddInitialInfo(*app_loader);
     std::shared_ptr<Kernel::Process> process;
     const Loader::ResultStatus load_result{app_loader->Load(process)};
     if (Loader::ResultStatus::Success != load_result) {
@@ -396,13 +324,16 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
             return ResultStatus::ErrorLoader_ErrorInvalidFormat;
         case Loader::ResultStatus::ErrorGbaTitle:
             return ResultStatus::ErrorLoader_ErrorGbaTitle;
-        case Loader::ResultStatus::ErrorArtic:
-            return ResultStatus::ErrorArticDisconnected;
         default:
             return ResultStatus::ErrorLoader;
         }
     }
     kernel->SetCurrentProcess(process);
+    title_id = 0;
+    if (app_loader->ReadProgramId(title_id) != Loader::ResultStatus::Success) {
+        LOG_ERROR(Core, "Failed to find title id for ROM (Error {})",
+                  static_cast<u32>(load_result));
+    }
 
     cheat_engine.LoadCheatFile(title_id);
     cheat_engine.Connect();
@@ -442,10 +373,6 @@ PerfStats::Results System::GetLastPerfStats() {
     return perf_stats ? perf_stats->GetLastStats() : PerfStats::Results{};
 }
 
-double System::GetStableFrameTimeScale() {
-    return perf_stats->GetStableFrameTimeScale();
-}
-
 void System::Reschedule() {
     if (!reschedule_pending) {
         return;
@@ -476,7 +403,7 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
     exclusive_monitor = MakeExclusiveMonitor(*memory, num_cores);
     cpu_cores.reserve(num_cores);
     if (Settings::values.use_cpu_jit) {
-#if MANDARINE_ARCH(x86_64) || MANDARINE_ARCH(arm64)
+#if CYTRUS_ARCH(x86_64) || CYTRUS_ARCH(arm64)
         for (u32 i = 0; i < num_cores; ++i) {
             cpu_cores.push_back(std::make_shared<ARM_Dynarmic>(
                 *this, *memory, i, timing->GetTimer(i), *exclusive_monitor));
@@ -499,10 +426,6 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
     kernel->SetCPUs(cpu_cores);
     kernel->SetRunningCPU(cpu_cores[0].get());
 
-    if (Settings::values.reduce_downcount_slice) {
-        ReduceDowncountSlice(true, num_cores);
-    }
-
     const auto audio_emulation = Settings::values.audio_emulation.GetValue();
     if (audio_emulation == Settings::AudioEmulation::HLE) {
         dsp_core = std::make_unique<AudioCore::DspHle>(*this);
@@ -516,6 +439,8 @@ System::ResultStatus System::Init(Frontend::EmuWindow& emu_window,
     dsp_core->SetSink(Settings::values.output_type.GetValue(),
                       Settings::values.output_device.GetValue());
     dsp_core->EnableStretching(Settings::values.enable_audio_stretching.GetValue());
+
+    telemetry_session = std::make_unique<Core::TelemetrySession>();
 
 #ifdef ENABLE_SCRIPTING
     rpc_server = std::make_unique<RPC::Server>(*this);
@@ -640,20 +565,17 @@ void System::RegisterImageInterface(std::shared_ptr<Frontend::ImageInterface> im
     registered_image_interface = std::move(image_interface);
 }
 
-void System::ReduceDowncountSlice(bool enabled, u32 num_cores) {
-    if (enabled) {
-        u32 values[4] = {1, 4, 2, 2};
-        for (u32 i = 0; i < num_cores; ++i) {
-            timing->GetTimer(i)->ReduceDowncountSlice(values[i]);
-        }
-    } else {
-        for (u32 i = 0; i < num_cores; ++i) {
-            timing->GetTimer(i)->ReduceDowncountSlice(0);
-        }
-    }
-}
-
 void System::Shutdown(bool is_deserializing) {
+    // Log last frame performance stats
+    const auto perf_results = GetAndResetPerfStats();
+    constexpr auto performance = Common::Telemetry::FieldType::Performance;
+
+    telemetry_session->AddField(performance, "Shutdown_EmulationSpeed",
+                                perf_results.emulation_speed * 100.0);
+    telemetry_session->AddField(performance, "Shutdown_Framerate", perf_results.game_fps);
+    telemetry_session->AddField(performance, "Shutdown_Frametime", perf_results.frametime * 1000.0);
+    telemetry_session->AddField(performance, "Mean_Frametime_MS",
+                                perf_stats ? perf_stats->GetMeanFrametime() : 0);
 
     // Shutdown emulation session
     is_powered_on = false;
@@ -665,6 +587,7 @@ void System::Shutdown(bool is_deserializing) {
         app_loader.reset();
     }
     custom_tex_manager.reset();
+    telemetry_session.reset();
 #ifdef ENABLE_SCRIPTING
     rpc_server.reset();
 #endif
@@ -771,10 +694,6 @@ void System::ApplySettings() {
     }
 }
 
-void System::RegisterAppLoaderEarly(std::unique_ptr<Loader::AppLoader>& loader) {
-    early_app_loader = std::move(loader);
-}
-
 template <class Archive>
 void System::serialize(Archive& ar, const unsigned int file_version) {
 
@@ -782,7 +701,7 @@ void System::serialize(Archive& ar, const unsigned int file_version) {
     if (Archive::is_saving::value) {
         num_cores = this->GetNumCores();
     }
-    ar& num_cores;
+    ar & num_cores;
 
     if (Archive::is_loading::value) {
         // When loading, we want to make sure any lingering state gets cleared out before we begin.
@@ -818,7 +737,7 @@ void System::serialize(Archive& ar, const unsigned int file_version) {
     ar&* memory.get();
     ar&* kernel.get();
     ar&* gpu.get();
-    ar& movie;
+    ar & movie;
 
     // This needs to be set from somewhere - might as well be here!
     if (Archive::is_loading::value) {

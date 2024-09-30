@@ -3,7 +3,6 @@
 // Refer to the license.txt file included.
 
 #include <chrono>
-#include <boost/regex.hpp>
 
 #include <fmt/format.h>
 
@@ -14,7 +13,7 @@
 #define _SH_DENYWR 0
 #endif
 
-#ifdef MANDARINE_LINUX_GCC_BACKTRACE
+#ifdef CYTRUS_LINUX_GCC_BACKTRACE
 #define BOOST_STACKTRACE_USE_BACKTRACE
 #include <boost/stacktrace.hpp>
 #undef BOOST_STACKTRACE_USE_BACKTRACE
@@ -68,7 +67,7 @@ public:
     }
 
     void Flush() override {
-        std::fflush(stderr);
+        // stderr shouldn't be buffered
     }
 
     void EnableForStacktrace() override {
@@ -182,7 +181,7 @@ public:
 
 bool initialization_in_progress_suppress_logging = true;
 
-#ifdef MANDARINE_LINUX_GCC_BACKTRACE
+#ifdef CYTRUS_LINUX_GCC_BACKTRACE
 [[noreturn]] void SleepForever() {
     while (true) {
         pause();
@@ -235,19 +234,6 @@ public:
         filter = f;
     }
 
-    bool SetRegexFilter(const std::string& regex) {
-        if (regex.empty()) {
-            regex_filter = boost::regex();
-            return true;
-        }
-        regex_filter = boost::regex(regex, boost::regex_constants::no_except);
-        if (regex_filter.status() != 0) {
-            regex_filter = boost::regex();
-            return false;
-        }
-        return true;
-    }
-
     void SetColorConsoleBackendEnabled(bool enabled) {
         color_console_backend.SetEnabled(enabled);
     }
@@ -257,26 +243,14 @@ public:
         if (!filter.CheckMessage(log_class, log_level)) {
             return;
         }
-        Entry new_entry =
-            CreateEntry(log_class, log_level, filename, line_num, function, std::move(message));
-        if (!regex_filter.empty() &&
-            !boost::regex_search(FormatLogMessage(new_entry), regex_filter)) {
-            return;
-        }
-        if (Settings::values.instant_debug_log.GetValue()) {
-            ForEachBackend([&new_entry](Backend& backend) {
-                backend.Write(new_entry);
-                backend.Flush();
-            });
-        } else {
-            message_queue.EmplaceWait(new_entry);
-        }
+        message_queue.EmplaceWait(
+            CreateEntry(log_class, log_level, filename, line_num, function, std::move(message)));
     }
 
 private:
     Impl(const std::string& file_backend_filename, const Filter& filter_)
         : filter{filter_}, file_backend{file_backend_filename} {
-#ifdef MANDARINE_LINUX_GCC_BACKTRACE
+#ifdef CYTRUS_LINUX_GCC_BACKTRACE
         int waker_pipefd[2];
         int done_printing_pipefd[2];
         if (pipe2(waker_pipefd, O_CLOEXEC) || pipe2(done_printing_pipefd, O_CLOEXEC)) {
@@ -285,7 +259,7 @@ private:
         backtrace_thread_waker_fd = waker_pipefd[1];
         backtrace_done_printing_fd = done_printing_pipefd[0];
         std::thread([this, wait_fd = waker_pipefd[0], done_fd = done_printing_pipefd[1]] {
-            Common::SetCurrentThreadName("mandarine:Crash");
+            Common::SetCurrentThreadName("cytrus:Crash");
             for (u8 ignore = 0; read(wait_fd, &ignore, 1) != 1;)
                 ;
             const int sig = received_signal;
@@ -330,7 +304,7 @@ private:
     }
 
     ~Impl() {
-#ifdef MANDARINE_LINUX_GCC_BACKTRACE
+#ifdef CYTRUS_LINUX_GCC_BACKTRACE
         if (int zero_or_ignore = 0;
             !received_signal.compare_exchange_strong(zero_or_ignore, SIGKILL)) {
             SleepForever();
@@ -340,7 +314,7 @@ private:
 
     void StartBackendThread() {
         backend_thread = std::jthread([this](std::stop_token stop_token) {
-            Common::SetCurrentThreadName("mandarine:Log");
+            Common::SetCurrentThreadName("cytrus:Log");
             Entry entry;
             const auto write_logs = [this, &entry]() {
                 ForEachBackend([&entry](Backend& backend) { backend.Write(entry); });
@@ -399,7 +373,7 @@ private:
         delete ptr;
     }
 
-#ifdef MANDARINE_LINUX_GCC_BACKTRACE
+#ifdef CYTRUS_LINUX_GCC_BACKTRACE
     [[noreturn]] static void HandleSignal(int sig) {
         signal(SIGABRT, SIG_DFL);
         signal(SIGSEGV, SIG_DFL);
@@ -432,7 +406,6 @@ private:
     static inline std::unique_ptr<Impl, decltype(&Deleter)> instance{nullptr, Deleter};
 
     Filter filter;
-    boost::regex regex_filter;
     DebuggerBackend debugger_backend{};
     ColorConsoleBackend color_console_backend{};
     FileBackend file_backend;
@@ -444,7 +417,7 @@ private:
     std::chrono::steady_clock::time_point time_origin{std::chrono::steady_clock::now()};
     std::jthread backend_thread;
 
-#ifdef MANDARINE_LINUX_GCC_BACKTRACE
+#ifdef CYTRUS_LINUX_GCC_BACKTRACE
     std::atomic_int received_signal{0};
     std::array<u8, 4096> backtrace_storage{};
     int backtrace_thread_waker_fd;
@@ -471,10 +444,6 @@ void DisableLoggingInTests() {
 
 void SetGlobalFilter(const Filter& filter) {
     Impl::Instance().SetGlobalFilter(filter);
-}
-
-bool SetRegexFilter(const std::string& regex) {
-    return Impl::Instance().SetRegexFilter(regex);
 }
 
 void SetColorConsoleBackendEnabled(bool enabled) {

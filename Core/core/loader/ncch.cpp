@@ -26,6 +26,7 @@
 #include "core/loader/smdh.h"
 #include "core/memory.h"
 #include "core/system_titles.h"
+#include "core/telemetry_session.h"
 #include "network/network.h"
 
 namespace Loader {
@@ -67,9 +68,6 @@ std::pair<std::optional<Kernel::MemoryMode>, ResultStatus> AppLoader_NCCH::LoadK
         if (res != ResultStatus::Success) {
             return std::make_pair(std::nullopt, res);
         }
-    }
-    if (memory_mode_override.has_value()) {
-        return std::make_pair(memory_mode_override, ResultStatus::Success);
     }
 
     // Provide the memory mode from the exheader.
@@ -121,14 +119,13 @@ ResultStatus AppLoader_NCCH::LoadExec(std::shared_ptr<Kernel::Process>& process)
         codeset->CodeSegment().addr = overlay_ncch->exheader_header.codeset_info.text.address;
         codeset->CodeSegment().size =
             overlay_ncch->exheader_header.codeset_info.text.num_max_pages *
-            Memory::MANDARINE_PAGE_SIZE;
+            Memory::CYTRUS_PAGE_SIZE;
 
         codeset->RODataSegment().offset =
             codeset->CodeSegment().offset + codeset->CodeSegment().size;
         codeset->RODataSegment().addr = overlay_ncch->exheader_header.codeset_info.ro.address;
         codeset->RODataSegment().size =
-            overlay_ncch->exheader_header.codeset_info.ro.num_max_pages *
-            Memory::MANDARINE_PAGE_SIZE;
+            overlay_ncch->exheader_header.codeset_info.ro.num_max_pages * Memory::CYTRUS_PAGE_SIZE;
 
         // TODO(yuriks): Not sure if the bss size is added to the page-aligned .data size or just
         //               to the regular size. Playing it safe for now.
@@ -140,7 +137,7 @@ ResultStatus AppLoader_NCCH::LoadExec(std::shared_ptr<Kernel::Process>& process)
         codeset->DataSegment().addr = overlay_ncch->exheader_header.codeset_info.data.address;
         codeset->DataSegment().size =
             overlay_ncch->exheader_header.codeset_info.data.num_max_pages *
-                Memory::MANDARINE_PAGE_SIZE +
+                Memory::CYTRUS_PAGE_SIZE +
             bss_page_size;
 
         // Apply patches now that the entire codeset (including .bss) has been allocated
@@ -163,7 +160,7 @@ ResultStatus AppLoader_NCCH::LoadExec(std::shared_ptr<Kernel::Process>& process)
         // APPLICATION. See:
         // https://github.com/LumaTeam/Luma3DS/blob/e2778a45/sysmodules/pm/source/launch.c#L237
         auto& ncch_caps = overlay_ncch->exheader_header.arm11_system_local_caps;
-        const auto o3ds_mode = *LoadKernelMemoryMode().first;
+        const auto o3ds_mode = static_cast<Kernel::MemoryMode>(ncch_caps.system_mode.Value());
         const auto n3ds_mode = static_cast<Kernel::New3dsMemoryMode>(ncch_caps.n3ds_mode);
         const bool is_new_3ds = Settings::values.is_new_3ds.GetValue();
         if (is_new_3ds && n3ds_mode == Kernel::New3dsMemoryMode::Legacy &&
@@ -278,6 +275,9 @@ ResultStatus AppLoader_NCCH::Load(std::shared_ptr<Kernel::Process>& process) {
         overlay_ncch = &update_ncch;
     }
 
+    system.TelemetrySession().AddField(Common::Telemetry::FieldType::Session, "ProgramId",
+                                       program_id);
+
     if (auto room_member = Network::GetRoomMember().lock()) {
         Network::GameInfo game_info;
         ReadTitle(game_info.name);
@@ -378,24 +378,6 @@ ResultStatus AppLoader_NCCH::ReadTitle(std::string& title) {
     const auto& short_title = smdh.GetShortTitle(SMDH::TitleLanguage::English);
     auto title_end = std::find(short_title.begin(), short_title.end(), u'\0');
     title = Common::UTF16ToUTF8(std::u16string{short_title.begin(), title_end});
-
-    return ResultStatus::Success;
-}
-
-ResultStatus AppLoader_NCCH::ReadTitleLong(std::string& title) {
-    std::vector<u8> data;
-    Loader::SMDH smdh;
-    ReadIcon(data);
-
-    if (!Loader::IsValidSMDH(data)) {
-        return ResultStatus::ErrorInvalidFormat;
-    }
-
-    std::memcpy(&smdh, data.data(), sizeof(Loader::SMDH));
-
-    const auto& long_title = smdh.GetLongTitle(SMDH::TitleLanguage::English);
-    auto title_end = std::find(long_title.begin(), long_title.end(), u'\0');
-    title = Common::UTF16ToUTF8(std::u16string{long_title.begin(), title_end});
 
     return ResultStatus::Success;
 }

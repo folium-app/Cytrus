@@ -5,14 +5,16 @@
 #include <boost/container/static_vector.hpp>
 
 #include "common/hash.h"
-#include "common/profiling.h"
+#include "common/microprofile.h"
 #include "video_core/renderer_vulkan/pica_to_vk.h"
 #include "video_core/renderer_vulkan/vk_graphics_pipeline.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
-#include "video_core/renderer_vulkan/vk_render_manager.h"
+#include "video_core/renderer_vulkan/vk_renderpass_cache.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 
 namespace Vulkan {
+
+MICROPROFILE_DEFINE(Vulkan_Pipeline, "Vulkan", "Pipeline Building", MP_RGB(0, 192, 32));
 
 vk::ShaderStageFlagBits MakeShaderStage(std::size_t index) {
     switch (index) {
@@ -56,18 +58,13 @@ Shader::Shader(const Instance& instance, vk::ShaderStageFlagBits stage, std::str
     MarkDone();
 }
 
-Shader::Shader(const Instance& instance, std::span<const u32> code) : Shader{instance} {
-    module = CompileSPV(code, instance.GetDevice());
-    MarkDone();
-}
-
 Shader::~Shader() {
     if (device && module) {
         device.destroyShaderModule(module);
     }
 }
 
-GraphicsPipeline::GraphicsPipeline(const Instance& instance_, RenderManager& renderpass_cache_,
+GraphicsPipeline::GraphicsPipeline(const Instance& instance_, RenderpassCache& renderpass_cache_,
                                    const PipelineInfo& info_, vk::PipelineCache pipeline_cache_,
                                    vk::PipelineLayout layout_, std::array<Shader*, 3> stages_,
                                    Common::ThreadWorker* worker_)
@@ -102,7 +99,7 @@ bool GraphicsPipeline::TryBuild(bool wait_built) {
 }
 
 bool GraphicsPipeline::Build(bool fail_on_compile_required) {
-    MANDARINE_PROFILE("Vulkan", "Pipeline Building");
+    MICROPROFILE_SCOPE(Vulkan_Pipeline);
     const vk::Device device = instance.GetDevice();
 
     std::array<vk::VertexInputBindingDescription, MAX_VERTEX_BINDINGS> bindings;

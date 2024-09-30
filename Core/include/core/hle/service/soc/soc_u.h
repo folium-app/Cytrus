@@ -25,11 +25,11 @@ namespace Service::SOC {
 struct SocketHolder {
 #ifdef _WIN32
     using SOCKET = unsigned long long;
+    SOCKET socket_fd; ///< The socket descriptor
 #else
-    using SOCKET = int;
+    int socket_fd; ///< The socket descriptor
 #endif // _WIN32
 
-    SOCKET socket_fd;     ///< The socket descriptor
     bool blocking = true; ///< Whether the socket is blocking or not.
     bool isGlobal = false;
     bool shutdown_rd = false;
@@ -39,10 +39,10 @@ struct SocketHolder {
 private:
     template <class Archive>
     void serialize(Archive& ar, const unsigned int) {
-        ar& socket_fd;
-        ar& blocking;
-        ar& isGlobal;
-        ar& ownerProcess;
+        ar & socket_fd;
+        ar & blocking;
+        ar & isGlobal;
+        ar & ownerProcess;
     }
     friend class boost::serialization::access;
 };
@@ -170,8 +170,8 @@ private:
     template <class Archive>
     void serialize(Archive& ar, const unsigned int) {
         ar& boost::serialization::base_object<Kernel::SessionRequestHandler>(*this);
-        ar& created_sockets;
-        ar& initialized_processes;
+        ar & created_sockets;
+        ar & initialized_processes;
     }
     friend class boost::serialization::access;
 };

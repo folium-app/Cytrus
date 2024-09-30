@@ -7,7 +7,7 @@
 #include <string_view>
 
 namespace HostShaders {
-
+// clang-format off
 constexpr std::string_view VULKAN_PRESENT_FRAG = {
 "// Copyright 2022 Citra Emulator Project\n"
 "// Licensed under GPLv2 or any later version\n"
@@ -31,26 +31,12 @@ constexpr std::string_view VULKAN_PRESENT_FRAG = {
 "\n"
 "layout (set = 0, binding = 0) uniform sampler2D screen_textures[3];\n"
 "\n"
-"vec4 GetScreen(int screen_id) {\n"
-"#ifdef ARRAY_DYNAMIC_INDEX\n"
-"    return texture(screen_textures[screen_id], frag_tex_coord);\n"
-"#else\n"
-"    switch (screen_id) {\n"
-"    case 0:\n"
-"        return texture(screen_textures[0], frag_tex_coord);\n"
-"    case 1:\n"
-"        return texture(screen_textures[1], frag_tex_coord);\n"
-"    case 2:\n"
-"        return texture(screen_textures[2], frag_tex_coord);\n"
-"    }\n"
-"#endif\n"
-"}\n"
-"\n"
 "void main() {\n"
-"    color = GetScreen(screen_id_l);\n"
+"    color = texture(screen_textures[screen_id_l], frag_tex_coord);\n"
 "}\n"
 "\n"
 
+    // clang-format on
 };
 
 } // namespace HostShaders

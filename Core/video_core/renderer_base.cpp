@@ -2,7 +2,6 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-#include "common/profiling.h"
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/frontend/emu_window.h"
@@ -12,20 +11,16 @@
 
 namespace VideoCore {
 
-[[maybe_unused]] static constexpr const char* EmuThreadFrame = "EmuThread";
-
 RendererBase::RendererBase(Core::System& system_, Frontend::EmuWindow& window,
                            Frontend::EmuWindow* secondary_window_)
-    : system{system_}, render_window{window}, secondary_window{secondary_window_} {
-    MANDARINE_FRAME_BEGIN(EmuThreadFrame);
-}
+    : system{system_}, render_window{window}, secondary_window{secondary_window_} {}
 
 RendererBase::~RendererBase() = default;
 
 u32 RendererBase::GetResolutionScaleFactor() {
     const auto graphics_api = Settings::values.graphics_api.GetValue();
     if (graphics_api == Settings::GraphicsAPI::Software) {
-        // Software renderer always renders at native resolution
+        // Software renderer always render at native resolution
         return 1;
     }
 
@@ -49,12 +44,11 @@ void RendererBase::EndFrame() {
     current_frame++;
 
     system.perf_stats->EndSystemFrame();
+
     render_window.PollEvents();
-    MANDARINE_FRAME_END(EmuThreadFrame);
 
     system.frame_limiter.DoFrameLimiting(system.CoreTiming().GetGlobalTimeUs());
     system.perf_stats->BeginSystemFrame();
-    MANDARINE_FRAME_BEGIN(EmuThreadFrame);
 }
 
 bool RendererBase::IsScreenshotPending() const {

@@ -4,7 +4,7 @@
 
 #include "common/arch.h"
 #include "common/archives.h"
-#include "common/profiling.h"
+#include "common/microprofile.h"
 #include "common/scope_exit.h"
 #include "common/settings.h"
 #include "core/core.h"
@@ -16,6 +16,8 @@
 #include "video_core/shader/shader.h"
 
 namespace Pica {
+
+MICROPROFILE_DEFINE(GPU_Drawing, "GPU", "Drawing", MP_RGB(50, 50, 240));
 
 using namespace DebugUtils;
 
@@ -29,9 +31,8 @@ union CommandHeader {
 static_assert(sizeof(CommandHeader) == sizeof(u32), "CommandHeader has incorrect size!");
 
 PicaCore::PicaCore(Memory::MemorySystem& memory_, std::shared_ptr<DebugContext> debug_context_)
-    : memory{memory_}, debug_context{std::move(debug_context_)}, geometry_pipeline{regs.internal,
-                                                                                   gs_unit,
-                                                                                   gs_setup},
+    : memory{memory_}, debug_context{std::move(debug_context_)},
+      geometry_pipeline{regs.internal, gs_unit, gs_setup},
       shader_engine{CreateEngine(Settings::values.use_shader_jit.GetValue())} {
     InitializeRegs();
 
@@ -448,8 +449,6 @@ void PicaCore::SubmitImmediate(u32 value) {
 }
 
 void PicaCore::DrawImmediate() {
-    MANDARINE_PROFILE("PicaCore", "Draw Immediate");
-
     // Compile the vertex shader.
     shader_engine->SetupBatch(vs_setup, regs.internal.vs.main_offset);
 
@@ -486,7 +485,7 @@ void PicaCore::DrawImmediate() {
 }
 
 void PicaCore::DrawArrays(bool is_indexed) {
-    MANDARINE_PROFILE("PicaCore", "Draw Arrays");
+    MICROPROFILE_SCOPE(GPU_Drawing);
 
     // Track vertex in the debug recorder.
     if (debug_context) {
@@ -519,8 +518,6 @@ void PicaCore::DrawArrays(bool is_indexed) {
 
     // Attempt to use hardware vertex shaders if possible.
     if (accelerate_draw && rasterizer->AccelerateDrawBatch(is_indexed)) {
-        return;
-    } else if (Settings::values.force_hw_vertex_shaders) {
         return;
     }
 
@@ -615,9 +612,9 @@ void PicaCore::LoadVertices(bool is_indexed) {
 
 template <class Archive>
 void PicaCore::CommandList::serialize(Archive& ar, const u32 file_version) {
-    ar& addr;
-    ar& length;
-    ar& current_index;
+    ar & addr;
+    ar & length;
+    ar & current_index;
     if (Archive::is_loading::value) {
         const u8* ptr = Core::System::GetInstance().Memory().GetPhysicalPointer(addr);
         head = reinterpret_cast<const u32*>(ptr);

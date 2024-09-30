@@ -152,11 +152,11 @@ private:
 
     template <class Archive>
     void serialize(Archive& ar, const unsigned int) {
-        ar& id;
-        ar& address;
-        ar& process;
-        ar& size;
-        ar& perms;
+        ar & id;
+        ar & address;
+        ar & process;
+        ar & size;
+        ar & perms;
     }
     friend class boost::serialization::access;
 };
@@ -204,11 +204,6 @@ public:
     /// Returns the command header from the IPC command buffer.
     IPC::Header CommandHeader() const {
         return {cmd_buf[0]};
-    }
-
-    /// Returns the Command ID from the IPC command buffer.
-    u16 CommandID() const {
-        return static_cast<u16>(CommandHeader().command_id.Value());
     }
 
     /**
@@ -276,7 +271,7 @@ private:
             if (!Archive::is_loading::value && future.valid()) {
                 future.wait();
             }
-            ar& functor;
+            ar & functor;
         }
         friend class boost::serialization::access;
     };

@@ -7,7 +7,7 @@
 #include <string_view>
 
 namespace HostShaders {
-
+// clang-format off
 constexpr std::string_view D24S8_TO_RGBA8_FRAG = {
 "// Copyright 2023 Citra Emulator Project\n"
 "// Licensed under GPLv2 or any later version\n"
@@ -36,6 +36,7 @@ constexpr std::string_view D24S8_TO_RGBA8_FRAG = {
 "}\n"
 "\n"
 
+    // clang-format on
 };
 
 } // namespace HostShaders

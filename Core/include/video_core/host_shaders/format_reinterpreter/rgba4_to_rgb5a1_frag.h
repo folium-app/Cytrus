@@ -7,7 +7,7 @@
 #include <string_view>
 
 namespace HostShaders {
-
+// clang-format off
 constexpr std::string_view RGBA4_TO_RGB5A1_FRAG = {
 "// Copyright 2023 Citra Emulator Project\n"
 "// Licensed under GPLv2 or any later version\n"
@@ -33,6 +33,7 @@ constexpr std::string_view RGBA4_TO_RGB5A1_FRAG = {
 "}\n"
 "\n"
 
+    // clang-format on
 };
 
 } // namespace HostShaders

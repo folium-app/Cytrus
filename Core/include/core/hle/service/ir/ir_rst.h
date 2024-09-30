@@ -21,10 +21,6 @@ namespace Core {
 struct TimingEventType;
 };
 
-namespace Service::HID {
-class ArticBaseController;
-};
-
 namespace Service::IR {
 
 union PadState {
@@ -45,10 +41,6 @@ public:
     explicit IR_RST(Core::System& system);
     ~IR_RST();
     void ReloadInputDevices();
-
-    void UseArticController(const std::shared_ptr<Service::HID::ArticBaseController>& ac) {
-        artic_controller = ac;
-    }
 
 private:
     /**
@@ -95,8 +87,6 @@ private:
     std::atomic<bool> is_device_reload_pending{false};
     bool raw_c_stick{false};
     int update_period{0};
-
-    std::shared_ptr<Service::HID::ArticBaseController> artic_controller = nullptr;
 
     template <class Archive>
     void serialize(Archive& ar, const unsigned int);

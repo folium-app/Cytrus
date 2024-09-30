@@ -7,7 +7,7 @@
 #include <string_view>
 
 namespace HostShaders {
-
+// clang-format off
 constexpr std::string_view SCALE_FORCE_FRAG = {
 "// from https://github.com/BreadFish64/ScaleFish/tree/master/scale_force\n"
 "\n"
@@ -147,6 +147,7 @@ constexpr std::string_view SCALE_FORCE_FRAG = {
 "}\n"
 "\n"
 
+    // clang-format on
 };
 
 } // namespace HostShaders

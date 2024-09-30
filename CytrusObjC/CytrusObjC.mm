@@ -216,23 +216,14 @@ static void TryShutdown() {
     Settings::values.audio_muted = [defaults boolForKey:@"cytrus.audioMuted"];
     Settings::values.audio_emulation.SetValue((Settings::AudioEmulation)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.audioEmulation"]] unsignedIntValue]);
     Settings::values.enable_audio_stretching.SetValue([defaults boolForKey:@"cytrus.audioStretching"]);
-    Settings::values.enable_realtime_audio.SetValue([defaults boolForKey:@"cytrus.realtimeAudio"]);
     Settings::values.output_type.SetValue((AudioCore::SinkType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.outputType"]] unsignedIntValue]);
     Settings::values.input_type.SetValue((AudioCore::InputType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.inputType"]] unsignedIntValue]);
-    
-    // tweaks
-    Settings::values.force_hw_vertex_shaders.SetValue([defaults boolForKey:@"cytrus.hardwareVertexShaders"]);
-    Settings::values.disable_surface_texture_copy.SetValue([defaults boolForKey:@"cytrus.surfaceTextureCopy"]);
-    Settings::values.disable_flush_cpu_write.SetValue([defaults boolForKey:@"cytrus.flushCPUWrite"]);
-    Settings::values.priority_boost_starved_threads.SetValue([defaults boolForKey:@"cytrus.priorityBoostStarvedThreads"]);
-    Settings::values.reduce_downcount_slice.SetValue([defaults boolForKey:@"cytrus.reduceDowncountSlice"]);
     
     u64 program_id{};
     FileUtil::SetCurrentRomPath([url.path UTF8String]);
     auto app_loader = Loader::GetLoader([url.path UTF8String]);
     if (app_loader) {
         app_loader->ReadProgramId(program_id);
-        system.RegisterAppLoaderEarly(app_loader);
     }
     
     system.ApplySettings();
@@ -445,15 +436,7 @@ static void TryShutdown() {
     Settings::values.audio_muted = [defaults boolForKey:@"cytrus.audioMuted"];
     Settings::values.audio_emulation.SetValue((Settings::AudioEmulation)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.audioEmulation"]] unsignedIntValue]);
     Settings::values.enable_audio_stretching.SetValue([defaults boolForKey:@"cytrus.audioStretching"]);
-    Settings::values.enable_realtime_audio.SetValue([defaults boolForKey:@"cytrus.realtimeAudio"]);
     Settings::values.output_type.SetValue((AudioCore::SinkType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.outputType"]] unsignedIntValue]);
     Settings::values.input_type.SetValue((AudioCore::InputType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.inputType"]] unsignedIntValue]);
-    
-    // tweaks
-    Settings::values.force_hw_vertex_shaders.SetValue([defaults boolForKey:@"cytrus.hardwareVertexShaders"]);
-    Settings::values.disable_surface_texture_copy.SetValue([defaults boolForKey:@"cytrus.surfaceTextureCopy"]);
-    Settings::values.disable_flush_cpu_write.SetValue([defaults boolForKey:@"cytrus.flushCPUWrite"]);
-    Settings::values.priority_boost_starved_threads.SetValue([defaults boolForKey:@"cytrus.priorityBoostStarvedThreads"]);
-    Settings::values.reduce_downcount_slice.SetValue([defaults boolForKey:@"cytrus.reduceDowncountSlice"]);
 }
 @end

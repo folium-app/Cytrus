@@ -31,9 +31,9 @@ namespace Service::NWM {
 template <class Archive>
 void NWM_UDS::serialize(Archive& ar, const unsigned int) {
     ar& boost::serialization::base_object<Kernel::SessionRequestHandler>(*this);
-    ar& node_map;
-    ar& connection_event;
-    ar& received_beacons;
+    ar & node_map;
+    ar & connection_event;
+    ar & received_beacons;
     // wifi_packet_received set in constructor
 }
 
@@ -97,7 +97,7 @@ u16 NWM_UDS::GetNextAvailableNodeId() {
 
 void NWM_UDS::BroadcastNodeMap() {
     // Note: This is not how UDS on a 3ds does it but it shouldn't be
-    // necessary for mandarine
+    // necessary for cytrus
     Network::WifiPacket packet;
     packet.channel = network_channel;
     packet.type = Network::WifiPacket::PacketType::NodeMap;
@@ -575,6 +575,10 @@ void NWM_UDS::Shutdown(Kernel::HLERequestContext& ctx) {
 
     recv_buffer_memory.reset();
 
+    SharedPage::Handler& shared_page = system.Kernel().GetSharedPageHandler();
+    shared_page.SetWifiLinkLevel(SharedPage::WifiLinkLevel::Off);
+    shared_page.SetWifiState(SharedPage::WifiState::Enabled);
+
     IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
     rb.Push(ResultSuccess);
     LOG_DEBUG(Service_NWM, "called");
@@ -666,6 +670,10 @@ ResultVal<std::shared_ptr<Kernel::Event>> NWM_UDS::Initialize(
         node_info.push_back(current_node);
         channel_data.clear();
     }
+
+    SharedPage::Handler& shared_page = system.Kernel().GetSharedPageHandler();
+    shared_page.SetWifiLinkLevel(SharedPage::WifiLinkLevel::Best);
+    shared_page.SetWifiState(SharedPage::WifiState::Local1);
 
     return connection_status_event;
 }
@@ -1263,7 +1271,7 @@ private:
     template <class Archive>
     void serialize(Archive& ar, const unsigned int) {
         ar& boost::serialization::base_object<Kernel::HLERequestContext::WakeupCallback>(*this);
-        ar& command_id;
+        ar & command_id;
     }
     friend class boost::serialization::access;
 };

@@ -60,7 +60,7 @@ class RendererBase;
 template <class T>
 class RasterizerCache {
     /// Address shift for caching surfaces into a hash table
-    static constexpr u64 MANDARINE_PAGEBITS = 18;
+    static constexpr u64 CYTRUS_PAGEBITS = 18;
 
     using Runtime = typename T::Runtime;
     using Sampler = typename T::Sampler;
@@ -141,8 +141,8 @@ private:
     template <typename Func>
     void ForEachPage(PAddr addr, std::size_t size, Func&& func) {
         static constexpr bool RETURNS_BOOL = std::is_same_v<std::invoke_result<Func, u64>, bool>;
-        const u64 page_end = (addr + size - 1) >> MANDARINE_PAGEBITS;
-        for (u64 page = addr >> MANDARINE_PAGEBITS; page <= page_end; ++page) {
+        const u64 page_end = (addr + size - 1) >> CYTRUS_PAGEBITS;
+        for (u64 page = addr >> CYTRUS_PAGEBITS; page <= page_end; ++page) {
             if constexpr (RETURNS_BOOL) {
                 if (func(page)) {
                     break;
@@ -192,6 +192,9 @@ private:
     /// Attempt to find a reinterpretable surface in the cache and use it to copy for validation
     bool ValidateByReinterpretation(Surface& surface, SurfaceParams params,
                                     const SurfaceInterval& interval);
+
+    /// Return true if a surface with an invalid pixel format exists at the interval
+    bool IntervalHasInvalidPixelFormat(const SurfaceParams& params, SurfaceInterval interval);
 
     /// Create a new surface
     SurfaceId CreateSurface(const SurfaceParams& params);

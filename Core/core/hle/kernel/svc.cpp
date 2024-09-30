@@ -4,13 +4,11 @@
 
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <fmt/format.h>
 #include "common/archives.h"
 #include "common/logging/log.h"
-#include "common/profiling.h"
+#include "common/microprofile.h"
 #include "common/scm_rev.h"
-#include "common/settings.h"
 #include "core/arm/arm_interface.h"
 #include "core/core.h"
 #include "core/core_timing.h"
@@ -75,12 +73,6 @@ enum class KernelState {
      * Reboots the console
      */
     KERNEL_STATE_REBOOT = 7,
-
-    // Special Mandarine only states.
-    /**
-     * Sets the emulation speed percentage. A value of 0 means unthrottled.
-     */
-    KERNEL_STATE_MANDARINE_EMULATION_SPEED = 0x20000 ///
 };
 
 struct PageInfo {
@@ -125,10 +117,10 @@ enum class SystemInfoType {
      */
     NEW_3DS_INFO = 0x10001,
     /**
-     * Gets mandarine related information. This parameter is not available on real systems,
+     * Gets cytrus related information. This parameter is not available on real systems,
      * but can be used by homebrew applications to get some emulator info.
      */
-    MANDARINE_INFORMATION = 0x20000,
+    CYTRUS_INFORMATION = 0x20000,
 };
 
 enum class ProcessInfoType {
@@ -271,16 +263,13 @@ enum class SystemInfoMemUsageRegion {
 };
 
 /**
- * Accepted by svcGetSystemInfo param with MANDARINE_INFORMATION type. Selects which information
- * to fetch from Mandarine. Some string params don't fit in 7 bytes, so they are split.
+ * Accepted by svcGetSystemInfo param with CYTRUS_INFORMATION type. Selects which information
+ * to fetch from Cytrus. Some string params don't fit in 7 bytes, so they are split.
  */
-enum class SystemInfoMandarineInformation {
-    IS_MANDARINE = 0,      // Always set the output to 1, signaling the app is running on Mandarine.
-    HOST_TICK = 1,         // Tick reference from the host in ns, unaffected by lag or cpu speed.
-    EMULATION_SPEED = 2,   // Gets the emulation speed set by the user or by KernelSetState.
+enum class SystemInfoCytrusInformation {
+    IS_CYTRUS = 0,         // Always set the output to 1, signaling the app is running on Cytrus.
     BUILD_NAME = 10,       // (ie: Nightly, Canary).
     BUILD_VERSION = 11,    // Build version.
-    BUILD_PLATFORM = 12,   // Build platform, see SystemInfoMandarinePlatform.
     BUILD_DATE_PART1 = 20, // Build date first 7 characters.
     BUILD_DATE_PART2 = 21, // Build date next 7 characters.
     BUILD_DATE_PART3 = 22, // Build date next 7 characters.
@@ -289,17 +278,6 @@ enum class SystemInfoMandarineInformation {
     BUILD_GIT_BRANCH_PART2 = 31,      // Git branch last 7 characters.
     BUILD_GIT_DESCRIPTION_PART1 = 40, // Git description (commit) first 7 characters.
     BUILD_GIT_DESCRIPTION_PART2 = 41, // Git description (commit) last 7 characters.
-};
-
-/**
- * Current officially supported platforms.
- */
-enum class SystemInfoMandarinePlatform {
-    PLATFORM_UNKNOWN = 0,
-    PLATFORM_WINDOWS = 1,
-    PLATFORM_LINUX = 2,
-    PLATFORM_APPLE = 3,
-    PLATFORM_ANDROID = 4,
 };
 
 /**
@@ -404,9 +382,6 @@ private:
                                 s64 nano_seconds);
     Result ReplyAndReceive(s32* index, VAddr handles_address, s32 handle_count,
                            Handle reply_target);
-    Result InvalidateProcessDataCache(Handle process_handle, VAddr address, u32 size);
-    Result StoreProcessDataCache(Handle process_handle, VAddr address, u32 size);
-    Result FlushProcessDataCache(Handle process_handle, VAddr address, u32 size);
     Result CreateAddressArbiter(Handle* out_handle);
     Result ArbitrateAddress(Handle handle, u32 address, u32 type, u32 value, s64 nanoseconds);
     void Break(u8 break_reason);
@@ -484,9 +459,9 @@ Result SVC::ControlMemory(u32* out_addr, u32 addr0, u32 addr1, u32 size, u32 ope
               "size=0x{:X}, permissions=0x{:08X}",
               operation, addr0, addr1, size, permissions);
 
-    R_UNLESS((addr0 & Memory::MANDARINE_PAGE_MASK) == 0, ResultMisalignedAddress);
-    R_UNLESS((addr1 & Memory::MANDARINE_PAGE_MASK) == 0, ResultMisalignedAddress);
-    R_UNLESS((size & Memory::MANDARINE_PAGE_MASK) == 0, ResultMisalignedSize);
+    R_UNLESS((addr0 & Memory::CYTRUS_PAGE_MASK) == 0, ResultMisalignedAddress);
+    R_UNLESS((addr1 & Memory::CYTRUS_PAGE_MASK) == 0, ResultMisalignedAddress);
+    R_UNLESS((size & Memory::CYTRUS_PAGE_MASK) == 0, ResultMisalignedSize);
 
     const u32 region = operation & MEMOP_REGION_MASK;
     operation &= ~MEMOP_REGION_MASK;
@@ -712,7 +687,7 @@ private:
     template <class Archive>
     void serialize(Archive& ar, const unsigned int) {
         ar& boost::serialization::base_object<Kernel::WakeupCallback>(*this);
-        ar& do_output;
+        ar & do_output;
     }
     friend class boost::serialization::access;
 };
@@ -1027,39 +1002,6 @@ Result SVC::ReplyAndReceive(s32* index, VAddr handles_address, s32 handle_count,
     // signal in one of its wait objects, or to 0xC8A01836 if there was a translation error.
     // By default the index is set to -1.
     *index = -1;
-    return ResultSuccess;
-}
-
-/// Invalidates the specified cache range (stubbed as we do not emulate cache).
-Result SVC::InvalidateProcessDataCache(Handle process_handle, VAddr address, u32 size) {
-    const std::shared_ptr<Process> process =
-        kernel.GetCurrentProcess()->handle_table.Get<Process>(process_handle);
-    R_UNLESS(process, ResultInvalidHandle);
-
-    LOG_DEBUG(Kernel_SVC, "called address=0x{:08X}, size=0x{:08X}", address, size);
-
-    return ResultSuccess;
-}
-
-/// Stores the specified cache range (stubbed as we do not emulate cache).
-Result SVC::StoreProcessDataCache(Handle process_handle, VAddr address, u32 size) {
-    const std::shared_ptr<Process> process =
-        kernel.GetCurrentProcess()->handle_table.Get<Process>(process_handle);
-    R_UNLESS(process, ResultInvalidHandle);
-
-    LOG_DEBUG(Kernel_SVC, "called address=0x{:08X}, size=0x{:08X}", address, size);
-
-    return ResultSuccess;
-}
-
-/// Flushes the specified cache range (stubbed as we do not emulate cache).
-Result SVC::FlushProcessDataCache(Handle process_handle, VAddr address, u32 size) {
-    const std::shared_ptr<Process> process =
-        kernel.GetCurrentProcess()->handle_table.Get<Process>(process_handle);
-    R_UNLESS(process, ResultInvalidHandle);
-
-    LOG_DEBUG(Kernel_SVC, "called address=0x{:08X}, size=0x{:08X}", address, size);
-
     return ResultSuccess;
 }
 
@@ -1428,12 +1370,6 @@ Result SVC::KernelSetState(u32 kernel_state, u32 varg1, u32 varg2) {
     case KernelState::KERNEL_STATE_REBOOT:
         system.RequestShutdown();
         break;
-
-    // Mandarine specific states.
-    case KernelState::KERNEL_STATE_MANDARINE_EMULATION_SPEED: {
-        u16 new_value = static_cast<u16>(varg1);
-        Settings::values.frame_limit.SetValue(new_value);
-    } break;
     default:
         LOG_ERROR(Kernel_SVC, "Unknown KernelSetState state={} varg1={} varg2={}", kernel_state,
                   varg1, varg2);
@@ -1646,7 +1582,7 @@ Result SVC::GetHandleInfo(s64* out, Handle handle, u32 type) {
 /// Creates a memory block at the specified address with the specified permissions and size
 Result SVC::CreateMemoryBlock(Handle* out_handle, u32 addr, u32 size, u32 my_permission,
                               u32 other_permission) {
-    R_UNLESS(size % Memory::MANDARINE_PAGE_SIZE == 0, ResultMisalignedSize);
+    R_UNLESS(size % Memory::CYTRUS_PAGE_SIZE == 0, ResultMisalignedSize);
 
     std::shared_ptr<SharedMemory> shared_memory = nullptr;
 
@@ -1799,73 +1735,51 @@ Result SVC::GetSystemInfo(s64* out, u32 type, s32 param) {
         LOG_ERROR(Kernel_SVC, "unimplemented GetSystemInfo type=65537 param={}", param);
         *out = 0;
         return (system.GetNumCores() == 4) ? ResultSuccess : ResultInvalidEnumValue;
-    case SystemInfoType::MANDARINE_INFORMATION:
-        switch ((SystemInfoMandarineInformation)param) {
-        case SystemInfoMandarineInformation::IS_MANDARINE:
+    case SystemInfoType::CYTRUS_INFORMATION:
+        switch ((SystemInfoCytrusInformation)param) {
+        case SystemInfoCytrusInformation::IS_CYTRUS:
             *out = 1;
             break;
-        case SystemInfoMandarineInformation::HOST_TICK:
-            *out = static_cast<s64>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                        std::chrono::steady_clock::now().time_since_epoch())
-                                        .count());
-            break;
-        case SystemInfoMandarineInformation::EMULATION_SPEED:
-            *out = static_cast<s64>(Settings::values.frame_limit.GetValue());
-            break;
-        case SystemInfoMandarineInformation::BUILD_NAME:
+        case SystemInfoCytrusInformation::BUILD_NAME:
             CopyStringPart(reinterpret_cast<char*>(out), Common::g_build_name, 0, sizeof(s64));
             break;
-        case SystemInfoMandarineInformation::BUILD_VERSION:
+        case SystemInfoCytrusInformation::BUILD_VERSION:
             CopyStringPart(reinterpret_cast<char*>(out), Common::g_build_version, 0, sizeof(s64));
             break;
-        case SystemInfoMandarineInformation::BUILD_PLATFORM: {
-#if defined(_WIN32)
-            *out = static_cast<s64>(SystemInfoMandarinePlatform::PLATFORM_WINDOWS);
-#elif defined(ANDROID)
-            *out = static_cast<s64>(SystemInfoMandarinePlatform::PLATFORM_ANDROID);
-#elif defined(__linux__)
-            *out = static_cast<s64>(SystemInfoMandarinePlatform::PLATFORM_LINUX);
-#elif defined(__APPLE__)
-            *out = static_cast<s64>(SystemInfoMandarinePlatform::PLATFORM_APPLE);
-#else
-            *out = static_cast<s64>(SystemInfoMandarinePlatform::PLATFORM_UNKNOWN);
-#endif
-            break;
-        }
-        case SystemInfoMandarineInformation::BUILD_DATE_PART1:
+        case SystemInfoCytrusInformation::BUILD_DATE_PART1:
             CopyStringPart(reinterpret_cast<char*>(out), Common::g_build_date,
                            (sizeof(s64) - 1) * 0, sizeof(s64));
             break;
-        case SystemInfoMandarineInformation::BUILD_DATE_PART2:
+        case SystemInfoCytrusInformation::BUILD_DATE_PART2:
             CopyStringPart(reinterpret_cast<char*>(out), Common::g_build_date,
                            (sizeof(s64) - 1) * 1, sizeof(s64));
             break;
-        case SystemInfoMandarineInformation::BUILD_DATE_PART3:
+        case SystemInfoCytrusInformation::BUILD_DATE_PART3:
             CopyStringPart(reinterpret_cast<char*>(out), Common::g_build_date,
                            (sizeof(s64) - 1) * 2, sizeof(s64));
             break;
-        case SystemInfoMandarineInformation::BUILD_DATE_PART4:
+        case SystemInfoCytrusInformation::BUILD_DATE_PART4:
             CopyStringPart(reinterpret_cast<char*>(out), Common::g_build_date,
                            (sizeof(s64) - 1) * 3, sizeof(s64));
             break;
-        case SystemInfoMandarineInformation::BUILD_GIT_BRANCH_PART1:
+        case SystemInfoCytrusInformation::BUILD_GIT_BRANCH_PART1:
             CopyStringPart(reinterpret_cast<char*>(out), Common::g_scm_branch,
                            (sizeof(s64) - 1) * 0, sizeof(s64));
             break;
-        case SystemInfoMandarineInformation::BUILD_GIT_BRANCH_PART2:
+        case SystemInfoCytrusInformation::BUILD_GIT_BRANCH_PART2:
             CopyStringPart(reinterpret_cast<char*>(out), Common::g_scm_branch,
                            (sizeof(s64) - 1) * 1, sizeof(s64));
             break;
-        case SystemInfoMandarineInformation::BUILD_GIT_DESCRIPTION_PART1:
+        case SystemInfoCytrusInformation::BUILD_GIT_DESCRIPTION_PART1:
             CopyStringPart(reinterpret_cast<char*>(out), Common::g_scm_desc, (sizeof(s64) - 1) * 0,
                            sizeof(s64));
             break;
-        case SystemInfoMandarineInformation::BUILD_GIT_DESCRIPTION_PART2:
+        case SystemInfoCytrusInformation::BUILD_GIT_DESCRIPTION_PART2:
             CopyStringPart(reinterpret_cast<char*>(out), Common::g_scm_desc, (sizeof(s64) - 1) * 1,
                            sizeof(s64));
             break;
         default:
-            LOG_ERROR(Kernel_SVC, "unknown GetSystemInfo mandarine info param={}", param);
+            LOG_ERROR(Kernel_SVC, "unknown GetSystemInfo cytrus info param={}", param);
             *out = 0;
             break;
         }
@@ -1893,7 +1807,7 @@ Result SVC::GetProcessInfo(s64* out, Handle process_handle, u32 type) {
         // TODO(yuriks): Type 0 returns a slightly higher number than type 2, but I'm not sure
         // what's the difference between them.
         *out = process->memory_used;
-        if (*out % Memory::MANDARINE_PAGE_SIZE != 0) {
+        if (*out % Memory::CYTRUS_PAGE_SIZE != 0) {
             LOG_ERROR(Kernel_SVC, "called, memory size not page-aligned");
             return ResultMisalignedSize;
         }
@@ -2021,7 +1935,7 @@ Result SVC::MapProcessMemoryEx(Handle dst_process_handle, u32 dst_address,
     R_UNLESS(dst_process && src_process, ResultInvalidHandle);
 
     if (size & 0xFFF) {
-        size = (size & ~0xFFF) + Memory::MANDARINE_PAGE_SIZE;
+        size = (size & ~0xFFF) + Memory::CYTRUS_PAGE_SIZE;
     }
 
     // Only linear memory supported
@@ -2054,7 +1968,7 @@ Result SVC::UnmapProcessMemoryEx(Handle process, u32 dst_address, u32 size) {
     R_UNLESS(dst_process, ResultInvalidHandle);
 
     if (size & 0xFFF) {
-        size = (size & ~0xFFF) + Memory::MANDARINE_PAGE_SIZE;
+        size = (size & ~0xFFF) + Memory::CYTRUS_PAGE_SIZE;
     }
 
     // Only linear memory supported
@@ -2210,9 +2124,9 @@ const std::array<SVC::FunctionDef, 180> SVC::SVC_Table{{
     {0x4F, &SVC::Wrap<&SVC::ReplyAndReceive>, "ReplyAndReceive"},
     {0x50, nullptr, "BindInterrupt"},
     {0x51, nullptr, "UnbindInterrupt"},
-    {0x52, &SVC::Wrap<&SVC::InvalidateProcessDataCache>, "InvalidateProcessDataCache"},
-    {0x53, &SVC::Wrap<&SVC::StoreProcessDataCache>, "StoreProcessDataCache"},
-    {0x54, &SVC::Wrap<&SVC::FlushProcessDataCache>, "FlushProcessDataCache"},
+    {0x52, nullptr, "InvalidateProcessDataCache"},
+    {0x53, nullptr, "StoreProcessDataCache"},
+    {0x54, nullptr, "FlushProcessDataCache"},
     {0x55, nullptr, "StartInterProcessDma"},
     {0x56, nullptr, "StopDma"},
     {0x57, nullptr, "GetDmaState"},
@@ -2319,8 +2233,10 @@ const SVC::FunctionDef* SVC::GetSVCInfo(u32 func_num) {
     return &SVC_Table[func_num];
 }
 
+MICROPROFILE_DEFINE(Kernel_SVC, "Kernel", "SVC", MP_RGB(70, 200, 70));
+
 void SVC::CallSVC(u32 immediate) {
-    MANDARINE_PROFILE("Kernel", "SVC");
+    MICROPROFILE_SCOPE(Kernel_SVC);
 
     // Lock the kernel mutex when we enter the kernel HLE.
     std::scoped_lock lock{kernel.GetHLELock()};

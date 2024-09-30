@@ -3,7 +3,7 @@
 // Refer to the license.txt file included.
 
 #include "common/arch.h"
-#if MANDARINE_ARCH(arm64)
+#if CYTRUS_ARCH(arm64)
 
 #include <cstring>
 #include <fstream>
@@ -114,4 +114,4 @@ const CPUCaps& GetCPUCaps() {
 
 } // namespace Common
 
-#endif // MANDARINE_ARCH(arm64)
+#endif // CYTRUS_ARCH(arm64)

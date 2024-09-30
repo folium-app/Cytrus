@@ -83,7 +83,7 @@
 #include <sys/stat.h>
 
 #ifndef S_ISDIR
-#define S_ISDIR(m) (((m)&S_IFMT) == S_IFDIR)
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
 #endif
 
 // This namespace has various generic functions related to files and paths.
@@ -729,7 +729,7 @@ static const std::string& GetHomeDirectory() {
  * @return The directory path
  * @sa http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
  */
-[[maybe_unused]] const std::string GetUserDirectory(const std::string& envvar) {
+[[maybe_unused]] static const std::string GetUserDirectory(const std::string& envvar) {
     const char* directory = getenv(envvar.c_str());
 
     std::string user_dir;
@@ -826,8 +826,6 @@ void SetUserPath(const std::string& path) {
     g_paths.emplace(UserPath::DumpDir, user_path + DUMP_DIR DIR_SEP);
     g_paths.emplace(UserPath::LoadDir, user_path + LOAD_DIR DIR_SEP);
     g_paths.emplace(UserPath::StatesDir, user_path + STATES_DIR DIR_SEP);
-    g_paths.emplace(UserPath::IconsDir, user_path + ICONS_DIR DIR_SEP);
-    g_paths.emplace(UserPath::PlayTimeDir, user_path + LOG_DIR DIR_SEP);
     g_default_paths = g_paths;
 }
 
@@ -853,8 +851,8 @@ bool StringReplace(std::string& haystack, const std::string& a, const std::strin
 
 std::string SerializePath(const std::string& input, bool is_saving) {
     auto result = input;
-    StringReplace(result, "%MANDARINE_ROM_FILE%", g_currentRomPath, is_saving);
-    StringReplace(result, "%MANDARINE_USER_DIR%", GetUserPath(UserPath::UserDir), is_saving);
+    StringReplace(result, "%CYTRUS_ROM_FILE%", g_currentRomPath, is_saving);
+    StringReplace(result, "%CYTRUS_USER_DIR%", GetUserPath(UserPath::UserDir), is_saving);
     return result;
 }
 

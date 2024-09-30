@@ -10,7 +10,6 @@
 #include <ios>
 #include <limits>
 #include <optional>
-#include <span>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -32,14 +31,9 @@ enum class UserPath {
     ConfigDir,
     DLLDir,
     DumpDir,
-    IconsDir,
-    LegacyCacheDir,  // LegacyCacheDir and LegacyConfigDir are only defined if migrating these
-    LegacyConfigDir, // directories is necessary (aka not a child of LegacyUserDir)
-    LegacyUserDir,
     LoadDir,
     LogDir,
     NANDDir,
-    PlayTimeDir,
     RootDir,
     SDMCDir,
     ShaderDir,
@@ -87,11 +81,11 @@ struct FSTEntry {
 private:
     template <class Archive>
     void serialize(Archive& ar, const unsigned int) {
-        ar& isDirectory;
-        ar& size;
+        ar & isDirectory;
+        ar & size;
         ar& Path::make(physicalName);
         ar& Path::make(virtualName);
-        ar& children;
+        ar & children;
     }
     friend class boost::serialization::access;
 };
@@ -188,11 +182,11 @@ void SetUserPath(const std::string& path = "");
 
 void SetCurrentRomPath(const std::string& path);
 
-// Returns a pointer to a string with a Mandarine data dir in the user's home
+// Returns a pointer to a string with a Cytrus data dir in the user's home
 // directory. To be used in "multi-user" mode (that is, installed).
 [[nodiscard]] const std::string& GetUserPath(UserPath path);
 
-// Returns a pointer to a string with the default Mandarine data dir in the user's home
+// Returns a pointer to a string with the default Cytrus data dir in the user's home
 // directory.
 [[nodiscard]] const std::string& GetDefaultUserPath(UserPath path);
 
@@ -206,8 +200,6 @@ void UpdateUserPath(UserPath path, const std::string& filename);
 #ifdef _WIN32
 [[nodiscard]] const std::string& GetExeDirectory();
 [[nodiscard]] std::string AppDataRoamingDirectory();
-#else
-[[nodiscard]] const std::string GetUserDirectory(const std::string& envvar);
 #endif
 
 std::size_t WriteStringToFile(bool text_file, const std::string& filename, std::string_view str);
@@ -274,9 +266,8 @@ public:
     IOFile();
 
     // flags is used for windows specific file open mode flags, which
-    // allows mandarine to open the logs in shared write mode, so that the file
-    // isn't considered "locked" while mandarine is open and people can open the log file and view
-    // it
+    // allows cytrus to open the logs in shared write mode, so that the file
+    // isn't considered "locked" while cytrus is open and people can open the log file and view it
     IOFile(const std::string& filename, const char openmode[], int flags = 0);
 
     ~IOFile();
@@ -352,59 +343,6 @@ public:
         return WriteArray(str.data(), str.length());
     }
 
-    /**
-     * Reads a span of T data from a file sequentially.
-     * This function reads from the current position of the file pointer and
-     * advances it by the (count of T * sizeof(T)) bytes successfully read.
-     *
-     * Failures occur when:
-     * - The file is not open
-     * - The opened file lacks read permissions
-     * - Attempting to read beyond the end-of-file
-     *
-     * @tparam T Data type
-     *
-     * @param data Span of T data
-     *
-     * @returns Count of T data successfully read.
-     */
-    template <typename T>
-    [[nodiscard]] size_t ReadSpan(std::span<T> data) const {
-        static_assert(std::is_trivially_copyable_v<T>, "Data type must be trivially copyable.");
-
-        if (!IsOpen()) {
-            return 0;
-        }
-
-        return std::fread(data.data(), sizeof(T), data.size(), m_file);
-    }
-
-    /**
-     * Writes a span of T data to a file sequentially.
-     * This function writes from the current position of the file pointer and
-     * advances it by the (count of T * sizeof(T)) bytes successfully written.
-     *
-     * Failures occur when:
-     * - The file is not open
-     * - The opened file lacks write permissions
-     *
-     * @tparam T Data type
-     *
-     * @param data Span of T data
-     *
-     * @returns Count of T data successfully written.
-     */
-    template <typename T>
-    [[nodiscard]] size_t WriteSpan(std::span<const T> data) const {
-        static_assert(std::is_trivially_copyable_v<T>, "Data type must be trivially copyable.");
-
-        if (!IsOpen()) {
-            return 0;
-        }
-
-        return std::fwrite(data.data(), sizeof(T), data.size(), m_file);
-    }
-
     [[nodiscard]] bool IsOpen() const {
         return nullptr != m_file;
     }
@@ -457,13 +395,13 @@ private:
     template <class Archive>
     void serialize(Archive& ar, const unsigned int) {
         ar& Path::make(filename);
-        ar& openmode;
-        ar& flags;
+        ar & openmode;
+        ar & flags;
         u64 pos;
         if (Archive::is_saving::value) {
             pos = Tell();
         }
-        ar& pos;
+        ar & pos;
         if (Archive::is_loading::value) {
             Open();
             Seek(pos, SEEK_SET);

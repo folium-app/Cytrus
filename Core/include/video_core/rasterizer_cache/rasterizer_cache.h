@@ -9,7 +9,7 @@
 #include <boost/range/iterator_range.hpp>
 #include "common/alignment.h"
 #include "common/logging/log.h"
-#include "common/profiling.h"
+#include "common/microprofile.h"
 #include "common/scope_exit.h"
 #include "common/settings.h"
 #include "core/memory.h"
@@ -22,6 +22,11 @@
 #include "video_core/texture/texture_decode.h"
 
 namespace VideoCore {
+
+MICROPROFILE_DECLARE(RasterizerCache_CopySurface);
+MICROPROFILE_DECLARE(RasterizerCache_UploadSurface);
+MICROPROFILE_DECLARE(RasterizerCache_DownloadSurface);
+MICROPROFILE_DECLARE(RasterizerCache_Invalidation);
 
 constexpr auto RangeFromInterval(const auto& map, const auto& interval) {
     return boost::make_iterator_range(map.equal_range(interval));
@@ -203,7 +208,7 @@ bool RasterizerCache<T>::AccelerateTextureCopy(const Pica::DisplayTransferConfig
 
     const auto [src_surface_id, src_rect] = GetTexCopySurface(src_params);
     if (!src_surface_id) {
-        return Settings::values.disable_surface_texture_copy.GetValue();
+        return false;
     }
 
     const SurfaceParams src_info = slot_surfaces[src_surface_id];
@@ -404,7 +409,7 @@ typename T::Sampler& RasterizerCache<T>::GetSampler(
 template <class T>
 void RasterizerCache<T>::CopySurface(Surface& src_surface, Surface& dst_surface,
                                      SurfaceInterval copy_interval) {
-    MANDARINE_PROFILE("RasterizerCache", "Copy Surface");
+    MICROPROFILE_SCOPE(RasterizerCache_CopySurface);
     const PAddr copy_addr = copy_interval.lower();
     const SurfaceParams subrect_params = dst_surface.FromInterval(copy_interval);
     ASSERT(subrect_params.GetInterval() == copy_interval);
@@ -595,43 +600,14 @@ typename T::Surface& RasterizerCache<T>::GetTextureCube(const TextureCubeConfig&
     auto [it, new_surface] = texture_cube_cache.try_emplace(config);
     TextureCube& cube = it->second;
 
-    const std::array addresses = {config.px, config.nx, config.py, config.ny, config.pz, config.nz};
-
     if (new_surface) {
-        Pica::Texture::TextureInfo info = {
-            .width = config.width,
-            .height = config.width,
-            .format = config.format,
-        };
-        info.SetDefaultStride();
-
-        u32 res_scale = 1;
-        for (u32 i = 0; i < addresses.size(); i++) {
-            if (!addresses[i]) {
-                continue;
-            }
-
-            SurfaceId& face_id = cube.face_ids[i];
-            if (!face_id) {
-                info.physical_address = addresses[i];
-                face_id = GetTextureSurface(info, config.levels - 1);
-                Surface& surface = slot_surfaces[face_id];
-                ASSERT_MSG(
-                    surface.levels >= config.levels,
-                    "Texture cube face levels are not enough to validate the levels requested");
-                surface.flags |= SurfaceFlagBits::Tracked;
-            }
-            Surface& surface = slot_surfaces[face_id];
-            res_scale = std::max(surface.res_scale, res_scale);
-        }
-
         SurfaceParams cube_params = {
             .addr = config.px,
             .width = config.width,
             .height = config.width,
             .stride = config.width,
             .levels = config.levels,
-            .res_scale = res_scale,
+            .res_scale = filter != Settings::TextureFilter::None ? resolution_scale_factor : 1,
             .texture_type = TextureType::CubeMap,
             .pixel_format = PixelFormatFromTextureFormat(config.format),
             .type = SurfaceType::Texture,
@@ -640,21 +616,38 @@ typename T::Surface& RasterizerCache<T>::GetTextureCube(const TextureCubeConfig&
         cube.surface_id = CreateSurface(cube_params);
     }
 
-    Surface& cube_surface = slot_surfaces[cube.surface_id];
+    const u32 scaled_size = slot_surfaces[cube.surface_id].GetScaledWidth();
+    const std::array addresses = {config.px, config.nx, config.py, config.ny, config.pz, config.nz};
+
+    Pica::Texture::TextureInfo info = {
+        .width = config.width,
+        .height = config.width,
+        .format = config.format,
+    };
+    info.SetDefaultStride();
+
     for (u32 i = 0; i < addresses.size(); i++) {
-        const SurfaceId& face_id = cube.face_ids[i];
-        if (!addresses[i] || !face_id) {
+        if (!addresses[i]) {
             continue;
         }
+
+        SurfaceId& face_id = cube.face_ids[i];
+        if (!face_id) {
+            info.physical_address = addresses[i];
+            face_id = GetTextureSurface(info, config.levels - 1);
+            ASSERT_MSG(slot_surfaces[face_id].levels >= config.levels,
+                       "Texture cube face levels are not enough to validate the levels requested");
+        }
         Surface& surface = slot_surfaces[face_id];
+        surface.flags |= SurfaceFlagBits::Tracked;
         if (cube.ticks[i] == surface.modification_tick) {
             continue;
         }
         cube.ticks[i] = surface.modification_tick;
-        boost::container::small_vector<TextureCopy, 8> upload_copies;
+        Surface& cube_surface = slot_surfaces[cube.surface_id];
         for (u32 level = 0; level < config.levels; level++) {
-            const u32 width_lod = surface.GetScaledWidth() >> level;
-            upload_copies.push_back({
+            const u32 width_lod = scaled_size >> level;
+            const TextureCopy texture_copy = {
                 .src_level = level,
                 .dst_level = level,
                 .src_layer = 0,
@@ -662,9 +655,9 @@ typename T::Surface& RasterizerCache<T>::GetTextureCube(const TextureCubeConfig&
                 .src_offset = {0, 0},
                 .dst_offset = {0, 0},
                 .extent = {width_lod, width_lod},
-            });
+            };
+            runtime.CopyTextures(surface, cube_surface, texture_copy);
         }
-        runtime.CopyTextures(surface, cube_surface, upload_copies);
     }
 
     return slot_surfaces[cube.surface_id];
@@ -999,7 +992,7 @@ void RasterizerCache<T>::ValidateSurface(SurfaceId surface_id, PAddr addr, u32 s
 
 template <class T>
 void RasterizerCache<T>::UploadSurface(Surface& surface, SurfaceInterval interval) {
-    MANDARINE_PROFILE("RasterizerCache", "Upload Surface");
+    MICROPROFILE_SCOPE(RasterizerCache_UploadSurface);
 
     const SurfaceParams load_info = surface.FromInterval(interval);
     ASSERT(load_info.addr >= surface.addr && load_info.end <= surface.end);
@@ -1049,7 +1042,7 @@ u64 RasterizerCache<T>::ComputeHash(const SurfaceParams& load_info, std::span<u8
 
 template <class T>
 bool RasterizerCache<T>::UploadCustomSurface(SurfaceId surface_id, SurfaceInterval interval) {
-    MANDARINE_PROFILE("RasterizerCache", "Upload Custom Surface");
+    MICROPROFILE_SCOPE(RasterizerCache_UploadSurface);
 
     Surface& surface = slot_surfaces[surface_id];
     const SurfaceParams load_info = surface.FromInterval(interval);
@@ -1097,7 +1090,7 @@ bool RasterizerCache<T>::UploadCustomSurface(SurfaceId surface_id, SurfaceInterv
 
 template <class T>
 void RasterizerCache<T>::DownloadSurface(Surface& surface, SurfaceInterval interval) {
-    MANDARINE_PROFILE("RasterizerCache", "Download Surface");
+    MICROPROFILE_SCOPE(RasterizerCache_DownloadSurface);
 
     const SurfaceParams flush_info = surface.FromInterval(interval);
     const u32 flush_start = boost::icl::first(interval);
@@ -1187,16 +1180,27 @@ bool RasterizerCache<T>::ValidateByReinterpretation(Surface& surface, SurfacePar
     }
 
     // No surfaces were found in the cache that had a matching bit-width.
-    // Before entering the slow path, check if part of the interval is owned
-    // by a gpu modified surface with a different stride than ours. This is indicative
-    // of texture aliasing by the guest, which for the vast majority of cases we don't
-    // need to validate.
-    // TODO: While this works for the vast majority of cases, in Fire Emblem: Shadows of Valentia
-    // the warping effect when running in dugeons relies on this stride reinterpretation.
-    // In the future this transformation should be properly implemented with a GPU shader.
-    const auto it = dirty_regions.find(interval);
-    return it != dirty_regions.end() && it->second &&
-           slot_surfaces[it->second].stride != surface.stride;
+    // If there's a surface with invalid format it means the region was cleared
+    // so we don't want to skip validation in that case.
+    const bool has_invalid = IntervalHasInvalidPixelFormat(params, interval);
+    const bool is_gpu_modified = boost::icl::contains(dirty_regions, interval);
+    return !has_invalid && is_gpu_modified;
+}
+
+template <class T>
+bool RasterizerCache<T>::IntervalHasInvalidPixelFormat(const SurfaceParams& params,
+                                                       SurfaceInterval interval) {
+    bool invalid_format_found = false;
+    const PAddr addr = boost::icl::lower(interval);
+    const u32 size = boost::icl::length(interval);
+    ForEachSurfaceInRegion(addr, size, [&](SurfaceId surface_id, Surface& surface) {
+        if (surface.pixel_format == PixelFormat::Invalid) {
+            invalid_format_found = true;
+            return true;
+        }
+        return false;
+    });
+    return invalid_format_found;
 }
 
 template <class T>
@@ -1210,10 +1214,8 @@ void RasterizerCache<T>::ClearAll(bool flush) {
     for (auto& pair : RangeFromInterval(cached_pages, flush_interval)) {
         const auto interval = pair.first & flush_interval;
 
-        const PAddr interval_start_addr = boost::icl::first(interval)
-                                          << Memory::MANDARINE_PAGE_BITS;
-        const PAddr interval_end_addr = boost::icl::last_next(interval)
-                                        << Memory::MANDARINE_PAGE_BITS;
+        const PAddr interval_start_addr = boost::icl::first(interval) << Memory::CYTRUS_PAGE_BITS;
+        const PAddr interval_end_addr = boost::icl::last_next(interval) << Memory::CYTRUS_PAGE_BITS;
         const u32 interval_size = interval_end_addr - interval_start_addr;
 
         memory.RasterizerMarkRegionCached(interval_start_addr, interval_size, false);
@@ -1293,8 +1295,6 @@ void RasterizerCache<T>::InvalidateRegion(PAddr addr, u32 size, SurfaceId region
         region_owner.MarkValid(invalid_interval);
     }
 
-    MANDARINE_PROFILE("RasterizerCache", "Invalidate Region");
-
     boost::container::small_vector<SurfaceId, 4> remove_surfaces;
     ForEachSurfaceInRegion(addr, size, [&](SurfaceId surface_id, Surface& surface) {
         if (surface_id == region_owner_id) {
@@ -1303,9 +1303,6 @@ void RasterizerCache<T>::InvalidateRegion(PAddr addr, u32 size, SurfaceId region
         // If the CPU is invalidating this region we want to remove it
         // to (likely) mark the memory pages as uncached
         if (!region_owner_id && size <= 8) {
-            if (Settings::values.disable_flush_cpu_write) {
-                return;
-            }
             FlushRegion(surface.addr, surface.size, surface_id);
             remove_surfaces.push_back(surface_id);
             return;
@@ -1373,14 +1370,14 @@ void RasterizerCache<T>::UnregisterSurface(SurfaceId surface_id) {
     ForEachPage(surface.addr, surface.size, [this, surface_id](u64 page) {
         const auto page_it = page_table.find(page);
         if (page_it == page_table.end()) {
-            ASSERT_MSG(false, "Unregistering unregistered page=0x{:x}", page << MANDARINE_PAGEBITS);
+            ASSERT_MSG(false, "Unregistering unregistered page=0x{:x}", page << CYTRUS_PAGEBITS);
             return;
         }
         std::vector<SurfaceId>& surfaces = page_it.value();
         const auto vector_it = std::find(surfaces.begin(), surfaces.end(), surface_id);
         if (vector_it == surfaces.end()) {
             ASSERT_MSG(false, "Unregistering unregistered surface in page=0x{:x}",
-                       page << MANDARINE_PAGEBITS);
+                       page << CYTRUS_PAGEBITS);
             return;
         }
         surfaces.erase(vector_it);
@@ -1410,9 +1407,9 @@ void RasterizerCache<T>::UnregisterAll() {
 
 template <class T>
 void RasterizerCache<T>::UpdatePagesCachedCount(PAddr addr, u32 size, int delta) {
-    const u32 num_pages = ((addr + size - 1) >> Memory::MANDARINE_PAGE_BITS) -
-                          (addr >> Memory::MANDARINE_PAGE_BITS) + 1;
-    const u32 page_start = addr >> Memory::MANDARINE_PAGE_BITS;
+    const u32 num_pages =
+        ((addr + size - 1) >> Memory::CYTRUS_PAGE_BITS) - (addr >> Memory::CYTRUS_PAGE_BITS) + 1;
+    const u32 page_start = addr >> Memory::CYTRUS_PAGE_BITS;
     const u32 page_end = page_start + num_pages;
 
     // Interval maps will erase segments if count reaches 0, so if delta is negative we have to
@@ -1426,10 +1423,8 @@ void RasterizerCache<T>::UpdatePagesCachedCount(PAddr addr, u32 size, int delta)
         const auto interval = pair.first & pages_interval;
         const int count = pair.second;
 
-        const PAddr interval_start_addr = boost::icl::first(interval)
-                                          << Memory::MANDARINE_PAGE_BITS;
-        const PAddr interval_end_addr = boost::icl::last_next(interval)
-                                        << Memory::MANDARINE_PAGE_BITS;
+        const PAddr interval_start_addr = boost::icl::first(interval) << Memory::CYTRUS_PAGE_BITS;
+        const PAddr interval_end_addr = boost::icl::last_next(interval) << Memory::CYTRUS_PAGE_BITS;
         const u32 interval_size = interval_end_addr - interval_start_addr;
 
         if (delta > 0 && count == delta) {

@@ -65,28 +65,28 @@ PLG_LDR::PLG_LDR(Core::System& system_) : ServiceFramework{"plg:ldr", 1}, system
 
 template <class Archive>
 void PLG_LDR::PluginLoaderContext::serialize(Archive& ar, const unsigned int) {
-    ar& is_enabled;
-    ar& allow_game_change;
-    ar& plugin_loaded;
-    ar& is_default_path;
-    ar& plugin_path;
-    ar& use_user_load_parameters;
-    ar& user_load_parameters;
-    ar& plg_event;
-    ar& plg_reply;
-    ar& memory_changed_handle;
-    ar& is_exe_load_function_set;
-    ar& exe_load_checksum;
-    ar& load_exe_func;
-    ar& load_exe_args;
-    ar& plugin_fb_addr;
+    ar & is_enabled;
+    ar & allow_game_change;
+    ar & plugin_loaded;
+    ar & is_default_path;
+    ar & plugin_path;
+    ar & use_user_load_parameters;
+    ar & user_load_parameters;
+    ar & plg_event;
+    ar & plg_reply;
+    ar & memory_changed_handle;
+    ar & is_exe_load_function_set;
+    ar & exe_load_checksum;
+    ar & load_exe_func;
+    ar & load_exe_args;
+    ar & plugin_fb_addr;
 }
 SERIALIZE_IMPL(PLG_LDR::PluginLoaderContext)
 
 template <class Archive>
 void PLG_LDR::serialize(Archive& ar, const unsigned int) {
     ar& boost::serialization::base_object<Kernel::SessionRequestHandler>(*this);
-    ar& plgldr_context;
+    ar & plgldr_context;
 }
 SERIALIZE_IMPL(PLG_LDR)
 
@@ -204,10 +204,7 @@ void PLG_LDR::SetLoadSettings(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp(ctx);
 
     plgldr_context.use_user_load_parameters = true;
-    u32_le flags = rp.Pop<u32>();
-    plgldr_context.user_load_parameters.no_flash = (flags & 1) == 1;
-    plgldr_context.user_load_parameters.plugin_memory_strategy =
-        static_cast<PluginMemoryStrategy>((flags >> 8) & 0xF);
+    plgldr_context.user_load_parameters.no_flash = rp.Pop<u32>() == 1;
     plgldr_context.user_load_parameters.low_title_Id = rp.Pop<u32>();
 
     auto path = rp.PopMappedBuffer();

@@ -27,9 +27,9 @@
 #define APPLE_EMU_DATA_DIR "Library" DIR_SEP "Application Support" DIR_SEP "Cytrus"
 #endif
 // For compatibility with XDG paths.
-#define EMU_DATA_DIR "cytrus"
+#define EMU_DATA_DIR "cytrus-emu"
 #else
-#define EMU_DATA_DIR "cytrus"
+#define EMU_DATA_DIR "cytrus-emu"
 #endif
 #endif
 
@@ -52,7 +52,6 @@
 #define LOAD_DIR "load"
 #define SHADER_DIR "shaders"
 #define STATES_DIR "states"
-#define ICONS_DIR "icons"
 
 // Filenames
 // Files in the directory returned by GetUserPath(UserPath::LogDir)

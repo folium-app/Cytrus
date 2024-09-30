@@ -2,7 +2,6 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-#include <memory>
 #include <SPIRV/GlslangToSpv.h>
 #include <glslang/Include/ResourceLimits.h>
 #include <glslang/Public/ShaderLang.h>
@@ -159,14 +158,7 @@ bool InitializeCompiler() {
 }
 } // Anonymous namespace
 
-/**
- * @brief Compiles GLSL into SPIRV
- * @param code The string containing GLSL code.
- * @param stage The pipeline stage the shader will be used in.
- * @param device The vulkan device handle.
- */
-std::vector<u32> CompileGLSLtoSPIRV(std::string_view code, vk::ShaderStageFlagBits stage,
-                                    vk::Device device, std::string_view premable) {
+vk::ShaderModule Compile(std::string_view code, vk::ShaderStageFlagBits stage, vk::Device device) {
     if (!InitializeCompiler()) {
         return {};
     }
@@ -184,14 +176,12 @@ std::vector<u32> CompileGLSLtoSPIRV(std::string_view code, vk::ShaderStageFlagBi
     shader->setEnvTarget(glslang::EShTargetSpv,
                          glslang::EShTargetLanguageVersion::EShTargetSpv_1_3);
     shader->setStringsWithLengths(&pass_source_code, &pass_source_code_length, 1);
-    shader->setPreamble(premable.data());
 
     glslang::TShader::ForbidIncluder includer;
     if (!shader->parse(&DefaultTBuiltInResource, default_version, profile, false, true, messages,
                        includer)) [[unlikely]] {
         LOG_INFO(Render_Vulkan, "Shader Info Log:\n{}\n{}", shader->getInfoLog(),
                  shader->getInfoDebugLog());
-        LOG_INFO(Render_Vulkan, "Shader Source:\n{}", code);
         return {};
     }
 
@@ -222,12 +212,7 @@ std::vector<u32> CompileGLSLtoSPIRV(std::string_view code, vk::ShaderStageFlagBi
         LOG_INFO(Render_Vulkan, "SPIR-V conversion messages: {}", spv_messages);
     }
 
-    return out_code;
-}
-
-vk::ShaderModule Compile(std::string_view code, vk::ShaderStageFlagBits stage, vk::Device device,
-                         std::string_view premable) {
-    return CompileSPV(CompileGLSLtoSPIRV(code, stage, device, premable), device);
+    return CompileSPV(out_code, device);
 }
 
 vk::ShaderModule CompileSPV(std::span<const u32> code, vk::Device device) {

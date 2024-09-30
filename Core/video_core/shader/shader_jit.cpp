@@ -3,17 +3,17 @@
 // Refer to the license.txt file included.
 
 #include "common/arch.h"
-#if MANDARINE_ARCH(x86_64) || MANDARINE_ARCH(arm64)
+#if CYTRUS_ARCH(x86_64) || CYTRUS_ARCH(arm64)
 
 #include "common/assert.h"
 #include "common/hash.h"
-#include "common/profiling.h"
+#include "common/microprofile.h"
 #include "video_core/shader/shader.h"
 #include "video_core/shader/shader_jit.h"
-#if MANDARINE_ARCH(arm64)
+#if CYTRUS_ARCH(arm64)
 #include "video_core/shader/shader_jit_a64_compiler.h"
 #endif
-#if MANDARINE_ARCH(x86_64)
+#if CYTRUS_ARCH(x86_64)
 #include "video_core/shader/shader_jit_x64_compiler.h"
 #endif
 
@@ -41,10 +41,12 @@ void JitEngine::SetupBatch(ShaderSetup& setup, u32 entry_point) {
     }
 }
 
+MICROPROFILE_DECLARE(GPU_Shader);
+
 void JitEngine::Run(const ShaderSetup& setup, ShaderUnit& state) const {
     ASSERT(setup.cached_shader != nullptr);
 
-    MANDARINE_PROFILE("Shader", "Shader JIT");
+    MICROPROFILE_SCOPE(GPU_Shader);
 
     const JitShader* shader = static_cast<const JitShader*>(setup.cached_shader);
     shader->Run(setup, state, setup.entry_point);
@@ -52,4 +54,4 @@ void JitEngine::Run(const ShaderSetup& setup, ShaderUnit& state) const {
 
 } // namespace Pica::Shader
 
-#endif // MANDARINE_ARCH(x86_64) || MANDARINE_ARCH(arm64)
+#endif // CYTRUS_ARCH(x86_64) || CYTRUS_ARCH(arm64)

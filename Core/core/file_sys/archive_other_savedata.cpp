@@ -75,14 +75,12 @@ ResultVal<std::unique_ptr<ArchiveBackend>> ArchiveFactory_OtherSaveDataPermitted
         return ResultGamecardNotInserted;
     }
 
-    return sd_savedata_source->Open(Service::FS::ArchiveIdCode::OtherSaveDataPermitted, path,
-                                    program_id);
+    return sd_savedata_source->Open(program_id);
 }
 
 Result ArchiveFactory_OtherSaveDataPermitted::Format(const Path& path,
                                                      const FileSys::ArchiveFormatInfo& format_info,
-                                                     u64 program_id, u32 directory_buckets,
-                                                     u32 file_buckets) {
+                                                     u64 program_id) {
     LOG_ERROR(Service_FS, "Attempted to format a OtherSaveDataPermitted archive.");
     return ResultInvalidPath;
 }
@@ -98,8 +96,7 @@ ResultVal<ArchiveFormatInfo> ArchiveFactory_OtherSaveDataPermitted::GetFormatInf
         return ResultGamecardNotInserted;
     }
 
-    return sd_savedata_source->GetFormatInfo(
-        program_id, Service::FS::ArchiveIdCode::OtherSaveDataPermitted, path);
+    return sd_savedata_source->GetFormatInfo(program_id);
 }
 
 ArchiveFactory_OtherSaveDataGeneral::ArchiveFactory_OtherSaveDataGeneral(
@@ -117,14 +114,12 @@ ResultVal<std::unique_ptr<ArchiveBackend>> ArchiveFactory_OtherSaveDataGeneral::
         return ResultGamecardNotInserted;
     }
 
-    return sd_savedata_source->Open(Service::FS::ArchiveIdCode::OtherSaveDataGeneral, path,
-                                    program_id);
+    return sd_savedata_source->Open(program_id);
 }
 
 Result ArchiveFactory_OtherSaveDataGeneral::Format(const Path& path,
                                                    const FileSys::ArchiveFormatInfo& format_info,
-                                                   u64 /*client_program_id*/, u32 directory_buckets,
-                                                   u32 file_buckets) {
+                                                   u64 /*client_program_id*/) {
     MediaType media_type;
     u64 program_id;
     CASCADE_RESULT(std::tie(media_type, program_id), ParsePathGeneral(path));
@@ -134,9 +129,7 @@ Result ArchiveFactory_OtherSaveDataGeneral::Format(const Path& path,
         return ResultGamecardNotInserted;
     }
 
-    return sd_savedata_source->Format(program_id, format_info,
-                                      Service::FS::ArchiveIdCode::OtherSaveDataPermitted, path,
-                                      directory_buckets, file_buckets);
+    return sd_savedata_source->Format(program_id, format_info);
 }
 
 ResultVal<ArchiveFormatInfo> ArchiveFactory_OtherSaveDataGeneral::GetFormatInfo(
@@ -150,8 +143,7 @@ ResultVal<ArchiveFormatInfo> ArchiveFactory_OtherSaveDataGeneral::GetFormatInfo(
         return ResultGamecardNotInserted;
     }
 
-    return sd_savedata_source->GetFormatInfo(
-        program_id, Service::FS::ArchiveIdCode::OtherSaveDataPermitted, path);
+    return sd_savedata_source->GetFormatInfo(program_id);
 }
 
 } // namespace FileSys

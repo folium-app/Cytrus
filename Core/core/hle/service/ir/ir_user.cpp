@@ -8,7 +8,7 @@
 #include <boost/serialization/base_object.hpp>
 #include <boost/serialization/shared_ptr.hpp>
 #include <boost/serialization/unique_ptr.hpp>
-#include <fmt/ranges.h>
+#include <fmt/format.h>
 #include "common/archives.h"
 #include "common/swap.h"
 #include "core/core.h"
@@ -26,12 +26,12 @@ namespace Service::IR {
 template <class Archive>
 void IR_USER::serialize(Archive& ar, const unsigned int) {
     ar& boost::serialization::base_object<Kernel::SessionRequestHandler>(*this);
-    ar& conn_status_event;
-    ar& send_event;
-    ar& receive_event;
-    ar& shared_memory;
-    ar& connected_device;
-    ar& receive_buffer;
+    ar & conn_status_event;
+    ar & send_event;
+    ar & receive_event;
+    ar & shared_memory;
+    ar & connected_device;
+    ar & receive_buffer;
     ar&* extra_hid.get();
 }
 
@@ -164,10 +164,10 @@ private:
     private:
         template <class Archive>
         void serialize(Archive& ar, const unsigned int) {
-            ar& begin_index;
-            ar& end_index;
-            ar& packet_count;
-            ar& unknown;
+            ar & begin_index;
+            ar & end_index;
+            ar & packet_count;
+            ar & unknown;
         }
         friend class boost::serialization::access;
     };
@@ -216,12 +216,12 @@ private:
 
     template <class Archive>
     void serialize(Archive& ar, const unsigned int) {
-        ar& info;
-        ar& shared_memory;
-        ar& info_offset;
-        ar& buffer_offset;
-        ar& max_packet_count;
-        ar& max_data_size;
+        ar & info;
+        ar & shared_memory;
+        ar & info_offset;
+        ar & buffer_offset;
+        ar & max_packet_count;
+        ar & max_data_size;
     }
     friend class boost::serialization::access;
 };
@@ -478,12 +478,6 @@ IR_USER::~IR_USER() {
 
 void IR_USER::ReloadInputDevices() {
     extra_hid->RequestInputDevicesReload();
-}
-
-void IR_USER::UseArticController(const std::shared_ptr<Service::HID::ArticBaseController>& ac) {
-    if (extra_hid.get()) {
-        extra_hid->UseArticController(ac);
-    }
 }
 
 IRDevice::IRDevice(SendFunc send_func_) : send_func(send_func_) {}

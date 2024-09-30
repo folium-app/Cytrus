@@ -23,11 +23,11 @@ namespace Service::IR {
 template <class Archive>
 void IR_RST::serialize(Archive& ar, const unsigned int) {
     ar& boost::serialization::base_object<Kernel::SessionRequestHandler>(*this);
-    ar& update_event;
-    ar& shared_memory;
-    ar& next_pad_index;
-    ar& raw_c_stick;
-    ar& update_period;
+    ar & update_event;
+    ar & shared_memory;
+    ar & next_pad_index;
+    ar & raw_c_stick;
+    ar & update_period;
     // update_callback_id and input devices are set separately
     ReloadInputDevices();
 }
@@ -72,41 +72,25 @@ void IR_RST::UpdateCallback(std::uintptr_t user_data, s64 cycles_late) {
     if (is_device_reload_pending.exchange(false))
         LoadInputDevices();
 
-    constexpr u32 VALID_EXTRAHID_KEYS = 0xF00C000;
-
     PadState state;
-    s16 c_stick_x, c_stick_y;
+    state.zl.Assign(zl_button->GetStatus());
+    state.zr.Assign(zr_button->GetStatus());
 
-    if (artic_controller.get() && artic_controller->IsReady()) {
-        Service::HID::ArticBaseController::ControllerData data =
-            artic_controller->GetControllerData();
+    // Get current c-stick position and update c-stick direction
+    float c_stick_x_f, c_stick_y_f;
+    std::tie(c_stick_x_f, c_stick_y_f) = c_stick->GetStatus();
+    constexpr int MAX_CSTICK_RADIUS = 0x9C; // Max value for a c-stick radius
+    s16 c_stick_x = static_cast<s16>(c_stick_x_f * MAX_CSTICK_RADIUS);
+    s16 c_stick_y = static_cast<s16>(c_stick_y_f * MAX_CSTICK_RADIUS);
 
-        state.hex = data.pad & VALID_EXTRAHID_KEYS;
+    system.Movie().HandleIrRst(state, c_stick_x, c_stick_y);
 
-        c_stick_x = data.c_stick_x;
-        c_stick_y = data.c_stick_y;
-
-        system.Movie().HandleIrRst(state, c_stick_x, c_stick_y);
-    } else {
-        state.zl.Assign(zl_button->GetStatus());
-        state.zr.Assign(zr_button->GetStatus());
-
-        // Get current c-stick position and update c-stick direction
-        float c_stick_x_f, c_stick_y_f;
-        std::tie(c_stick_x_f, c_stick_y_f) = c_stick->GetStatus();
-        constexpr int MAX_CSTICK_RADIUS = 0x9C; // Max value for a c-stick radius
-        c_stick_x = static_cast<s16>(c_stick_x_f * MAX_CSTICK_RADIUS);
-        c_stick_y = static_cast<s16>(c_stick_y_f * MAX_CSTICK_RADIUS);
-
-        system.Movie().HandleIrRst(state, c_stick_x, c_stick_y);
-
-        if (!raw_c_stick) {
-            const HID::DirectionState direction = HID::GetStickDirectionState(c_stick_x, c_stick_y);
-            state.c_stick_up.Assign(direction.up);
-            state.c_stick_down.Assign(direction.down);
-            state.c_stick_left.Assign(direction.left);
-            state.c_stick_right.Assign(direction.right);
-        }
+    if (!raw_c_stick) {
+        const HID::DirectionState direction = HID::GetStickDirectionState(c_stick_x, c_stick_y);
+        state.c_stick_up.Assign(direction.up);
+        state.c_stick_down.Assign(direction.down);
+        state.c_stick_left.Assign(direction.left);
+        state.c_stick_right.Assign(direction.right);
     }
 
     // TODO (wwylele): implement raw C-stick data for raw_c_stick = true

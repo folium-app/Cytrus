@@ -5,7 +5,7 @@
 #pragma once
 
 #include "common/arch.h"
-#if MANDARINE_ARCH(arm64)
+#if CYTRUS_ARCH(arm64)
 
 #include <array>
 #include <bitset>

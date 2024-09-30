@@ -5,7 +5,7 @@
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "common/memory_detect.h"
-#include "common/profiling.h"
+#include "common/microprofile.h"
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/frontend/emu_window.h"
@@ -21,6 +21,8 @@
 #include "video_core/host_shaders/vulkan_present_vert.h"
 
 #include <vk_mem_alloc.h>
+
+MICROPROFILE_DEFINE(Vulkan_RenderFrame, "Vulkan", "Render Frame", MP_RGB(128, 128, 64));
 
 namespace Vulkan {
 
@@ -51,19 +53,25 @@ constexpr static std::array<vk::DescriptorSetLayoutBinding, 1> PRESENT_BINDINGS 
 RendererVulkan::RendererVulkan(Core::System& system, Pica::PicaCore& pica_,
                                Frontend::EmuWindow& window, Frontend::EmuWindow* secondary_window)
     : RendererBase{system, window, secondary_window}, memory{system.Memory()}, pica{pica_},
-      instance{window, Settings::values.physical_device.GetValue()}, scheduler{instance},
-      renderpass_cache{instance, scheduler}, main_window{window, instance, scheduler},
+      instance{system.TelemetrySession(), window, Settings::values.physical_device.GetValue()},
+      scheduler{instance}, renderpass_cache{instance, scheduler}, pool{instance},
+      main_window{window, instance, scheduler},
       vertex_buffer{instance, scheduler, vk::BufferUsageFlagBits::eVertexBuffer,
                     VERTEX_BUFFER_SIZE},
-      update_queue{instance},
-      rasterizer{
-          memory,   pica,      system.CustomTexManager(), *this,        render_window,
-          instance, scheduler, renderpass_cache,          update_queue, main_window.ImageCount()},
-      present_heap{instance, scheduler.GetMasterSemaphore(), PRESENT_BINDINGS, 32} {
+      rasterizer{memory,
+                 pica,
+                 system.CustomTexManager(),
+                 *this,
+                 render_window,
+                 instance,
+                 scheduler,
+                 pool,
+                 renderpass_cache,
+                 main_window.ImageCount()},
+      present_set_provider{instance, pool, PRESENT_BINDINGS} {
     CompileShaders();
     BuildLayouts();
     BuildPipelines();
-    ReloadPipeline();
     if (secondary_window) {
         second_window = std::make_unique<PresentWindow>(*secondary_window, instance, scheduler);
     }
@@ -72,7 +80,6 @@ RendererVulkan::RendererVulkan(Core::System& system, Pica::PicaCore& pica_,
 RendererVulkan::~RendererVulkan() {
     vk::Device device = instance.GetDevice();
     scheduler.Finish();
-    main_window.WaitPresent();
     device.waitIdle();
 
     device.destroyShaderModule(present_vertex_shader);
@@ -105,7 +112,6 @@ void RendererVulkan::PrepareRendertarget() {
 
         const auto color_fill = fb_id == 0 ? regs_lcd.color_fill_top : regs_lcd.color_fill_bottom;
         if (color_fill.is_enabled) {
-            screen_infos[i].image_view = texture.image_view;
             FillScreen(color_fill.AsVector(), texture);
             continue;
         }
@@ -121,14 +127,16 @@ void RendererVulkan::PrepareRendertarget() {
 
 void RendererVulkan::PrepareDraw(Frame* frame, const Layout::FramebufferLayout& layout) {
     const auto sampler = present_samplers[!Settings::values.filter_mode.GetValue()];
-    const auto present_set = present_heap.Commit();
-    for (u32 index = 0; index < screen_infos.size(); index++) {
-        update_queue.AddImageSampler(present_set, 0, index, screen_infos[index].image_view,
-                                     sampler);
-    }
+    std::transform(screen_infos.begin(), screen_infos.end(), present_textures.begin(),
+                   [&](auto& info) {
+                       return DescriptorData{vk::DescriptorImageInfo{sampler, info.image_view,
+                                                                     vk::ImageLayout::eGeneral}};
+                   });
+
+    const auto descriptor_set = present_set_provider.Acquire(present_textures);
 
     renderpass_cache.EndRendering();
-    scheduler.Record([this, layout, frame, present_set, renderpass = main_window.Renderpass(),
+    scheduler.Record([this, layout, frame, descriptor_set, renderpass = main_window.Renderpass(),
                       index = current_pipeline](vk::CommandBuffer cmdbuf) {
         const vk::Viewport viewport = {
             .x = 0.0f,
@@ -163,7 +171,7 @@ void RendererVulkan::PrepareDraw(Frame* frame, const Layout::FramebufferLayout& 
 
         cmdbuf.beginRenderPass(renderpass_begin_info, vk::SubpassContents::eInline);
         cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, present_pipelines[index]);
-        cmdbuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, 0, present_set, {});
+        cmdbuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, 0, descriptor_set, {});
     });
 }
 
@@ -216,17 +224,15 @@ void RendererVulkan::LoadFBToScreenInfo(const Pica::FramebufferConfig& framebuff
 }
 
 void RendererVulkan::CompileShaders() {
-    const vk::Device device = instance.GetDevice();
-    const std::string_view preamble =
-        instance.IsImageArrayDynamicIndexSupported() ? "#define ARRAY_DYNAMIC_INDEX" : "";
+    vk::Device device = instance.GetDevice();
     present_vertex_shader =
         Compile(HostShaders::VULKAN_PRESENT_VERT, vk::ShaderStageFlagBits::eVertex, device);
-    present_shaders[0] = Compile(HostShaders::VULKAN_PRESENT_FRAG,
-                                 vk::ShaderStageFlagBits::eFragment, device, preamble);
+    present_shaders[0] =
+        Compile(HostShaders::VULKAN_PRESENT_FRAG, vk::ShaderStageFlagBits::eFragment, device);
     present_shaders[1] = Compile(HostShaders::VULKAN_PRESENT_ANAGLYPH_FRAG,
-                                 vk::ShaderStageFlagBits::eFragment, device, preamble);
+                                 vk::ShaderStageFlagBits::eFragment, device);
     present_shaders[2] = Compile(HostShaders::VULKAN_PRESENT_INTERLACED_FRAG,
-                                 vk::ShaderStageFlagBits::eFragment, device, preamble);
+                                 vk::ShaderStageFlagBits::eFragment, device);
 
     auto properties = instance.GetPhysicalDevice().getProperties();
     for (std::size_t i = 0; i < present_samplers.size(); i++) {
@@ -256,7 +262,7 @@ void RendererVulkan::BuildLayouts() {
         .size = sizeof(PresentUniformData),
     };
 
-    const auto descriptor_set_layout = present_heap.Layout();
+    const auto descriptor_set_layout = present_set_provider.Layout();
     const vk::PipelineLayoutCreateInfo layout_info = {
         .setLayoutCount = 1,
         .pSetLayouts = &descriptor_set_layout,
@@ -801,7 +807,29 @@ void RendererVulkan::DrawScreens(Frame* frame, const Layout::FramebufferLayout& 
         }
     }
 
-    scheduler.Record([](vk::CommandBuffer cmdbuf) { cmdbuf.endRenderPass(); });
+    scheduler.Record([image = frame->image](vk::CommandBuffer cmdbuf) {
+        const vk::ImageMemoryBarrier render_barrier = {
+            .srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
+            .dstAccessMask = vk::AccessFlagBits::eTransferRead,
+            .oldLayout = vk::ImageLayout::eTransferSrcOptimal,
+            .newLayout = vk::ImageLayout::eTransferSrcOptimal,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = image,
+            .subresourceRange{
+                .aspectMask = vk::ImageAspectFlagBits::eColor,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = VK_REMAINING_ARRAY_LAYERS,
+            },
+        };
+
+        cmdbuf.endRenderPass();
+        cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                               vk::PipelineStageFlagBits::eTransfer,
+                               vk::DependencyFlagBits::eByRegion, {}, {}, render_barrier);
+    });
 }
 
 void RendererVulkan::SwapBuffers() {

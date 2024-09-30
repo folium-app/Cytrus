@@ -6,7 +6,7 @@
 #include "common/file_util.h"
 #include "common/literals.h"
 #include "common/memory_detect.h"
-#include "common/profiling.h"
+#include "common/microprofile.h"
 #include "common/settings.h"
 #include "common/string_util.h"
 #include "common/texture.h"
@@ -21,6 +21,9 @@
 namespace VideoCore {
 
 namespace {
+
+MICROPROFILE_DEFINE(CustomTexManager_TickFrame, "CustomTexManager", "TickFrame",
+                    MP_RGB(54, 16, 32));
 
 constexpr std::size_t MAX_UPLOADS_PER_TICK = 8;
 
@@ -58,7 +61,7 @@ CustomTexManager::CustomTexManager(Core::System& system_)
 CustomTexManager::~CustomTexManager() = default;
 
 void CustomTexManager::TickFrame() {
-    MANDARINE_PROFILE("CustomTexManager", "Tick Frame");
+    MICROPROFILE_SCOPE(CustomTexManager_TickFrame);
     if (!textures_loaded) {
         return;
     }
@@ -187,7 +190,7 @@ void CustomTexManager::PrepareDumping(u64 title_id) {
     }
 
     nlohmann::ordered_json json;
-    json["author"] = "mandarine";
+    json["author"] = "cytrus";
     json["version"] = "1.0.0";
     json["description"] = "A graphics pack";
 
@@ -382,7 +385,7 @@ std::vector<FileUtil::FSTEntry> CustomTexManager::GetTextures(u64 title_id) {
 }
 
 void CustomTexManager::CreateWorkers() {
-    const std::size_t num_workers = std::max(std::thread::hardware_concurrency(), 2U) >> 1;
+    const std::size_t num_workers = std::max(std::thread::hardware_concurrency(), 2U) - 1;
     workers = std::make_unique<Common::ThreadWorker>(num_workers, "Custom textures");
 }
 

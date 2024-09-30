@@ -5,9 +5,8 @@
 #pragma once
 
 #include "video_core/rasterizer_accelerated.h"
-#include "video_core/renderer_vulkan/vk_descriptor_update_queue.h"
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
-#include "video_core/renderer_vulkan/vk_render_manager.h"
+#include "video_core/renderer_vulkan/vk_renderpass_cache.h"
 #include "video_core/renderer_vulkan/vk_stream_buffer.h"
 #include "video_core/renderer_vulkan/vk_texture_runtime.h"
 
@@ -32,16 +31,16 @@ struct ScreenInfo;
 
 class Instance;
 class Scheduler;
-class RenderManager;
+class RenderpassCache;
+class DescriptorPool;
 
 class RasterizerVulkan : public VideoCore::RasterizerAccelerated {
 public:
     explicit RasterizerVulkan(Memory::MemorySystem& memory, Pica::PicaCore& pica,
                               VideoCore::CustomTexManager& custom_tex_manager,
                               VideoCore::RendererBase& renderer, Frontend::EmuWindow& emu_window,
-                              const Instance& instance, Scheduler& scheduler,
-                              RenderManager& renderpass_cache, DescriptorUpdateQueue& update_queue,
-                              u32 image_count);
+                              const Instance& instance, Scheduler& scheduler, DescriptorPool& pool,
+                              RenderpassCache& renderpass_cache, u32 image_count);
     ~RasterizerVulkan() override;
 
     void TickFrame();
@@ -103,16 +102,18 @@ private:
     /// Syncs all enabled PICA texture units
     void SyncTextureUnits(const Framebuffer* framebuffer);
 
-    /// Syncs all utility textures in the fragment shader.
-    void SyncUtilityTextures(const Framebuffer* framebuffer);
-
     /// Binds the PICA shadow cube required for shadow mapping
-    void BindShadowCube(const Pica::TexturingRegs::FullTextureConfig& texture,
-                        vk::DescriptorSet texture_set);
+    void BindShadowCube(const Pica::TexturingRegs::FullTextureConfig& texture);
 
     /// Binds a texture cube to texture unit 0
-    void BindTextureCube(const Pica::TexturingRegs::FullTextureConfig& texture,
-                         vk::DescriptorSet texture_set);
+    void BindTextureCube(const Pica::TexturingRegs::FullTextureConfig& texture);
+
+    /// Makes a temporary copy of the framebuffer if a feedback loop is detected
+    bool IsFeedbackLoop(u32 texture_index, const Framebuffer* framebuffer, Surface& surface,
+                        Sampler& sampler);
+
+    /// Unbinds all special texture unit 0 texture configurations
+    void UnbindSpecial();
 
     /// Upload the uniform blocks to the uniform buffer object
     void UploadUniforms(bool accelerate_draw);
@@ -144,8 +145,7 @@ private:
 private:
     const Instance& instance;
     Scheduler& scheduler;
-    RenderManager& renderpass_cache;
-    DescriptorUpdateQueue& update_queue;
+    RenderpassCache& renderpass_cache;
     PipelineCache pipeline_cache;
     TextureRuntime runtime;
     RasterizerCache res_cache;
@@ -164,10 +164,10 @@ private:
     vk::UniqueBufferView texture_lf_view;
     vk::UniqueBufferView texture_rg_view;
     vk::UniqueBufferView texture_rgba_view;
-    vk::DeviceSize uniform_buffer_alignment;
-    u32 uniform_size_aligned_vs_pica;
-    u32 uniform_size_aligned_vs;
-    u32 uniform_size_aligned_fs;
+    u64 uniform_buffer_alignment;
+    u64 uniform_size_aligned_vs_pica;
+    u64 uniform_size_aligned_vs;
+    u64 uniform_size_aligned_fs;
     bool async_shaders{false};
 };
 

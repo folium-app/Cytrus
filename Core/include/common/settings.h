@@ -42,9 +42,6 @@ enum class LayoutOption : u32 {
     SeparateWindows,
 #endif
     HybridScreen,
-#ifndef ANDROID // TODO: Implement custom layouts on Android
-    CustomLayout,
-#endif
     // Similiar to default, but better for mobile devices in portrait mode. Top screen in clamped to
     // the top of the frame, and the bottom screen is enlarged to match the top screen.
     MobilePortrait,
@@ -207,8 +204,8 @@ public:
     explicit Setting(const Type& default_val, const Type& min_val, const Type& max_val,
                      const std::string& name)
         requires(ranged)
-        : value{default_val},
-          default_value{default_val}, maximum{max_val}, minimum{min_val}, label{name} {}
+        : value{default_val}, default_value{default_val}, maximum{max_val}, minimum{min_val},
+          label{name} {}
 
     /**
      *  Returns a reference to the setting's value.
@@ -418,7 +415,7 @@ struct TouchFromButtonMap {
     std::vector<std::string> buttons;
 };
 
-/// A special region value indicating that mandarine will automatically select a region
+/// A special region value indicating that cytrus will automatically select a region
 /// value to fit the region lockout info of the game
 static constexpr s32 REGION_VALUE_AUTO_SELECT = -1;
 
@@ -428,12 +425,11 @@ struct Values {
     int current_input_profile_index;          ///< The current input profile index
     std::vector<InputProfile> input_profiles; ///< The list of input profiles
     std::vector<TouchFromButtonMap> touch_from_button_maps;
-    Setting<bool> use_artic_base_controller{false, "use_artic_base_controller"};
 
     SwitchableSetting<bool> enable_gamemode{true, "enable_gamemode"};
 
     // Core
-    Setting<bool> use_cpu_jit{false, "use_cpu_jit"};
+    Setting<bool> use_cpu_jit{true, "use_cpu_jit"};
     SwitchableSetting<s32, true> cpu_clock_percentage{100, 5, 400, "cpu_clock_percentage"};
     SwitchableSetting<bool> is_new_3ds{true, "is_new_3ds"};
     SwitchableSetting<bool> lle_applets{false, "lle_applets"};
@@ -453,7 +449,7 @@ struct Values {
     Setting<bool> allow_plugin_loader{true, "allow_plugin_loader"};
 
     // Renderer
-    SwitchableSetting<GraphicsAPI, true> graphics_api {
+    SwitchableSetting<GraphicsAPI, true> graphics_api{
 #if defined(ENABLE_OPENGL)
         GraphicsAPI::OpenGL,
 #elif defined(ENABLE_VULKAN)
@@ -464,8 +460,7 @@ struct Values {
 // TODO: Add a null renderer backend for this, perhaps.
 #error "At least one renderer must be enabled."
 #endif
-            GraphicsAPI::Software, GraphicsAPI::Vulkan, "graphics_api"
-    };
+        GraphicsAPI::Software, GraphicsAPI::Vulkan, "graphics_api"};
     SwitchableSetting<u32> physical_device{0, "physical_device"};
     Setting<bool> use_gles{false, "use_gles"};
     Setting<bool> renderer_debug{false, "renderer_debug"};
@@ -475,16 +470,14 @@ struct Values {
     SwitchableSetting<bool> async_presentation{true, "async_presentation"};
     SwitchableSetting<bool> use_hw_shader{true, "use_hw_shader"};
     SwitchableSetting<bool> use_disk_shader_cache{true, "use_disk_shader_cache"};
-    SwitchableSetting<bool> shaders_accurate_mul{false, "shaders_accurate_mul"};
+    SwitchableSetting<bool> shaders_accurate_mul{true, "shaders_accurate_mul"};
     SwitchableSetting<bool> use_vsync_new{true, "use_vsync_new"};
-    Setting<bool> use_shader_jit{false, "use_shader_jit"};
+    Setting<bool> use_shader_jit{true, "use_shader_jit"};
     SwitchableSetting<u32, true> resolution_factor{1, 0, 10, "resolution_factor"};
     SwitchableSetting<u16, true> frame_limit{100, 0, 1000, "frame_limit"};
     SwitchableSetting<TextureFilter> texture_filter{TextureFilter::None, "texture_filter"};
     SwitchableSetting<TextureSampling> texture_sampling{TextureSampling::GameControlled,
                                                         "texture_sampling"};
-    SwitchableSetting<u16, true> delay_game_render_thread_us{0, 0, 16000,
-                                                             "delay_game_render_thread_us"};
 
     SwitchableSetting<LayoutOption> layout_option{LayoutOption::Default, "layout_option"};
     SwitchableSetting<bool> swap_screen{false, "swap_screen"};
@@ -492,22 +485,15 @@ struct Values {
     SwitchableSetting<float, true> large_screen_proportion{4.f, 1.f, 16.f,
                                                            "large_screen_proportion"};
     Setting<bool> custom_layout{false, "custom_layout"};
-    Setting<u16> custom_top_x{0, "custom_top_x"};
-    Setting<u16> custom_top_y{0, "custom_top_y"};
-    Setting<u16> custom_top_width{400, "custom_top_width"};
-    Setting<u16> custom_top_height{240, "custom_top_height"};
-    Setting<u16> custom_bottom_x{40, "custom_bottom_x"};
-    Setting<u16> custom_bottom_y{240, "custom_bottom_y"};
-    Setting<u16> custom_bottom_width{320, "custom_bottom_width"};
-    Setting<u16> custom_bottom_height{240, "custom_bottom_height"};
+    Setting<u16> custom_top_left{0, "custom_top_left"};
+    Setting<u16> custom_top_top{0, "custom_top_top"};
+    Setting<u16> custom_top_right{400, "custom_top_right"};
+    Setting<u16> custom_top_bottom{240, "custom_top_bottom"};
+    Setting<u16> custom_bottom_left{40, "custom_bottom_left"};
+    Setting<u16> custom_bottom_top{240, "custom_bottom_top"};
+    Setting<u16> custom_bottom_right{360, "custom_bottom_right"};
+    Setting<u16> custom_bottom_bottom{480, "custom_bottom_bottom"};
     Setting<u16> custom_second_layer_opacity{100, "custom_second_layer_opacity"};
-
-    SwitchableSetting<bool> screen_top_stretch{false, "screen_top_stretch"};
-    Setting<u16> screen_top_leftright_padding{0, "screen_top_leftright_padding"};
-    Setting<u16> screen_top_topbottom_padding{0, "screen_top_topbottom_padding"};
-    SwitchableSetting<bool> screen_bottom_stretch{false, "screen_bottom_stretch"};
-    Setting<u16> screen_bottom_leftright_padding{0, "screen_bottom_leftright_padding"};
-    Setting<u16> screen_bottom_topbottom_padding{0, "screen_bottom_topbottom_padding"};
 
     SwitchableSetting<float> bg_red{0.f, "bg_red"};
     SwitchableSetting<float> bg_green{0.f, "bg_green"};
@@ -524,31 +510,17 @@ struct Values {
 
     SwitchableSetting<bool> filter_mode{true, "filter_mode"};
     SwitchableSetting<std::string> pp_shader_name{"none (builtin)", "pp_shader_name"};
-    SwitchableSetting<std::string> anaglyph_shader_name{"rendepth (builtin)",
-                                                        "anaglyph_shader_name"};
+    SwitchableSetting<std::string> anaglyph_shader_name{"dubois (builtin)", "anaglyph_shader_name"};
 
     SwitchableSetting<bool> dump_textures{false, "dump_textures"};
     SwitchableSetting<bool> custom_textures{false, "custom_textures"};
     SwitchableSetting<bool> preload_textures{false, "preload_textures"};
     SwitchableSetting<bool> async_custom_loading{true, "async_custom_loading"};
 
-    // Tweaks
-    SwitchableSetting<bool> enable_custom_cpu_ticks{false, "enable_custom_cpu_ticks"};
-    SwitchableSetting<u64, true> custom_cpu_ticks{16000, 77, 65535, "custom_cpu_ticks"};
-    SwitchableSetting<bool> force_hw_vertex_shaders{false, "force_hw_vertex_shaders"};
-    SwitchableSetting<bool> disable_surface_texture_copy{false, "disable_surface_texture_copy"};
-    SwitchableSetting<bool> disable_flush_cpu_write{false, "disable_flush_cpu_write"};
-    SwitchableSetting<bool> priority_boost_starved_threads{true, "priority_boost_starved_threads"};
-    SwitchableSetting<bool> reduce_downcount_slice{false, "reduce_downcount_slice"};
-    // Reimplementation of old (and fixed) citra frameskip
-    // See https://github.com/mandarine3ds/mandarine/commit/e279a6955edf644cf832dd329ac72931aea8add7
-    SwitchableSetting<u64> frame_skip{0, "frame_skip"};
-
     // Audio
     bool audio_muted;
     SwitchableSetting<AudioEmulation> audio_emulation{AudioEmulation::HLE, "audio_emulation"};
     SwitchableSetting<bool> enable_audio_stretching{true, "enable_audio_stretching"};
-    SwitchableSetting<bool> enable_realtime_audio{false, "enable_realtime_audio"};
     SwitchableSetting<float, true> volume{1.f, 0.f, 1.f, "volume"};
     Setting<AudioCore::SinkType> output_type{AudioCore::SinkType::Auto, "output_type"};
     Setting<std::string> output_device{"auto", "output_device"};
@@ -566,11 +538,9 @@ struct Values {
     Setting<bool> delay_start_for_lle_modules{true, "delay_start_for_lle_modules"};
     Setting<bool> use_gdbstub{false, "use_gdbstub"};
     Setting<u16> gdbstub_port{24689, "gdbstub_port"};
-    Setting<bool> instant_debug_log{false, "instant_debug_log"};
 
     // Miscellaneous
     Setting<std::string> log_filter{"*:Info", "log_filter"};
-    Setting<std::string> log_regex_filter{"", "log_regex_filter"};
 
     // Video Dumping
     std::string output_format;

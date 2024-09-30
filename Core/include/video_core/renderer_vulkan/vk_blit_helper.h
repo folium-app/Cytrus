@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "video_core/renderer_vulkan/vk_resource_pool.h"
+#include "video_core/renderer_vulkan/vk_descriptor_pool.h"
 
 namespace VideoCore {
 struct TextureBlit;
@@ -15,17 +15,16 @@ struct BufferTextureCopy;
 namespace Vulkan {
 
 class Instance;
-class RenderManager;
+class RenderpassCache;
 class Scheduler;
 class Surface;
-class DescriptorUpdateQueue;
 
 class BlitHelper {
     friend class TextureRuntime;
 
 public:
-    explicit BlitHelper(const Instance& instance, Scheduler& scheduler,
-                        RenderManager& renderpass_cache, DescriptorUpdateQueue& update_queue);
+    BlitHelper(const Instance& instance, Scheduler& scheduler, DescriptorPool& pool,
+               RenderpassCache& renderpass_cache);
     ~BlitHelper();
 
     bool BlitDepthStencil(Surface& source, Surface& dest, const VideoCore::TextureBlit& blit);
@@ -42,15 +41,14 @@ private:
 private:
     const Instance& instance;
     Scheduler& scheduler;
-    RenderManager& renderpass_cache;
-    DescriptorUpdateQueue& update_queue;
+    RenderpassCache& renderpass_cache;
 
     vk::Device device;
     vk::RenderPass r32_renderpass;
 
-    DescriptorHeap compute_provider;
-    DescriptorHeap compute_buffer_provider;
-    DescriptorHeap two_textures_provider;
+    DescriptorSetProvider compute_provider;
+    DescriptorSetProvider compute_buffer_provider;
+    DescriptorSetProvider two_textures_provider;
     vk::PipelineLayout compute_pipeline_layout;
     vk::PipelineLayout compute_buffer_pipeline_layout;
     vk::PipelineLayout two_textures_pipeline_layout;

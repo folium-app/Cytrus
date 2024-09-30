@@ -108,8 +108,8 @@ constexpr Result ErrorIncompatibleSendPostData = // 0xD8A0A036
     Result(ErrCodes::IncompatibleSendPostData, ErrorModule::HTTP, ErrorSummary::InvalidState,
            ErrorLevel::Permanent);
 
-// Splits URL into its components. Example: https://citra-emu.org:443/index.html
-// is_https: true; host: citra-emu.org; port: 443; path: /index.html
+// Splits URL into its components. Example: https://cytrus-emu.org:443/index.html
+// is_https: true; host: cytrus-emu.org; port: 443; path: /index.html
 static URLInfo SplitUrl(const std::string& url) {
     const std::string prefix = "://";
     constexpr int default_http_port = 80;
@@ -381,10 +381,10 @@ void Context::MakeRequestNonSSL(httplib::Request& request, const URLInfo& url_in
 
     if (!client->send(request, response, error)) {
         LOG_ERROR(Service_HTTP, "Request failed: {}: {}", error, httplib::to_string(error));
-        state = RequestState::Completed;
+        state = RequestState::TimedOut;
     } else {
         LOG_DEBUG(Service_HTTP, "Request successful");
-        state = RequestState::ReceivingBody;
+        state = RequestState::ReadyToDownloadContent;
     }
 }
 
@@ -439,10 +439,10 @@ void Context::MakeRequestSSL(httplib::Request& request, const URLInfo& url_info,
 
     if (!client->send(request, response, error)) {
         LOG_ERROR(Service_HTTP, "Request failed: {}: {}", error, httplib::to_string(error));
-        state = RequestState::Completed;
+        state = RequestState::TimedOut;
     } else {
         LOG_DEBUG(Service_HTTP, "Request successful");
-        state = RequestState::ReceivingBody;
+        state = RequestState::ReadyToDownloadContent;
     }
 }
 
@@ -560,7 +560,7 @@ void HTTP_C::BeginRequest(Kernel::HLERequestContext& ctx) {
 
     Context& http_context = GetContext(context_handle);
 
-    // This should never happen in real hardware, but can happen on mandarine.
+    // This should never happen in real hardware, but can happen on cytrus.
     if (http_context.uses_default_client_cert && !http_context.clcert_data->init) {
         LOG_ERROR(Service_HTTP, "Failed to begin HTTP request: client cert not found.");
         IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
@@ -598,7 +598,7 @@ void HTTP_C::BeginRequestAsync(Kernel::HLERequestContext& ctx) {
 
     Context& http_context = GetContext(context_handle);
 
-    // This should never happen in real hardware, but can happen on mandarine.
+    // This should never happen in real hardware, but can happen on cytrus.
     if (http_context.uses_default_client_cert && !http_context.clcert_data->init) {
         LOG_ERROR(Service_HTTP, "Failed to begin HTTP request: client cert not found.");
         IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
@@ -696,7 +696,6 @@ void HTTP_C::ReceiveDataImpl(Kernel::HLERequestContext& ctx, bool timeout) {
                                               http_context.current_copied_data,
                                           0, remaining_data);
                 http_context.current_copied_data += remaining_data;
-                http_context.state = RequestState::Completed;
                 rb.Push(ResultSuccess);
             } else {
                 async_data->buffer->Write(http_context.response.body.data() +
@@ -1970,7 +1969,7 @@ void HTTP_C::DecryptClCertA() {
         FileSys::NCCHFileOpenType::NCCHData, 0, FileSys::NCCHFilePathType::RomFS, exefs_filepath);
     FileSys::Mode open_mode = {};
     open_mode.read_flag.Assign(1);
-    auto file_result = archive.OpenFile(file_path, open_mode, 0);
+    auto file_result = archive.OpenFile(file_path, open_mode);
     if (file_result.Failed()) {
         LOG_ERROR(Service_HTTP, "ClCertA file missing");
         return;

@@ -7,7 +7,7 @@
 #include <string_view>
 
 namespace HostShaders {
-
+// clang-format off
 constexpr std::string_view Y_GRADIENT_FRAG = {
 "// MIT License\n"
 "//\n"
@@ -50,6 +50,7 @@ constexpr std::string_view Y_GRADIENT_FRAG = {
 "}\n"
 "\n"
 
+    // clang-format on
 };
 
 } // namespace HostShaders
