@@ -121,12 +121,17 @@ static void TryShutdown() {
         const auto regions = Regions(data);
         const auto title = Title(data);
         
-        if (data.size() > 0) {
-            self.icon = [NSData dataWithBytes:InformationForGame::Icon(data).data() length:48 * 48 * sizeof(uint16_t)];
-            self.company = [NSString stringWithCharacters:(const unichar*)publisher.c_str() length:publisher.length()];
-            self.regions = [NSString stringWithCString:regions.c_str() encoding:NSUTF8StringEncoding];
-            self.title = [NSString stringWithCharacters:(const unichar*)title.c_str() length:title.length()];
+        u64 program_id{0};
+        auto app_loader = Loader::GetLoader([url.path UTF8String]);
+        if (app_loader) {
+            app_loader->ReadProgramId(program_id);
         }
+        
+        self.titleIdentifier = program_id;
+        self.icon = [NSData dataWithBytes:InformationForGame::Icon(data).data() length:48 * 48 * sizeof(uint16_t)];
+        self.company = [NSString stringWithCharacters:(const unichar*)publisher.c_str() length:publisher.length()];
+        self.regions = [NSString stringWithCString:regions.c_str() encoding:NSUTF8StringEncoding];
+        self.title = [NSString stringWithCharacters:(const unichar*)title.c_str() length:title.length()];
     } return self;
 }
 @end
@@ -196,6 +201,15 @@ static void TryShutdown() {
     Settings::values.region_value.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.regionValue"]] unsignedIntValue]);
     
     // renderer
+    Settings::values.custom_layout.SetValue([defaults boolForKey:@"cytrus.customLayout"]);
+    Settings::values.custom_top_left.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customTopLeft"]] unsignedIntValue]);
+    Settings::values.custom_top_top.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customTopTop"]] unsignedIntValue]);
+    Settings::values.custom_top_right.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customTopRight"]] unsignedIntValue]);
+    Settings::values.custom_top_bottom.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customTopBottom"]] unsignedIntValue]);
+    Settings::values.custom_bottom_left.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customBottomLeft"]] unsignedIntValue]);
+    Settings::values.custom_bottom_top.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customBottomTop"]] unsignedIntValue]);
+    Settings::values.custom_bottom_right.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customBottomRight"]] unsignedIntValue]);
+    Settings::values.custom_bottom_bottom.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customBottomBottom"]] unsignedIntValue]);
     Settings::values.spirv_shader_gen.SetValue([defaults boolForKey:@"cytrus.spirvShaderGeneration"]);
     Settings::values.async_shader_compilation.SetValue([defaults boolForKey:@"cytrus.useAsyncShaderCompilation"]);
     Settings::values.async_presentation.SetValue([defaults boolForKey:@"cytrus.useAsyncPresentation"]);
@@ -218,6 +232,8 @@ static void TryShutdown() {
     Settings::values.enable_audio_stretching.SetValue([defaults boolForKey:@"cytrus.audioStretching"]);
     Settings::values.output_type.SetValue((AudioCore::SinkType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.outputType"]] unsignedIntValue]);
     Settings::values.input_type.SetValue((AudioCore::InputType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.inputType"]] unsignedIntValue]);
+    
+    NetSettings::values.web_api_url = [[defaults stringForKey:@"cytrus.webAPIURL"] UTF8String];
     
     u64 program_id{};
     FileUtil::SetCurrentRomPath([url.path UTF8String]);
@@ -416,6 +432,15 @@ static void TryShutdown() {
     Settings::values.region_value.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.regionValue"]] unsignedIntValue]);
     
     // renderer
+    Settings::values.custom_layout.SetValue([defaults boolForKey:@"cytrus.customLayout"]);
+    Settings::values.custom_top_left.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customTopLeft"]] unsignedIntValue]);
+    Settings::values.custom_top_top.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customTopTop"]] unsignedIntValue]);
+    Settings::values.custom_top_right.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customTopRight"]] unsignedIntValue]);
+    Settings::values.custom_top_bottom.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customTopBottom"]] unsignedIntValue]);
+    Settings::values.custom_bottom_left.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customBottomLeft"]] unsignedIntValue]);
+    Settings::values.custom_bottom_top.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customBottomTop"]] unsignedIntValue]);
+    Settings::values.custom_bottom_right.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customBottomRight"]] unsignedIntValue]);
+    Settings::values.custom_bottom_bottom.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customBottomBottom"]] unsignedIntValue]);
     Settings::values.spirv_shader_gen.SetValue([defaults boolForKey:@"cytrus.spirvShaderGeneration"]);
     Settings::values.async_shader_compilation.SetValue([defaults boolForKey:@"cytrus.useAsyncShaderCompilation"]);
     Settings::values.async_presentation.SetValue([defaults boolForKey:@"cytrus.useAsyncPresentation"]);
@@ -438,5 +463,7 @@ static void TryShutdown() {
     Settings::values.enable_audio_stretching.SetValue([defaults boolForKey:@"cytrus.audioStretching"]);
     Settings::values.output_type.SetValue((AudioCore::SinkType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.outputType"]] unsignedIntValue]);
     Settings::values.input_type.SetValue((AudioCore::InputType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.inputType"]] unsignedIntValue]);
+    
+    NetSettings::values.web_api_url = [[defaults stringForKey:@"cytrus.webAPIURL"] UTF8String];
 }
 @end

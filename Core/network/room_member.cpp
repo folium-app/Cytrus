@@ -575,6 +575,8 @@ void RoomMember::Join(const std::string& nick, const std::string& console_id_has
         room_member_impl->StartLoop();
         room_member_impl->SendJoinRequest(nick, console_id_hash, preferred_mac, password, token);
         SendGameInfo(room_member_impl->current_game_info);
+        
+        LOG_INFO(Network, "Connected to room");
     } else {
         enet_peer_disconnect(room_member_impl->server, 0);
         room_member_impl->SetState(State::Idle);

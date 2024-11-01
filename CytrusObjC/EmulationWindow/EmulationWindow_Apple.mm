@@ -34,8 +34,6 @@ EmulationWindow_Apple::EmulationWindow_Apple(CA::MetalLayer* surface, bool is_se
     window_width = m_size.width;
     window_height = m_size.height;
     
-    Network::Init();
-    
     SDL_SetMainReady();
 };
 

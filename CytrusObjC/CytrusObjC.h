@@ -10,6 +10,9 @@
 #import <MetalKit/MetalKit.h>
 #import <UIKit/UIKit.h>
 
+#import "CheatsManager.h"
+#import "MultiplayerManager.h"
+
 #ifdef __cplusplus
 #include <atomic>
 #include <condition_variable>
@@ -31,6 +34,7 @@
 #include "core/hle/service/fs/archive.h"
 #include "core/loader/loader.h"
 #include "core/loader/smdh.h"
+#include "network/network_settings.h"
 #include "video_core/gpu.h"
 #include "video_core/renderer_base.h"
 
@@ -232,6 +236,8 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 @end
 
 @interface CytrusGameInformation : NSObject
+@property (nonatomic, assign) uint64_t titleIdentifier;
+
 @property (nonatomic, strong) NSString *company, *regions, *title;
 @property (nonatomic, strong) NSData *icon;
 
