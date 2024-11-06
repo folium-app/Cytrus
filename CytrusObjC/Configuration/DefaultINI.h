@@ -89,9 +89,6 @@ udp_input_port=
 # The pad to request data on. Should be between 0 (Pad 1) and 3 (Pad 4). (Default 0)
 udp_pad_index=
 
-# Use Artic Controller when connected to Artic Base Server. (Default 0)
-use_artic_base_controller=
-
 [Core]
 # Whether to use the Just-In-Time (JIT) compiler for CPU emulation
 # 0: Interpreter (slow), 1 (default): JIT (fast)
@@ -102,22 +99,6 @@ use_cpu_jit =
 # Overclocking may fix lag that happens on console, but also comes with the risk of freezing.
 # Range is any positive integer (but we suspect 25 - 400 is a good idea) Default is 100
 cpu_clock_percentage =
-
-# The applied frameskip amount. Must be a power of two.
-# 0 (default): No frameskip, 1: x2 frameskip, 2: x4 frameskip, 3: x8 frameskip, etc.
-frame_skip =
-
-# Set a custom value of CPU ticks.
-# 0 (default): Off, 1: On
-enable_custom_cpu_ticks =
-
-# Downcount will be limited to a smaller time slice.
-# 0 (default): Off, 1: On
-reduce_downcount_slice =
-
-# Boost low priority starved threads during kernel rescheduling.
-# 0: Off, 1 (default): On
-priority_boost_starved_threads =
 
 [Renderer]
 # Whether to render using OpenGL
@@ -148,10 +129,6 @@ use_shader_jit =
 # so only turn this off if you notice a speed difference.
 # 0: Off, 1 (default): On
 use_vsync_new =
-
-# Increases graphics throughput on supported devices, improving performance.
-# 0 (default): Off, 1: On
-adreno_gpu_boost =
 
 # Reduce stuttering by storing and loading generated shaders to disk
 # 0: Off, 1 (default. On)
@@ -201,22 +178,6 @@ anaglyph_shader_name =
 # 0: Nearest, 1 (default): Linear
 filter_mode =
 
-# Delays the game render thread by the specified amount of microseconds
-# Set to 0 for no delay, only useful in dynamic-fps games to simulate GPU delay.
-delay_game_render_thread_us =
-
-# Ignores software vertex shaders from PICA core
-# 0: Off, 1 (default): On
-force_hw_vertex_shaders =
-
-# Ignores texture copies if src_surface_id is null
-# 0: Off, 1 (default): On
-disable_surface_texture_copy =
-
-# Ignores CPU write if there is a region to invalidate from rasterizer cache
-# 0: Off, 1 (default): On
-disable_flush_cpu_write =
-
 [Layout]
 # Layout for the screen inside the render window.
 # 0 (default): Default Top Bottom Screen, 1: Single Screen Only, 2: Large Screen Small Screen, 3: Side by Side
@@ -228,23 +189,19 @@ custom_layout =
 
 # Screen placement when using Custom layout option
 # 0x, 0y is the top left corner of the render window.
-custom_top_x =
-custom_top_y =
-custom_top_width =
-custom_top_height =
-custom_bottom_x =
-custom_bottom_y =
-custom_bottom_width =
-custom_bottom_height =
+custom_top_left =
+custom_top_top =
+custom_top_right =
+custom_top_bottom =
+custom_bottom_left =
+custom_bottom_top =
+custom_bottom_right =
+custom_bottom_bottom =
 
 # Swaps the prominent screen with the other screen.
 # For example, if Single Screen is chosen, setting this to 1 will display the bottom screen instead of the top screen.
 # 0 (default): Top Screen is prominent, 1: Bottom Screen is prominent
 swap_screen =
-
-# Expands the display area to include the cutout (or notch) area while gaming on landscape layout.
-# 0 (default): Off, 1: On
-expand_to_cutout_area =
 
 # Screen placement settings when using Cardboard VR (render3d = 4)
 # 30 - 100: Screen size as a percentage of the viewport. 85 (default)
@@ -285,10 +242,6 @@ enable_dsp_lle_thread =
 # at the cost of increasing audio latency.
 # 0: No, 1 (default): Yes
 enable_audio_stretching =
-
-# Scales audio playback speed to account for drops in emulation framerate
-# 0 (default): No, 1: Yes
-enable_realtime_audio =
 
 # Output volume.
 # 1.0 (default): 100%, 0.0; mute
@@ -400,17 +353,12 @@ renderer_debug =
 use_gdbstub=false
 gdbstub_port=24689
 
-# Flush log output on every message
-# Immediately commits the debug log to file. Use this if Cytrus crashes and the log output is being cut.
-instant_debug_log =
-
 # To LLE a service module add "LLE\<module name>=true"
 
 [WebService]
 # URL for Web API
-web_api_url = https://api.citra-emu.org
+web_api_url = http://88.198.47.46:5000
 # Username and token for Cytrus Web Service
-# See https://profile.citra-emu.org/ for more info
 cytrus_username =
 cytrus_token =
 )";

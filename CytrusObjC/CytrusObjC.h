@@ -239,7 +239,7 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 @property (nonatomic, assign) uint64_t titleIdentifier;
 
 @property (nonatomic, strong) NSString *company, *regions, *title;
-@property (nonatomic, strong) NSData *icon;
+@property (nonatomic, strong) NSData * _Nullable icon;
 
 -(CytrusGameInformation *) initWithURL:(NSURL *)url;
 @end

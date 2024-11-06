@@ -128,7 +128,10 @@ static void TryShutdown() {
         }
         
         self.titleIdentifier = program_id;
-        self.icon = [NSData dataWithBytes:InformationForGame::Icon(data).data() length:48 * 48 * sizeof(uint16_t)];
+        if (Icon(data).empty())
+            self.icon = NULL;
+        else
+            self.icon = [NSData dataWithBytes:InformationForGame::Icon(data).data() length:48 * 48 * sizeof(uint16_t)];
         self.company = [NSString stringWithCharacters:(const unichar*)publisher.c_str() length:publisher.length()];
         self.regions = [NSString stringWithCString:regions.c_str() encoding:NSUTF8StringEncoding];
         self.title = [NSString stringWithCharacters:(const unichar*)title.c_str() length:title.length()];
@@ -232,6 +235,33 @@ static void TryShutdown() {
     Settings::values.enable_audio_stretching.SetValue([defaults boolForKey:@"cytrus.audioStretching"]);
     Settings::values.output_type.SetValue((AudioCore::SinkType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.outputType"]] unsignedIntValue]);
     Settings::values.input_type.SetValue((AudioCore::InputType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.inputType"]] unsignedIntValue]);
+    
+    switch ([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.logLevel"]] unsignedIntValue]) {
+        case 0:
+            Settings::values.log_filter.SetValue("Trace");
+            break;
+        case 1:
+            Settings::values.log_filter.SetValue("Debug");
+            break;
+        case 2:
+            Settings::values.log_filter.SetValue("Info");
+            break;
+        case 3:
+            Settings::values.log_filter.SetValue("Warning");
+            break;
+        case 4:
+            Settings::values.log_filter.SetValue("Error");
+            break;
+        case 5:
+            Settings::values.log_filter.SetValue("Critical");
+            break;
+        default:
+            break;
+    }
+    
+    Common::Log::Filter filter;
+    filter.ParseFilterString(Settings::values.log_filter.GetValue());
+    Common::Log::SetGlobalFilter(filter);
     
     NetSettings::values.web_api_url = [[defaults stringForKey:@"cytrus.webAPIURL"] UTF8String];
     
@@ -463,6 +493,33 @@ static void TryShutdown() {
     Settings::values.enable_audio_stretching.SetValue([defaults boolForKey:@"cytrus.audioStretching"]);
     Settings::values.output_type.SetValue((AudioCore::SinkType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.outputType"]] unsignedIntValue]);
     Settings::values.input_type.SetValue((AudioCore::InputType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.inputType"]] unsignedIntValue]);
+    
+    switch ([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.logLevel"]] unsignedIntValue]) {
+        case 0:
+            Settings::values.log_filter.SetValue("Trace");
+            break;
+        case 1:
+            Settings::values.log_filter.SetValue("Debug");
+            break;
+        case 2:
+            Settings::values.log_filter.SetValue("Info");
+            break;
+        case 3:
+            Settings::values.log_filter.SetValue("Warning");
+            break;
+        case 4:
+            Settings::values.log_filter.SetValue("Error");
+            break;
+        case 5:
+            Settings::values.log_filter.SetValue("Critical");
+            break;
+        default:
+            break;
+    }
+    
+    Common::Log::Filter filter;
+    filter.ParseFilterString(Settings::values.log_filter.GetValue());
+    Common::Log::SetGlobalFilter(filter);
     
     NetSettings::values.web_api_url = [[defaults stringForKey:@"cytrus.webAPIURL"] UTF8String];
 }
