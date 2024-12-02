@@ -199,6 +199,7 @@ void Configuration::ReadValues() {
     // Audio
     ReadSetting("Audio", Settings::values.audio_emulation);
     ReadSetting("Audio", Settings::values.enable_audio_stretching);
+    ReadSetting("Audio", Settings::values.enable_realtime_audio);
     ReadSetting("Audio", Settings::values.volume);
     ReadSetting("Audio", Settings::values.output_type);
     ReadSetting("Audio", Settings::values.output_device);
@@ -271,7 +272,7 @@ void Configuration::ReadValues() {
     NetSettings::values.enable_telemetry =
         sdl2_config->GetBoolean("WebService", "enable_telemetry", false);
     NetSettings::values.web_api_url =
-        sdl2_config->GetString("WebService", "web_api_url", "https://api.cytrus-emu.org");
+        sdl2_config->GetString("WebService", "web_api_url", "http://88.198.47.46:5000");
     NetSettings::values.cytrus_username =
         sdl2_config->GetString("WebService", "cytrus_username", "");
     NetSettings::values.cytrus_token = sdl2_config->GetString("WebService", "cytrus_token", "");

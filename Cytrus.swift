@@ -101,4 +101,35 @@ public struct Cytrus : @unchecked Sendable {
     public func updateSettings() {
         cytrusObjC.updateSettings()
     }
+    
+    
+    public struct Multiplayer : @unchecked Sendable {
+        public static let shared = Multiplayer()
+        
+        let multiplayerObjC = MultiplayerManager.shared()
+        
+        public var rooms: [NetworkRoom] {
+            multiplayerObjC.rooms()
+        }
+        
+        public var state: StateChange {
+            multiplayerObjC.state()
+        }
+        
+        public func connect(to room: NetworkRoom, with username: String, and password: String? = nil,
+                            error errorHandler: @escaping (ErrorChange) -> Void, state stateHandler: @escaping (StateChange) -> Void) {
+            multiplayerObjC.connect(room, withUsername: username, andPassword: password,
+                                    withErrorChange: errorHandler, withStateChange: stateHandler)
+        }
+        
+        public func disconnect() {
+            multiplayerObjC.disconnect()
+        }
+        
+        public func updateWebAPIURL() {
+            multiplayerObjC.updateWebAPIURL()
+        }
+    }
+    
+    public let multiplayer = Multiplayer.shared
 }

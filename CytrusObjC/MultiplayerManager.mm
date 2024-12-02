@@ -174,7 +174,7 @@ static void OnStatusMessageReceived(const Network::StatusMessageEntry& msg) {
     return @[];
 }
 
--(void) connectToRoom:(NetworkRoom *)room withUsername:(NSString *)username andPassword:(NSString * _Nullable)password
+-(void) connect:(NetworkRoom *)room withUsername:(NSString *)username andPassword:(NSString * _Nullable)password
       withErrorChange:(void(^)(ErrorChange error))errorChange withStateChange:(void(^)(StateChange state))stateChange {
     std::string pwd{};
     if (password)
@@ -195,13 +195,13 @@ static void OnStatusMessageReceived(const Network::StatusMessageEntry& msg) {
     }
 }
 
--(void) disconnectFromRoom {
+-(void) disconnect {
     if (auto rm = Network::GetRoomMember().lock()) {
         rm->Leave();
     }
 }
 
--(StateChange) roomState {
+-(StateChange) state {
     return _roomState;
 }
 

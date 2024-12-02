@@ -56,11 +56,11 @@ typedef NS_ENUM(NSUInteger, StateChange) {
 
 -(NSArray <NetworkRoom *> *) rooms;
 
--(void) connectToRoom:(NetworkRoom *)room withUsername:(NSString *)username andPassword:(NSString * _Nullable)password
+-(void) connect:(NetworkRoom *)room withUsername:(NSString *)username andPassword:(NSString * _Nullable)password
       withErrorChange:(void(^)(ErrorChange error))errorChange withStateChange:(void(^)(StateChange state))stateChange;
--(void) disconnectFromRoom;
+-(void) disconnect;
 
--(StateChange) roomState;
+-(StateChange) state;
 
 -(void) updateWebAPIURL;
 @end

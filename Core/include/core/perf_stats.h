@@ -54,6 +54,12 @@ public:
      * useful for scaling inputs or outputs moving between the two time domains.
      */
     double GetLastFrameTimeScale() const;
+    
+    /**
+     * Has the same functionality as GetLastFrameTimeScale, but uses the mean frame time over the
+     * last 50 frames rather than only the frame time of the previous frame.
+     */
+    double GetStableFrameTimeScale() const;
 
 private:
     mutable std::mutex object_mutex;

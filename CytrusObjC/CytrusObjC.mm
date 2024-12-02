@@ -92,6 +92,8 @@ std::pair<std::string, uint8_t> Keyboard::GetKeyboardText(const Frontend::Keyboa
     while (!isReady)
         cv.wait(lock);
     
+    isReady = FALSE;
+    
     return std::make_pair([this->keyboardText UTF8String], this->buttonPressed);
 }
 }
@@ -233,27 +235,28 @@ static void TryShutdown() {
     Settings::values.audio_muted = [defaults boolForKey:@"cytrus.audioMuted"];
     Settings::values.audio_emulation.SetValue((Settings::AudioEmulation)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.audioEmulation"]] unsignedIntValue]);
     Settings::values.enable_audio_stretching.SetValue([defaults boolForKey:@"cytrus.audioStretching"]);
+    Settings::values.enable_realtime_audio.SetValue([defaults boolForKey:@"cytrus.realtimeAudio"]);
     Settings::values.output_type.SetValue((AudioCore::SinkType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.outputType"]] unsignedIntValue]);
     Settings::values.input_type.SetValue((AudioCore::InputType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.inputType"]] unsignedIntValue]);
     
     switch ([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.logLevel"]] unsignedIntValue]) {
         case 0:
-            Settings::values.log_filter.SetValue("Trace");
+            Settings::values.log_filter.SetValue("*:Trace");
             break;
         case 1:
-            Settings::values.log_filter.SetValue("Debug");
+            Settings::values.log_filter.SetValue("*:Debug");
             break;
         case 2:
-            Settings::values.log_filter.SetValue("Info");
+            Settings::values.log_filter.SetValue("*:Info");
             break;
         case 3:
-            Settings::values.log_filter.SetValue("Warning");
+            Settings::values.log_filter.SetValue("*:Warning");
             break;
         case 4:
-            Settings::values.log_filter.SetValue("Error");
+            Settings::values.log_filter.SetValue("*:Error");
             break;
         case 5:
-            Settings::values.log_filter.SetValue("Critical");
+            Settings::values.log_filter.SetValue("*:Critical");
             break;
         default:
             break;
@@ -491,27 +494,28 @@ static void TryShutdown() {
     Settings::values.audio_muted = [defaults boolForKey:@"cytrus.audioMuted"];
     Settings::values.audio_emulation.SetValue((Settings::AudioEmulation)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.audioEmulation"]] unsignedIntValue]);
     Settings::values.enable_audio_stretching.SetValue([defaults boolForKey:@"cytrus.audioStretching"]);
+    Settings::values.enable_realtime_audio.SetValue([defaults boolForKey:@"cytrus.realtimeAudio"]);
     Settings::values.output_type.SetValue((AudioCore::SinkType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.outputType"]] unsignedIntValue]);
     Settings::values.input_type.SetValue((AudioCore::InputType)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.inputType"]] unsignedIntValue]);
     
     switch ([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.logLevel"]] unsignedIntValue]) {
         case 0:
-            Settings::values.log_filter.SetValue("Trace");
+            Settings::values.log_filter.SetValue("*:Trace");
             break;
         case 1:
-            Settings::values.log_filter.SetValue("Debug");
+            Settings::values.log_filter.SetValue("*:Debug");
             break;
         case 2:
-            Settings::values.log_filter.SetValue("Info");
+            Settings::values.log_filter.SetValue("*:Info");
             break;
         case 3:
-            Settings::values.log_filter.SetValue("Warning");
+            Settings::values.log_filter.SetValue("*:Warning");
             break;
         case 4:
-            Settings::values.log_filter.SetValue("Error");
+            Settings::values.log_filter.SetValue("*:Error");
             break;
         case 5:
-            Settings::values.log_filter.SetValue("Critical");
+            Settings::values.log_filter.SetValue("*:Critical");
             break;
         default:
             break;
