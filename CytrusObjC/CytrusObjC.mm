@@ -527,4 +527,8 @@ static void TryShutdown() {
     
     NetSettings::values.web_api_url = [[defaults stringForKey:@"cytrus.webAPIURL"] UTF8String];
 }
+
+-(void) setStepsPerHour:(uint16_t)stepsPerHour {
+    Settings::values.steps_per_hour = stepsPerHour;
+}
 @end

@@ -84,9 +84,8 @@ void Module::Interface::GetStepHistory(Kernel::HLERequestContext& ctx) {
     ASSERT_MSG(sizeof(u16) * hours == buffer.GetSize(),
                "Buffer for steps count has incorrect size");
 
-    // Stub: set zero steps count for every hour
+    const u16_le steps_per_hour = Settings::values.steps_per_hour.GetValue();
     for (u32 i = 0; i < hours; ++i) {
-        const u16_le steps_per_hour = 0;
         buffer.Write(&steps_per_hour, i * sizeof(u16), sizeof(u16));
     }
 
@@ -158,7 +157,8 @@ static void WriteGameCoinData(GameCoin gamecoin_data) {
     // If the archive didn't exist, create the files inside
     if (archive_result.Code() == FileSys::ResultNotFormatted) {
         // Format the archive to create the directories
-        extdata_archive_factory.Format(archive_path, FileSys::ArchiveFormatInfo(), 0);
+        extdata_archive_factory.FormatAsExtData(archive_path, FileSys::ArchiveFormatInfo(), 0, 0, 0,
+                                                std::nullopt);
         // Open it again to get a valid archive now that the folder exists
         archive = extdata_archive_factory.Open(archive_path, 0).Unwrap();
         // Create the game coin file
@@ -174,7 +174,8 @@ static void WriteGameCoinData(GameCoin gamecoin_data) {
     auto gamecoin_result = archive->OpenFile(gamecoin_path, open_mode);
     if (gamecoin_result.Succeeded()) {
         auto gamecoin = std::move(gamecoin_result).Unwrap();
-        gamecoin->Write(0, sizeof(GameCoin), true, reinterpret_cast<const u8*>(&gamecoin_data));
+        gamecoin->Write(0, sizeof(GameCoin), true, false,
+                        reinterpret_cast<const u8*>(&gamecoin_data));
         gamecoin->Close();
     }
 }

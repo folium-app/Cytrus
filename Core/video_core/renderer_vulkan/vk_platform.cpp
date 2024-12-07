@@ -32,8 +32,9 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type,
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data) {
 
-    switch (callback_data->messageIdNumber) {
+    switch (static_cast<u32>(callback_data->messageIdNumber)) {
     case 0x609a13b: // Vertex attribute at location not consumed by shader
+    case 0xc81ad50e:
         return VK_FALSE;
     default:
         break;
@@ -106,7 +107,12 @@ std::shared_ptr<Common::DynamicLibrary> OpenLibrary(
 #endif
     auto library = std::make_shared<Common::DynamicLibrary>();
 #ifdef __APPLE__
-    void(library->Load("@rpath/MoltenVK.framework/MoltenVK"));
+    const std::string filename = Common::DynamicLibrary::GetLibraryName("vulkan");
+    if (!library->Load(filename)) {
+        // Fall back to directly loading bundled MoltenVK library.
+        const std::string mvk_filename = "@rpath/MoltenVK.framework/MoltenVK";
+        void(library->Load(mvk_filename));
+    }
 #else
     std::string filename = Common::DynamicLibrary::GetLibraryName("vulkan", 1);
     LOG_DEBUG(Render_Vulkan, "Trying Vulkan library: {}", filename);

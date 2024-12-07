@@ -384,7 +384,7 @@ void Context::MakeRequestNonSSL(httplib::Request& request, const URLInfo& url_in
         state = RequestState::Completed;
     } else {
         LOG_DEBUG(Service_HTTP, "Request successful");
-        state = RequestState::ReadyToDownloadContent;
+        state = RequestState::ReceivingBody;
     }
 }
 
@@ -442,7 +442,7 @@ void Context::MakeRequestSSL(httplib::Request& request, const URLInfo& url_info,
         state = RequestState::Completed;
     } else {
         LOG_DEBUG(Service_HTTP, "Request successful");
-        state = RequestState::ReadyToDownloadContent;
+        state = RequestState::ReceivingBody;
     }
 }
 
@@ -1970,7 +1970,7 @@ void HTTP_C::DecryptClCertA() {
         FileSys::NCCHFileOpenType::NCCHData, 0, FileSys::NCCHFilePathType::RomFS, exefs_filepath);
     FileSys::Mode open_mode = {};
     open_mode.read_flag.Assign(1);
-    auto file_result = archive.OpenFile(file_path, open_mode);
+    auto file_result = archive.OpenFile(file_path, open_mode, 0);
     if (file_result.Failed()) {
         LOG_ERROR(Service_HTTP, "ClCertA file missing");
         return;

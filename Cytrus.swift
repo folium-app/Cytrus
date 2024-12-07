@@ -10,7 +10,7 @@ import MetalKit
 import UIKit
 
 public struct Cytrus : @unchecked Sendable {
-    public static let shared = Cytrus()
+    public static var shared = Cytrus()
     
     fileprivate let cytrusObjC = CytrusObjC.shared()
     
@@ -102,6 +102,11 @@ public struct Cytrus : @unchecked Sendable {
         cytrusObjC.updateSettings()
     }
     
+    public var stepsPerHour: UInt16 = 42 {
+        didSet {
+            cytrusObjC.setStepsPerHour(stepsPerHour)
+        }
+    }
     
     public struct Multiplayer : @unchecked Sendable {
         public static let shared = Multiplayer()

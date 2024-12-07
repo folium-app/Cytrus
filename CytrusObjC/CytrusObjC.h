@@ -291,6 +291,8 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 -(NSMutableArray<NSURL *> *) systemGamePaths;
 
 -(void) updateSettings;
+
+-(void) setStepsPerHour:(uint16_t)stepsPerHour;
 @end
 
 NS_ASSUME_NONNULL_END

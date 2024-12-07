@@ -47,19 +47,41 @@ vk::MemoryPropertyFlags MakePropertyFlags(BufferType type) {
 /// Get the preferred host visible memory type.
 u32 GetMemoryType(const vk::PhysicalDeviceMemoryProperties& properties, BufferType type) {
     vk::MemoryPropertyFlags flags = MakePropertyFlags(type);
-    std::optional preferred_type = FindMemoryType(properties, flags);
+    std::optional<u32> preferred_type;
 
+    // Try to find a memory type with all the requested flags
+    preferred_type = FindMemoryType(properties, flags);
+    if (preferred_type) {
+        return *preferred_type;
+    }
+
+    // If not found, try removing flags one by one
     constexpr std::array remove_flags = {
+        vk::MemoryPropertyFlagBits::eDeviceLocal,
         vk::MemoryPropertyFlagBits::eHostCached,
         vk::MemoryPropertyFlagBits::eHostCoherent,
     };
 
-    for (u32 i = 0; i < remove_flags.size() && !preferred_type; i++) {
-        flags &= ~remove_flags[i];
+    for (auto remove_flag : remove_flags) {
+        if ((flags & remove_flag) == vk::MemoryPropertyFlags{}) {
+            continue;
+        }
+        flags &= ~remove_flag;
         preferred_type = FindMemoryType(properties, flags);
+        if (preferred_type) {
+            return *preferred_type;
+        }
     }
-    ASSERT_MSG(preferred_type, "No suitable memory type found");
-    return preferred_type.value();
+
+    // If still not found, try with only eHostVisible flag
+    preferred_type = FindMemoryType(properties, vk::MemoryPropertyFlagBits::eHostVisible);
+    if (preferred_type) {
+        return *preferred_type;
+    }
+
+    // If we reach here, we couldn't find any suitable memory type
+    UNREACHABLE_MSG("Failed to find a suitable memory type for buffer type {}",
+                    BufferTypeName(type));
 }
 
 constexpr u64 WATCHES_INITIAL_RESERVE = 0x4000;
@@ -82,7 +104,7 @@ StreamBuffer::~StreamBuffer() {
     device.freeMemory(memory);
 }
 
-std::tuple<u8*, u64, bool> StreamBuffer::Map(u64 size, u64 alignment) {
+std::tuple<u8*, u32, bool> StreamBuffer::Map(u32 size, u64 alignment) {
     if (!is_coherent && type == BufferType::Stream) {
         size = Common::AlignUp(size, instance.NonCoherentAtomSize());
     }
@@ -114,7 +136,7 @@ std::tuple<u8*, u64, bool> StreamBuffer::Map(u64 size, u64 alignment) {
     return std::make_tuple(mapped + offset, offset, invalidate);
 }
 
-void StreamBuffer::Commit(u64 size) {
+void StreamBuffer::Commit(u32 size) {
     if (!is_coherent && type == BufferType::Stream) {
         size = Common::AlignUp(size, instance.NonCoherentAtomSize());
     }
@@ -200,11 +222,10 @@ void StreamBuffer::CreateBuffers(u64 prefered_size) {
     mapped = reinterpret_cast<u8*>(device.mapMemory(memory, 0, VK_WHOLE_SIZE));
 
     if (instance.HasDebuggingToolAttached()) {
-        Vulkan::SetObjectName(device, buffer, "StreamBuffer({}): {} KiB {}", BufferTypeName(type),
-                              stream_buffer_size / 1024, vk::to_string(mem_type.propertyFlags));
-        Vulkan::SetObjectName(device, memory, "StreamBufferMemory({}): {} Kib {}",
-                              BufferTypeName(type), stream_buffer_size / 1024,
-                              vk::to_string(mem_type.propertyFlags));
+        SetObjectName(device, buffer, "StreamBuffer({}): {} KiB {}", BufferTypeName(type),
+                      stream_buffer_size / 1024, vk::to_string(mem_type.propertyFlags));
+        SetObjectName(device, memory, "StreamBufferMemory({}): {} Kib {}", BufferTypeName(type),
+                      stream_buffer_size / 1024, vk::to_string(mem_type.propertyFlags));
     }
 }
 

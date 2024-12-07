@@ -19,6 +19,7 @@
 #include "core/hle/kernel/shared_memory.h"
 #include "core/hle/result.h"
 #include "core/hle/service/soc/soc_u.h"
+#include "network/socket_manager.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -2221,17 +2222,12 @@ SOC_U::SOC_U() : ServiceFramework("soc:U", 18) {
 
     RegisterHandlers(functions);
 
-#ifdef _WIN32
-    WSADATA data;
-    WSAStartup(MAKEWORD(2, 2), &data);
-#endif
+    Network::SocketManager::EnableSockets();
 }
 
 SOC_U::~SOC_U() {
     CloseAndDeleteAllSockets();
-#ifdef _WIN32
-    WSACleanup();
-#endif
+    Network::SocketManager::DisableSockets();
 }
 
 std::optional<SOC_U::InterfaceInfo> SOC_U::GetDefaultInterfaceInfo() {
@@ -2251,7 +2247,7 @@ std::optional<SOC_U::InterfaceInfo> SOC_U::GetDefaultInterfaceInfo() {
     socklen_t s_info_len = sizeof(struct sockaddr_in);
     sockaddr_in s_info;
 
-    if ((sock_fd = ::socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    if (static_cast<int>(sock_fd = ::socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         return std::nullopt;
     }
 
@@ -2269,7 +2265,7 @@ std::optional<SOC_U::InterfaceInfo> SOC_U::GetDefaultInterfaceInfo() {
 
 #ifdef _WIN32
     sock_fd = WSASocket(AF_INET, SOCK_DGRAM, 0, 0, 0, 0);
-    if (sock_fd == SOCKET_ERROR) {
+    if (sock_fd == (SOCKET)SOCKET_ERROR) {
         return std::nullopt;
     }
 
