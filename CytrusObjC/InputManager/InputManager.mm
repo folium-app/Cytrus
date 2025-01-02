@@ -7,6 +7,8 @@
 
 #include "InputManager.h"
 
+#import <CoreMotion/CoreMotion.h>
+
 #ifdef __cplusplus
 #include <cmath>
 #include <list>
@@ -35,7 +37,7 @@ namespace InputManager {
 
 static std::shared_ptr<ButtonFactory> button;
 static std::shared_ptr<AnalogFactory> analog;
-// static std::shared_ptr<MotionFactory> motion;
+static std::shared_ptr<MotionFactory> motion;
 
 // Button Handler
 class KeyButton final : public Input::ButtonDevice {
@@ -281,7 +283,6 @@ bool AnalogFactory::MoveJoystick(int analog_id, float x, float y) {
     return analog_list->ChangeJoystickStatus(analog_id, x, y);
 }
 
-/*
 namespace {
 using Common::Vec3;
 }
@@ -294,6 +295,8 @@ class Motion : public Input::MotionDevice {
     static_assert(decltype(acceleration)::is_always_lock_free, "vectors are not lock free");
     std::thread poll_thread;
     std::atomic<bool> stop_polling = false;
+    
+    CMMotionManager *motionManager;
     
     static Vec3<float> TransformAxes(Vec3<float> in) {
         // 3DS   Y+            Phone     Z+
@@ -355,6 +358,7 @@ public:
     }
     
     void Construct() {
+        motionManager = [[CMMotionManager alloc] init];
         EnableSensors();
     }
     
@@ -363,22 +367,27 @@ public:
     }
     
     void Update() const {
-        CMMotionManager *motionManager = [[CMMotionManager alloc] init];
-        [motionManager startAccelerometerUpdatesToQueue:[NSOperationQueue mainQueue] withHandler:^(CMAccelerometerData *accelerometerData, NSError *error) {
-         acceleration = {accelerometerData.acceleration.x, accelerometerData.acceleration.y, accelerometerData.acceleration.z};
-         }];
+        CMDeviceMotion *motion = [motionManager deviceMotion];
         
-        [motionManager startGyroUpdatesToQueue:[NSOperationQueue mainQueue] withHandler:^(CMGyroData *gyroData, NSError *error) {
-         rotation = {gyroData.rotationRate.x, gyroData.rotationRate.y, gyroData.rotationRate.z};
-         }];
+        acceleration = {
+            (motion.gravity.x + motion.userAcceleration.x),
+            (motion.gravity.y + motion.userAcceleration.y),
+            (motion.gravity.z + motion.userAcceleration.z)
+        };
+        
+        rotation = {
+            motion.rotationRate.x,
+            motion.rotationRate.y,
+            motion.rotationRate.z
+        };
     }
     
     void DisableSensors() {
-        
+        [motionManager stopDeviceMotionUpdates];
     }
     
     void EnableSensors() {
-        
+        [motionManager startDeviceMotionUpdates];
     }
 };
 
@@ -396,7 +405,6 @@ void MotionFactory::EnableSensors() {
 void MotionFactory::DisableSensors() {
     _motion->DisableSensors();
 };
- */
 
 ButtonFactory* ButtonHandler() {
     return button.get();
@@ -406,11 +414,9 @@ AnalogFactory* AnalogHandler() {
     return analog.get();
 }
 
-/*
 MotionFactory* MotionHandler() {
     return motion.get();
 }
- */
 
 std::string GenerateButtonParamPackage(int button) {
     Common::ParamPackage param{
@@ -447,10 +453,10 @@ std::string GenerateAnalogParamPackage(int axis_id) {
 void Init() {
     button = std::make_shared<ButtonFactory>();
     analog = std::make_shared<AnalogFactory>();
-    // motion = std::make_shared<MotionFactory>();
+    motion = std::make_shared<MotionFactory>();
     Input::RegisterFactory<Input::ButtonDevice>("gamepad", button);
     Input::RegisterFactory<Input::AnalogDevice>("gamepad", analog);
-    // Input::RegisterFactory<Input::MotionDevice>("motion_emu", motion);
+    Input::RegisterFactory<Input::MotionDevice>("motion_emu", motion);
 }
 
 void Shutdown() {
@@ -459,7 +465,7 @@ void Shutdown() {
     Input::UnregisterFactory<Input::MotionDevice>("motion_emu");
     button.reset();
     analog.reset();
-    // motion.reset();
+    motion.reset();
 }
 
 } // namespace InputManager

@@ -285,7 +285,7 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 -(BOOL) running;
 -(BOOL) stopped;
 
--(void) orientationChanged:(UIInterfaceOrientation)orientation metalView:(MTKView *)metalView;
+-(void) orientationChanged:(UIInterfaceOrientation)orientation metalView:(UIView *)metalView;
 
 -(NSMutableArray<NSURL *> *) installedGamePaths;
 -(NSMutableArray<NSURL *> *) systemGamePaths;

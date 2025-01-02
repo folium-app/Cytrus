@@ -86,7 +86,7 @@ public struct Cytrus : @unchecked Sendable {
         cytrusObjC.stopped()
     }
     
-    public func orientationChange(with orientation: UIInterfaceOrientation, using mtkView: MTKView) {
+    public func orientationChange(with orientation: UIInterfaceOrientation, using mtkView: UIView) {
         cytrusObjC.orientationChanged(orientation, metalView: mtkView)
     }
     

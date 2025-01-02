@@ -388,7 +388,7 @@ static void TryShutdown() {
     return stop_run && !pause_emulation;
 }
 
--(void) orientationChanged:(UIInterfaceOrientation)orientation metalView:(MTKView *)metalView {
+-(void) orientationChanged:(UIInterfaceOrientation)orientation metalView:(UIView *)metalView {
     if (!Core::System::GetInstance().IsPoweredOn())
         return;
     

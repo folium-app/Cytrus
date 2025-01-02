@@ -50,7 +50,7 @@ enum ButtonType {
 class ButtonList;
 class AnalogButtonList;
 class AnalogList;
-// class Motion;
+class Motion;
 
 /**
  * A button device factory representing a gamepad. It receives input events and forward them
@@ -123,7 +123,6 @@ private:
     std::shared_ptr<AnalogList> analog_list;
 };
 
-/*
 inline std::atomic<int> screen_rotation;
 class MotionFactory final : public Input::Factory<Input::MotionDevice> {
 public:
@@ -135,7 +134,6 @@ public:
 private:
     Motion* _motion;
 };
- */
 
 /// Initializes and registers all built-in input device factories.
 void Init();

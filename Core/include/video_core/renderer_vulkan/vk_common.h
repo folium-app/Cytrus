@@ -10,6 +10,15 @@
 #define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 #define VULKAN_HPP_NO_CONSTRUCTORS
 #define VULKAN_HPP_NO_STRUCT_SETTERS
+
+#ifdef __IPHONE_OS_VERSION_MAX_ALLOWED
+#    define VK_USE_PLATFORM_IOS_MVK                1
+#endif
+
+#ifdef __MAC_OS_X_VERSION_MAX_ALLOWED
+#    define VK_USE_PLATFORM_MACOS_MVK            1
+#endif
+
 #include <vulkan/vulkan.hpp>
 
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
