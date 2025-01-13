@@ -205,6 +205,8 @@ static void TryShutdown() {
     Settings::values.lle_applets.SetValue([defaults boolForKey:@"cytrus.lleApplets"]);
     Settings::values.region_value.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.regionValue"]] unsignedIntValue]);
     
+    Settings::values.layout_option.SetValue((Settings::LayoutOption)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.layoutOption"]] unsignedIntValue]);
+    
     // renderer
     Settings::values.custom_layout.SetValue([defaults boolForKey:@"cytrus.customLayout"]);
     Settings::values.custom_top_left.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.customTopLeft"]] unsignedIntValue]);
@@ -378,6 +380,8 @@ static void TryShutdown() {
     pause_emulation = false;
     top_window->StopPresenting();
     running_cv.notify_all();
+    
+    Core::System::GetInstance().RequestShutdown();
 }
 
 -(BOOL) running {
@@ -463,6 +467,8 @@ static void TryShutdown() {
     Settings::values.is_new_3ds.SetValue([defaults boolForKey:@"cytrus.new3DS"]);
     Settings::values.lle_applets.SetValue([defaults boolForKey:@"cytrus.lleApplets"]);
     Settings::values.region_value.SetValue([[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.regionValue"]] unsignedIntValue]);
+    
+    Settings::values.layout_option.SetValue((Settings::LayoutOption)[[NSNumber numberWithInteger:[defaults doubleForKey:@"cytrus.layoutOption"]] unsignedIntValue]);
     
     // renderer
     Settings::values.custom_layout.SetValue([defaults boolForKey:@"cytrus.customLayout"]);

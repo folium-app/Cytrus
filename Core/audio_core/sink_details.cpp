@@ -11,8 +11,8 @@
 #ifdef HAVE_SDL2
 #include "audio_core/sdl2_sink.h"
 #endif
-#ifdef HAVE_CUBEB
-#include "audio_core/cubeb_sink.h"
+#ifdef HAVE_COREAUDIO
+#include "audio_core/coreaudio_sink.h"
 #endif
 #ifdef HAVE_OPENAL
 #include "audio_core/openal_sink.h"
@@ -23,12 +23,12 @@ namespace AudioCore {
 namespace {
 // sink_details is ordered in terms of desirability, with the best choice at the top.
 constexpr std::array sink_details = {
-#ifdef HAVE_CUBEB
-    SinkDetails{SinkType::Cubeb, "Cubeb",
+#ifdef HAVE_COREAUDIO
+    SinkDetails{SinkType::CoreAudio, "CoreAudio",
                 [](std::string_view device_id) -> std::unique_ptr<Sink> {
-                    return std::make_unique<CubebSink>(device_id);
+                    return std::make_unique<CoreAudioSink>(std::string(device_id));
                 },
-                &ListCubebSinkDevices},
+                &ListCoreAudioSinkDevices},
 #endif
 #ifdef HAVE_OPENAL
     SinkDetails{SinkType::OpenAL, "OpenAL",

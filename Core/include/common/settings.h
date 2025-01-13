@@ -483,7 +483,7 @@ struct Values {
     SwitchableSetting<u16, true> delay_game_render_thread_us{0, 0, 16000,
                                                              "delay_game_render_thread_us"};
 
-    SwitchableSetting<LayoutOption> layout_option{LayoutOption::Default, "layout_option"};
+    SwitchableSetting<LayoutOption> layout_option{LayoutOption::MobilePortrait, "layout_option"};
     SwitchableSetting<bool> swap_screen{false, "swap_screen"};
     SwitchableSetting<bool> upright_screen{false, "upright_screen"};
     SwitchableSetting<float, true> large_screen_proportion{4.f, 1.f, 16.f,

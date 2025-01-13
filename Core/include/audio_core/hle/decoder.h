@@ -30,6 +30,8 @@ enum class DecoderCodec : u16 {
     None = 0,
     DecodeAAC = 1,
     EncodeAAC = 2,
+    DecodeAT = 3,
+    EncodeAT = 4
 };
 
 enum class ResultStatus : u32 {
