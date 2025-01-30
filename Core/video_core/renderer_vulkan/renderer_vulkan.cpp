@@ -394,9 +394,11 @@ void RendererVulkan::ConfigureFramebufferTexture(TextureInfo& texture,
                                                  const Pica::FramebufferConfig& framebuffer) {
     vk::Device device = instance.GetDevice();
     if (texture.image_view) {
+        main_window.WaitPresent();
         device.destroyImageView(texture.image_view);
     }
     if (texture.image) {
+        main_window.WaitPresent();
         vmaDestroyImage(instance.GetAllocator(), texture.image, texture.allocation);
     }
 
@@ -453,7 +455,6 @@ void RendererVulkan::ConfigureFramebufferTexture(TextureInfo& texture,
 }
 
 void RendererVulkan::FillScreen(Common::Vec3<u8> color, const TextureInfo& texture) {
-    return;
     const vk::ClearColorValue clear_color = {
         .float32 =
             std::array{

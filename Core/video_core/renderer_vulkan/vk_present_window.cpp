@@ -168,12 +168,15 @@ PresentWindow::~PresentWindow() {
 void PresentWindow::RecreateFrame(Frame* frame, u32 width, u32 height) {
     vk::Device device = instance.GetDevice();
     if (frame->framebuffer) {
+        WaitPresent();
         device.destroyFramebuffer(frame->framebuffer);
     }
     if (frame->image_view) {
+        WaitPresent();
         device.destroyImageView(frame->image_view);
     }
     if (frame->image) {
+        WaitPresent();
         vmaDestroyImage(instance.GetAllocator(), frame->image, frame->allocation);
     }
 

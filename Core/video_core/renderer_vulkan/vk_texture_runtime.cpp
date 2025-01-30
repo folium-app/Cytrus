@@ -792,6 +792,7 @@ Surface::~Surface() {
     if (!handles[0].image_view) {
         return;
     }
+    scheduler->Finish();
     for (const auto& [alloc, image, image_view] : handles) {
         if (image) {
             vmaDestroyImage(instance->GetAllocator(), image, alloc);
