@@ -16,8 +16,6 @@
 
 #include "core/hle/service/cam/cam.h"
 
-#include <libyuv/libyuv.h> // unused for now
-
 namespace YuvTable {
 
 constexpr std::array<int, 256> Y_R = {
