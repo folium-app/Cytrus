@@ -236,7 +236,7 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 @end
 
 @interface CytrusGameInformation : NSObject
-@property (nonatomic, assign) uint64_t titleIdentifier;
+@property (nonatomic, assign) uint64_t identifier;
 
 @property (nonatomic, strong) NSString *company, *regions, *title;
 @property (nonatomic, strong) NSData * _Nullable icon;
@@ -293,6 +293,9 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 -(void) updateSettings;
 
 -(void) setStepsPerHour:(uint16_t)stepsPerHour;
+
+-(void) loadState;
+-(void) saveState;
 @end
 
 NS_ASSUME_NONNULL_END

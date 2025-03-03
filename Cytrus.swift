@@ -14,8 +14,8 @@ public struct Cytrus : @unchecked Sendable {
     
     fileprivate let cytrusObjC = CytrusObjC.shared()
     
-    public func informationForGame(at url: URL) -> CytrusGameInformation {
-        cytrusObjC.informationForGame(at: url)
+    public func information(for cartridge: URL) -> CytrusGameInformation {
+        cytrusObjC.informationForGame(at: cartridge)
     }
     
     public func allocateVulkanLibrary() {
@@ -107,6 +107,9 @@ public struct Cytrus : @unchecked Sendable {
             cytrusObjC.setStepsPerHour(stepsPerHour)
         }
     }
+    
+    public func loadState() { cytrusObjC.loadState() }
+    public func saveState() { cytrusObjC.saveState() }
     
     public struct Multiplayer : @unchecked Sendable {
         public static let shared = Multiplayer()

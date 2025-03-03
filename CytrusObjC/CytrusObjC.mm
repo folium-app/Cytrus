@@ -129,7 +129,7 @@ static void TryShutdown() {
             app_loader->ReadProgramId(program_id);
         }
         
-        self.titleIdentifier = program_id;
+        self.identifier = program_id;
         if (Icon(data).empty())
             self.icon = NULL;
         else
@@ -536,5 +536,13 @@ static void TryShutdown() {
 
 -(void) setStepsPerHour:(uint16_t)stepsPerHour {
     Settings::values.steps_per_hour = stepsPerHour;
+}
+
+-(void) loadState {
+    Core::System::GetInstance().SendSignal(Core::System::Signal::Load, 0);
+}
+
+-(void) saveState {
+    Core::System::GetInstance().SendSignal(Core::System::Signal::Save, 0);
 }
 @end
