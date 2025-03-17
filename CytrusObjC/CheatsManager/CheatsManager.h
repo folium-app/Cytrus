@@ -10,6 +10,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+NS_SWIFT_SENDABLE
 @interface Cheat : NSObject
 @property (nonatomic, assign) BOOL enabled;
 @property (nonatomic, strong) NSString *name, *code, *comments;
@@ -25,6 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 -(NSArray<Cheat *> *) getCheats;
 
+-(void) removeCheatAtIndex:(NSInteger)index;
 -(void) toggleCheat:(Cheat *)cheat;
 -(void) updateCheat:(Cheat *)cheat atIndex:(NSInteger)index;
 @end

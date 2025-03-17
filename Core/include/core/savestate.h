@@ -13,8 +13,8 @@ namespace Core {
 struct SaveStateInfo {
     u32 slot;
     u64 time;
-    enum class ValidationStatus {
-        OK,
+    enum class ValidationStatus : int {
+        OK = 0,
         RevisionDismatch,
     } status;
     std::string build_name;
@@ -22,6 +22,8 @@ struct SaveStateInfo {
 
 constexpr u32 SaveStateSlotCount = 11; // Maximum count of savestate slots
 
+
+std::string GetSaveStatePath(u64 program_id, u64 movie_id, u32 slot);
 std::vector<SaveStateInfo> ListSaveStates(u64 program_id, u64 movie_id);
 
 } // namespace Core

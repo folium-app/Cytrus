@@ -13,11 +13,6 @@
 #include "core/cheats/cheats.h"
 #include "core/cheats/gateway_cheat.h"
 
-static Cheats::CheatEngine& GetEngine() {
-    Core::System& system{Core::System::GetInstance()};
-    return system.CheatEngine();
-}
-
 @implementation Cheat
 -(Cheat *) initWithEnabled:(BOOL)enabled name:(NSString *)name code:(NSString *)code comments:(NSString *)comments {
     if (self = [super init]) {
@@ -40,15 +35,15 @@ static Cheats::CheatEngine& GetEngine() {
 }
 
 -(void) loadCheats:(uint64_t)titleIdentifier {
-    GetEngine().LoadCheatFile(titleIdentifier);
+    Core::System::GetInstance().CheatEngine().LoadCheatFile(titleIdentifier);
 }
 
 -(void) saveCheats:(uint64_t)titleIdentifier {
-    GetEngine().SaveCheatFile(titleIdentifier);
+    Core::System::GetInstance().CheatEngine().SaveCheatFile(titleIdentifier);
 }
 
 -(NSArray<Cheat *> *) getCheats {
-    auto cheats = GetEngine().GetCheats();
+    auto cheats = Core::System::GetInstance().CheatEngine().GetCheats();
     NSMutableArray *convertedCheats = @[].mutableCopy;
     for (const auto& cheat : cheats)
         [convertedCheats addObject:[[Cheat alloc] initWithEnabled:cheat->IsEnabled()
@@ -59,6 +54,10 @@ static Cheats::CheatEngine& GetEngine() {
     return convertedCheats;
 }
 
+-(void) removeCheatAtIndex:(NSInteger)index {
+    Core::System::GetInstance().CheatEngine().RemoveCheat(index);
+}
+
 -(void) toggleCheat:(Cheat *)cheat {
     cheat.enabled = !cheat.enabled;
 }
@@ -67,6 +66,6 @@ static Cheats::CheatEngine& GetEngine() {
     auto gateway = std::make_shared<Cheats::GatewayCheat>(cheat.name.UTF8String, cheat.code.UTF8String, cheat.comments.UTF8String);
     gateway->SetEnabled(cheat.enabled);
     
-    GetEngine().UpdateCheat(index, gateway);
+    Core::System::GetInstance().CheatEngine().UpdateCheat(index, gateway);
 }
 @end

@@ -111,6 +111,9 @@ public struct Cytrus : @unchecked Sendable {
     public func loadState() { cytrusObjC.loadState() }
     public func saveState() { cytrusObjC.saveState() }
     
+    public func saves(for identifier: UInt64) -> [SaveStateInfo] { cytrusObjC.saveStates(identifier) }
+    public func saveStatePath(for identifier: UInt64) -> String { cytrusObjC.saveStatePath(identifier) }
+    
     public struct Multiplayer : @unchecked Sendable {
         public static let shared = Multiplayer()
         

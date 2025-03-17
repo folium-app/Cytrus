@@ -113,6 +113,18 @@ static void TryShutdown() {
     InputManager::Shutdown();
 };
 
+@implementation CoreVersion
+-(CoreVersion *) initWithCoreVersion:(uint32_t)coreVersion {
+    if (self = [super init]) {
+        Kernel::CoreVersion version = Kernel::CoreVersion(coreVersion);
+        
+        self.major = version.major;
+        self.minor = version.minor;
+        self.revision = version.revision;
+    } return self;
+}
+@end
+
 @implementation CytrusGameInformation
 -(CytrusGameInformation *) initWithURL:(NSURL *)url {
     if (self = [super init]) {
@@ -129,14 +141,31 @@ static void TryShutdown() {
             app_loader->ReadProgramId(program_id);
         }
         
+        uint32_t defaultCoreVersion = (1 << 24) | (0 << 16) | (1 << 8);
+        
+        self.coreVersion = [[CoreVersion alloc] initWithCoreVersion:defaultCoreVersion];
+        self.kernelMemoryMode = (KernelMemoryMode)(app_loader->LoadKernelMemoryMode().first || 0);
+        self.new3DSKernelMemoryMode = (New3DSKernelMemoryMode)app_loader->LoadNew3dsHwCapabilities().first->memory_mode;
+        
         self.identifier = program_id;
         if (Icon(data).empty())
             self.icon = NULL;
         else
             self.icon = [NSData dataWithBytes:InformationForGame::Icon(data).data() length:48 * 48 * sizeof(uint16_t)];
-        self.company = [NSString stringWithCharacters:(const unichar*)publisher.c_str() length:publisher.length()];
+        self.publisher = [NSString stringWithCharacters:(const unichar*)publisher.c_str() length:publisher.length()];
         self.regions = [NSString stringWithCString:regions.c_str() encoding:NSUTF8StringEncoding];
         self.title = [NSString stringWithCharacters:(const unichar*)title.c_str() length:title.length()];
+    } return self;
+}
+@end
+
+@implementation SaveStateInfo
+-(SaveStateInfo *) initWithSlot:(uint32_t)slot time:(uint64_t)time buildName:(NSString *)buildName status:(int)status {
+    if (self = [super init]) {
+        self.slot = slot;
+        self.time = time;
+        self.buildName = buildName;
+        self.status = status;
     } return self;
 }
 @end
@@ -544,5 +573,20 @@ static void TryShutdown() {
 
 -(void) saveState {
     Core::System::GetInstance().SendSignal(Core::System::Signal::Save, 0);
+}
+
+-(NSArray<SaveStateInfo *> *) saveStates:(uint64_t)identifier {
+    NSMutableArray<SaveStateInfo *> *saves = @[].mutableCopy;
+    for (auto& state : Core::ListSaveStates(identifier, 0)) {
+        [saves addObject:[[SaveStateInfo alloc] initWithSlot:state.slot
+                                                        time:state.time
+                                                   buildName:[NSString stringWithCString:state.build_name.c_str() encoding:NSUTF8StringEncoding]
+                                                      status:(int)state.status]];
+    }
+    return saves;
+}
+
+-(NSString *) saveStatePath:(uint64_t)identifier {
+    return [NSString stringWithCString:Core::GetSaveStatePath(identifier, 0, 0).c_str() encoding:NSUTF8StringEncoding];
 }
 @end

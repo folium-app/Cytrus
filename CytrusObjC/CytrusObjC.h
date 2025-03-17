@@ -34,6 +34,7 @@
 #include "core/hle/service/fs/archive.h"
 #include "core/loader/loader.h"
 #include "core/loader/smdh.h"
+#include "core/savestate.h"
 #include "network/network_settings.h"
 #include "video_core/gpu.h"
 #include "video_core/renderer_base.h"
@@ -235,14 +236,48 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 -(KeyboardConfig *) initWithHintText:(NSString * _Nullable)hintText buttonConfig:(KeyboardButtonConfig)buttonConfig;
 @end
 
-@interface CytrusGameInformation : NSObject
-@property (nonatomic, assign) uint64_t identifier;
+typedef NS_ENUM(uint8_t, KernelMemoryMode) {
+    KernelMemoryModeProd = 0, ///< 64MB app memory
+    KernelMemoryModeDev1 = 2, ///< 96MB app memory
+    KernelMemoryModeDev2 = 3, ///< 80MB app memory
+    KernelMemoryModeDev3 = 4, ///< 72MB app memory
+    KernelMemoryModeDev4 = 5 ///< 32MB app memory
+};
 
-@property (nonatomic, strong) NSString *company, *regions, *title;
+typedef NS_ENUM(uint8_t, New3DSKernelMemoryMode) {
+    New3DSKernelMemoryModeLegacy = 0,  ///< Use Old 3DS system mode.
+    New3DSKernelMemoryModeProd = 1, ///< 124MB app memory
+    New3DSKernelMemoryModeDev1 = 2, ///< 178MB app memory
+    New3DSKernelMemoryModeDev2 = 3 ///< 124MB app memory
+};
+
+@interface CoreVersion : NSObject
+@property (nonatomic) uint32_t major, minor, revision;
+
+-(CoreVersion *) initWithCoreVersion:(uint32_t)coreVersion;
+@end
+
+@interface CytrusGameInformation : NSObject
+@property (nonatomic) CoreVersion *coreVersion;
+@property (nonatomic) uint64_t identifier;
+@property (nonatomic) KernelMemoryMode kernelMemoryMode;
+@property (nonatomic) New3DSKernelMemoryMode new3DSKernelMemoryMode;
+
+@property (nonatomic, strong) NSString *regions, *publisher, *title;
 @property (nonatomic, strong) NSData * _Nullable icon;
 
 -(CytrusGameInformation *) initWithURL:(NSURL *)url;
 @end
+
+@interface SaveStateInfo : NSObject
+@property (nonatomic) uint32_t slot;
+@property (nonatomic) uint64_t time;
+@property (nonatomic, strong) NSString *buildName;
+@property (nonatomic) int status;
+
+-(SaveStateInfo *) initWithSlot:(uint32_t)slot time:(uint64_t)time buildName:(NSString *)buildName status:(int)status;
+@end
+
 
 @interface CytrusObjC : NSObject {
 #ifdef __cplusplus
@@ -296,6 +331,9 @@ typedef NS_ENUM(NSUInteger, KeyboardButtonConfig) {
 
 -(void) loadState;
 -(void) saveState;
+
+-(NSArray<SaveStateInfo *> *) saveStates:(uint64_t)identifier;
+-(NSString *) saveStatePath:(uint64_t)identifier;
 @end
 
 NS_ASSUME_NONNULL_END
