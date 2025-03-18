@@ -425,7 +425,6 @@ struct Values {
     int current_input_profile_index;          ///< The current input profile index
     std::vector<InputProfile> input_profiles; ///< The list of input profiles
     std::vector<TouchFromButtonMap> touch_from_button_maps;
-    Setting<bool> use_artic_base_controller{false, "use_artic_base_controller"};
 
     SwitchableSetting<bool> enable_gamemode{true, "enable_gamemode"};
 
@@ -480,10 +479,8 @@ struct Values {
     SwitchableSetting<TextureFilter> texture_filter{TextureFilter::None, "texture_filter"};
     SwitchableSetting<TextureSampling> texture_sampling{TextureSampling::GameControlled,
                                                         "texture_sampling"};
-    SwitchableSetting<u16, true> delay_game_render_thread_us{0, 0, 16000,
-                                                             "delay_game_render_thread_us"};
 
-    SwitchableSetting<LayoutOption> layout_option{LayoutOption::MobilePortrait, "layout_option"};
+    SwitchableSetting<LayoutOption> layout_option{LayoutOption::Default, "layout_option"};
     SwitchableSetting<bool> swap_screen{false, "swap_screen"};
     SwitchableSetting<bool> upright_screen{false, "upright_screen"};
     SwitchableSetting<float, true> large_screen_proportion{4.f, 1.f, 16.f,
@@ -543,11 +540,9 @@ struct Values {
     Setting<bool> delay_start_for_lle_modules{true, "delay_start_for_lle_modules"};
     Setting<bool> use_gdbstub{false, "use_gdbstub"};
     Setting<u16> gdbstub_port{24689, "gdbstub_port"};
-    Setting<bool> instant_debug_log{false, "instant_debug_log"};
 
     // Miscellaneous
     Setting<std::string> log_filter{"*:Info", "log_filter"};
-    Setting<std::string> log_regex_filter{"", "log_regex_filter"};
 
     // Video Dumping
     std::string output_format;

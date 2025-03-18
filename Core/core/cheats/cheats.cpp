@@ -45,7 +45,7 @@ void CheatEngine::AddCheat(std::shared_ptr<CheatBase>&& cheat) {
 void CheatEngine::RemoveCheat(std::size_t index) {
     std::unique_lock lock{cheats_list_mutex};
     if (index < 0 || index >= cheats_list.size()) {
-        LOG_ERROR(Core_Cheats, "Invalid index {}", index);
+        LOG_ERROR(Core_Cheats, "Invalid index {} for list of size {}", index, cheats_list.size());
         return;
     }
     cheats_list.erase(cheats_list.begin() + index);
@@ -85,12 +85,17 @@ void CheatEngine::LoadCheatFile(u64 title_id) {
 
     const std::string cheat_dir = FileUtil::GetUserPath(FileUtil::UserPath::CheatsDir);
     const std::string filepath = fmt::format("{}{:016X}.txt", cheat_dir, title_id);
-
+    
     if (!FileUtil::IsDirectory(cheat_dir)) {
         FileUtil::CreateDir(cheat_dir);
     }
 
     if (!FileUtil::Exists(filepath)) {
+        {
+            std::unique_lock lock{cheats_list_mutex};
+            loaded_title_id = title_id;
+            cheats_list = {};
+        }
         return;
     }
 

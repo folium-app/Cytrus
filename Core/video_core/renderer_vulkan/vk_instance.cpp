@@ -9,6 +9,7 @@
 #include "common/assert.h"
 #include "common/settings.h"
 #include "core/frontend/emu_window.h"
+#include "core/telemetry_session.h"
 #include "video_core/custom_textures/custom_format.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
@@ -137,7 +138,8 @@ Instance::Instance(bool enable_validation, bool dump_command_buffers)
                               dump_command_buffers)},
       physical_devices{instance->enumeratePhysicalDevices()} {}
 
-Instance::Instance(Frontend::EmuWindow& window, u32 physical_device_index)
+Instance::Instance(Core::TelemetrySession& telemetry, Frontend::EmuWindow& window,
+                   u32 physical_device_index)
     : library{OpenLibrary(&window)},
       instance{CreateInstance(*library, window.GetWindowInfo().type,
                               Settings::values.renderer_debug.GetValue(),
@@ -159,6 +161,7 @@ Instance::Instance(Frontend::EmuWindow& window, u32 physical_device_index)
             VK_VERSION_MAJOR(properties.apiVersion), VK_VERSION_MINOR(properties.apiVersion)));
     }
 
+    CollectTelemetryParameters(telemetry);
     CreateDevice();
     CollectToolingInfo();
     CreateFormatTable();
@@ -406,15 +409,9 @@ bool Instance::CreateDevice() {
         vk::PhysicalDevicePipelineCreationCacheControlFeaturesEXT,
         vk::PhysicalDeviceFragmentShaderBarycentricFeaturesKHR>();
     const vk::StructureChain properties_chain =
-        physical_device
-            .getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceDriverProperties,
-                            vk::PhysicalDevicePortabilitySubsetPropertiesKHR,
-                            vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>();
-    const vk::PhysicalDeviceDriverProperties driver =
-        properties_chain.get<vk::PhysicalDeviceDriverProperties>();
-
-    driver_id = driver.driverID;
-    vendor_name = driver.driverName.data();
+        physical_device.getProperties2<vk::PhysicalDeviceProperties2,
+                                       vk::PhysicalDevicePortabilitySubsetPropertiesKHR,
+                                       vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>();
 
     features = feature_chain.get().features;
     if (available_extensions.empty()) {
@@ -646,6 +643,34 @@ void Instance::CreateAllocator() {
     if (result != VK_SUCCESS) {
         UNREACHABLE_MSG("Failed to initialize VMA with error {}", result);
     }
+}
+
+void Instance::CollectTelemetryParameters(Core::TelemetrySession& telemetry) {
+    const vk::StructureChain property_chain =
+        physical_device
+            .getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceDriverProperties>();
+    const vk::PhysicalDeviceDriverProperties driver =
+        property_chain.get<vk::PhysicalDeviceDriverProperties>();
+
+    driver_id = driver.driverID;
+    vendor_name = driver.driverName.data();
+
+    const std::string model_name{GetModelName()};
+    const std::string driver_version = GetDriverVersionName();
+    const std::string driver_name = fmt::format("{} {}", vendor_name, driver_version);
+    const std::string api_version = GetReadableVersion(properties.apiVersion);
+    const std::string extensions = fmt::format("{}", fmt::join(available_extensions, ", "));
+
+    LOG_INFO(Render_Vulkan, "VK_DRIVER: {}", driver_name);
+    LOG_INFO(Render_Vulkan, "VK_DEVICE: {}", model_name);
+    LOG_INFO(Render_Vulkan, "VK_VERSION: {}", api_version);
+
+    static constexpr auto field = Common::Telemetry::FieldType::UserSystem;
+    telemetry.AddField(field, "GPU_Vendor", vendor_name);
+    telemetry.AddField(field, "GPU_Model", model_name);
+    telemetry.AddField(field, "GPU_Vulkan_Driver", driver_name);
+    telemetry.AddField(field, "GPU_Vulkan_Version", api_version);
+    telemetry.AddField(field, "GPU_Vulkan_Extensions", extensions);
 }
 
 void Instance::CollectToolingInfo() {

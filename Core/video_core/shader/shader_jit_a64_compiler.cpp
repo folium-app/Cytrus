@@ -386,55 +386,35 @@ void JitShader::Compile_SanitizedMul(QReg src1, QReg src2, QReg scratch0) {
 }
 
 void JitShader::Compile_EvaluateCondition(Instruction instr) {
-    const bool refx = instr.flow_control.refx.Value();
-    const bool refy = instr.flow_control.refy.Value();
-
-    switch (instr.flow_control.op) {
     // Note: NXOR is used below to check for equality
-    case Instruction::FlowControlType::Or: {
-        XReg OpX = XSCRATCH0;
-        if (!refx) {
-            EOR(OpX, COND0, u8(refx) ^ 1);
-        } else {
-            OpX = COND0;
-        }
-        XReg OpY = XSCRATCH1;
-        if (!refy) {
-            EOR(OpY, COND1, u8(refy) ^ 1);
-        } else {
-            OpY = COND1;
-        }
-        ORR(XSCRATCH0, OpX, OpY);
-        CMP(XSCRATCH0, 0);
+    switch (instr.flow_control.op) {
+    case Instruction::FlowControlType::Or:
+        MOV(XSCRATCH0, (instr.flow_control.refx.Value() ^ 1));
+        MOV(XSCRATCH1, (instr.flow_control.refy.Value() ^ 1));
+        EOR(XSCRATCH0, XSCRATCH0, COND0);
+        EOR(XSCRATCH1, XSCRATCH1, COND1);
+        ORR(XSCRATCH0, XSCRATCH0, XSCRATCH1);
         break;
-    }
-    // Note: TST will AND two registers and set the EQ/NE flags on the result
-    case Instruction::FlowControlType::And: {
-        XReg OpX = XSCRATCH0;
-        if (!refx) {
-            EOR(OpX, COND0, u8(refx) ^ 1);
-        } else {
-            OpX = COND0;
-        }
-        XReg OpY = XSCRATCH1;
-        if (!refy) {
-            EOR(OpY, COND1, u8(refy) ^ 1);
-        } else {
-            OpY = COND1;
-        }
-        TST(OpX, OpY);
+
+    case Instruction::FlowControlType::And:
+        MOV(XSCRATCH0, (instr.flow_control.refx.Value() ^ 1));
+        MOV(XSCRATCH1, (instr.flow_control.refy.Value() ^ 1));
+        EOR(XSCRATCH0, XSCRATCH0, COND0);
+        EOR(XSCRATCH1, XSCRATCH1, COND1);
+        AND(XSCRATCH0, XSCRATCH0, XSCRATCH1);
         break;
-    }
+
     case Instruction::FlowControlType::JustX:
-        CMP(COND0, u8(refx) ^ 1);
+        MOV(XSCRATCH0, (instr.flow_control.refx.Value() ^ 1));
+        EOR(XSCRATCH0, XSCRATCH0, COND0);
         break;
+
     case Instruction::FlowControlType::JustY:
-        CMP(COND1, u8(refy) ^ 1);
-        break;
-    default:
-        UNREACHABLE();
+        MOV(XSCRATCH0, (instr.flow_control.refy.Value() ^ 1));
+        EOR(XSCRATCH0, XSCRATCH0, COND1);
         break;
     }
+    CMP(XSCRATCH0, 0);
 }
 
 void JitShader::Compile_UniformCondition(Instruction instr) {
@@ -942,7 +922,7 @@ void JitShader::Compile(const std::array<u32, MAX_PROGRAM_CODE_LENGTH>* program_
     swizzle_data = swizzle_data_;
 
     // Reset flow control state
-    const std::uintptr_t program_offset = offset();
+    program = xptr<CompiledShader*>();
     program_counter = 0;
     loop_depth = 0;
     instruction_labels.fill(Label());
@@ -984,28 +964,18 @@ void JitShader::Compile(const std::array<u32, MAX_PROGRAM_CODE_LENGTH>* program_
     return_offsets.clear();
     return_offsets.shrink_to_fit();
 
-    // Copy to executable memory
-    const size_t code_size = code_vec.size() * sizeof(u32);
-
-    code_mem = std::make_unique<oaknut::CodeBlock>(code_size);
-    code_mem->unprotect();
-
-    program = reinterpret_cast<CompiledShader*>(reinterpret_cast<std::byte*>(code_mem->ptr()) +
-                                                program_offset);
-
-    // Copy to executable memory
-    std::memcpy(code_mem->ptr(), code_vec.data(), code_vec.size() * sizeof(u32));
-
     // Memory is ready to execute
-    code_mem->protect();
-    code_mem->invalidate_all();
+    protect();
+    invalidate_all();
 
-    // code_vec is no longer needed
-    code_vec.clear();
-    code_vec.shrink_to_fit();
+    const std::size_t code_size = static_cast<std::size_t>(offset());
+
+    ASSERT_MSG(code_size <= MAX_SHADER_SIZE, "Compiled a shader that exceeds the allocated size!");
+    LOG_DEBUG(HW_GPU, "Compiled shader size={}", code_size);
 }
 
-JitShader::JitShader() : oaknut::VectorCodeGenerator(code_vec) {
+JitShader::JitShader() : CodeBlock(MAX_SHADER_SIZE), CodeGenerator(CodeBlock::ptr()) {
+    unprotect();
     CompilePrelude();
 }
 
@@ -1023,22 +993,19 @@ Label JitShader::CompilePrelude_Log2() {
     // range. Coefficients for the minimax polynomial.
     // f(x) computes approximately log2(x) / (x - 1).
     // f(x) = c4 + x * (c3 + x * (c2 + x * (c1 + x * c0)).
-    oaknut::Label c0;
-    // align(16);
-    l(c0);
+    align(16);
+    const void* c0 = xptr<const void*>();
     dw(0x3d74552f);
 
-    // align(16);
-    oaknut::Label c14;
-    l(c14);
+    align(16);
+    const void* c14 = xptr<const void*>();
     dw(0xbeee7397);
     dw(0x3fbd96dd);
     dw(0xc02153f6);
     dw(0x4038d96c);
 
-    // align(16);
-    oaknut::Label negative_infinity_vector;
-    l(negative_infinity_vector);
+    align(16);
+    const void* negative_infinity_vector = xptr<const void*>();
     dw(0xff800000);
     dw(0xff800000);
     dw(0xff800000);
@@ -1051,19 +1018,19 @@ Label JitShader::CompilePrelude_Log2() {
 
     Label input_is_nan, input_is_zero, input_out_of_range;
 
-    // align(16);
+    align(16);
     l(input_out_of_range);
     B(Cond::EQ, input_is_zero);
-    ADR(XSCRATCH0, default_qnan_vector);
+    MOVP2R(XSCRATCH0, default_qnan_vector);
     LDR(SRC1, XSCRATCH0);
     RET();
 
     l(input_is_zero);
-    ADR(XSCRATCH0, negative_infinity_vector);
+    MOVP2R(XSCRATCH0, negative_infinity_vector);
     LDR(SRC1, XSCRATCH0);
     RET();
 
-    // align(16);
+    align(16);
     l(subroutine);
 
     // Here we handle edge cases: input in {NaN, 0, -Inf, Negative}.
@@ -1091,14 +1058,14 @@ Label JitShader::CompilePrelude_Log2() {
     UCVTF(VSCRATCH1.toS(), VSCRATCH1.toS());
     // VSCRATCH1 now contains the exponent of the input.
 
-    ADR(XSCRATCH0, c0);
+    MOVP2R(XSCRATCH0, c0);
     LDR(XSCRATCH0.toW(), XSCRATCH0);
     MOV(VSCRATCH0.Selem()[0], XSCRATCH0.toW());
 
     // Complete computation of polynomial
     // Load C1,C2,C3,C4 into a single scratch register
     const QReg C14 = SRC2;
-    ADR(XSCRATCH0, c14);
+    MOVP2R(XSCRATCH0, c14);
     LDR(C14, XSCRATCH0);
     FMUL(VSCRATCH0.toS(), VSCRATCH0.toS(), SRC1.toS());
     FMLA(VSCRATCH0.toS(), ONE.toS(), C14.Selem()[0]);
@@ -1131,35 +1098,27 @@ Label JitShader::CompilePrelude_Exp2() {
     // polynomial which was fit for the function exp2(x) is then evaluated. We then restore the
     // result into the appropriate range.
 
-    // align(16);
-    Label input_max;
-    l(input_max);
+    align(16);
+    const void* input_max = xptr<const void*>();
     dw(0x43010000);
-    Label input_min;
-    l(input_min);
+    const void* input_min = xptr<const void*>();
     dw(0xc2fdffff);
-    Label c0;
-    l(c0);
+    const void* c0 = xptr<const void*>();
     dw(0x3c5dbe69);
-    Label half;
-    l(half);
+    const void* half = xptr<const void*>();
     dw(0x3f000000);
-    Label c1;
-    l(c1);
+    const void* c1 = xptr<const void*>();
     dw(0x3d5509f9);
-    Label c2;
-    l(c2);
+    const void* c2 = xptr<const void*>();
     dw(0x3e773cc5);
-    Label c3;
-    l(c3);
+    const void* c3 = xptr<const void*>();
     dw(0x3f3168b3);
-    Label c4;
-    l(c4);
+    const void* c4 = xptr<const void*>();
     dw(0x3f800016);
 
     Label ret_label;
 
-    // align(16);
+    align(16);
     l(subroutine);
 
     // Handle edge cases
@@ -1170,15 +1129,15 @@ Label JitShader::CompilePrelude_Exp2() {
     // VSCRATCH0=2^round(input)
     // SRC1=input-round(input) [-0.5, 0.5)
     // Clamp to maximum range since we shift the value directly into the exponent.
-    ADR(XSCRATCH0, input_max);
+    MOVP2R(XSCRATCH0, input_max);
     LDR(VSCRATCH0.toS(), XSCRATCH0);
     FMIN(SRC1.toS(), SRC1.toS(), VSCRATCH0.toS());
 
-    ADR(XSCRATCH0, input_min);
+    MOVP2R(XSCRATCH0, input_min);
     LDR(VSCRATCH0.toS(), XSCRATCH0);
     FMAX(SRC1.toS(), SRC1.toS(), VSCRATCH0.toS());
 
-    ADR(XSCRATCH0, half);
+    MOVP2R(XSCRATCH0, half);
     LDR(VSCRATCH0.toS(), XSCRATCH0);
     FSUB(VSCRATCH0.toS(), SRC1.toS(), VSCRATCH0.toS());
 

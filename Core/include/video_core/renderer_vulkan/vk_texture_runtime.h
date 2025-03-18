@@ -22,9 +22,10 @@ struct Material;
 namespace Vulkan {
 
 class Instance;
-class RenderManager;
+class RenderpassCache;
+class DescriptorPool;
+class DescriptorSetProvider;
 class Surface;
-class DescriptorUpdateQueue;
 
 struct Handle {
     VmaAllocation alloc;
@@ -41,8 +42,8 @@ class TextureRuntime {
 
 public:
     explicit TextureRuntime(const Instance& instance, Scheduler& scheduler,
-                            RenderManager& renderpass_cache, DescriptorUpdateQueue& update_queue,
-                            u32 num_swapchain_images);
+                            RenderpassCache& renderpass_cache, DescriptorPool& pool,
+                            DescriptorSetProvider& texture_provider, u32 num_swapchain_images);
     ~TextureRuntime();
 
     const Instance& GetInstance() const {
@@ -53,7 +54,7 @@ public:
         return scheduler;
     }
 
-    RenderManager& GetRenderpassCache() {
+    RenderpassCache& GetRenderpassCache() {
         return renderpass_cache;
     }
 
@@ -73,12 +74,7 @@ public:
     bool ClearTexture(Surface& surface, const VideoCore::TextureClear& clear);
 
     /// Copies a rectangle of src_tex to another rectange of dst_rect
-    bool CopyTextures(Surface& source, Surface& dest,
-                      std::span<const VideoCore::TextureCopy> copies);
-
-    bool CopyTextures(Surface& source, Surface& dest, const VideoCore::TextureCopy& copy) {
-        return CopyTextures(source, dest, std::array{copy});
-    }
+    bool CopyTextures(Surface& source, Surface& dest, const VideoCore::TextureCopy& copy);
 
     /// Blits a rectangle of src_tex to another rectange of dst_rect
     bool BlitTextures(Surface& surface, Surface& dest, const VideoCore::TextureBlit& blit);
@@ -89,6 +85,9 @@ public:
     /// Returns true if the provided pixel format needs convertion
     bool NeedsConversion(VideoCore::PixelFormat format) const;
 
+    /// Removes any descriptor sets that contain the provided image view.
+    void FreeDescriptorSetsWithImage(vk::ImageView image_view);
+
 private:
     /// Clears a partial texture rect using a clear rectangle
     void ClearTextureWithRenderpass(Surface& surface, const VideoCore::TextureClear& clear);
@@ -96,7 +95,8 @@ private:
 private:
     const Instance& instance;
     Scheduler& scheduler;
-    RenderManager& renderpass_cache;
+    RenderpassCache& renderpass_cache;
+    DescriptorSetProvider& texture_provider;
     BlitHelper blit_helper;
     StreamBuffer upload_buffer;
     StreamBuffer download_buffer;

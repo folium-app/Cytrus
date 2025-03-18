@@ -77,22 +77,23 @@ void Module::Interface::GetPedometerState(Kernel::HLERequestContext& ctx) {
 
 void Module::Interface::GetStepHistory(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp(ctx);
-
+    
     u32 hours = rp.Pop<u32>();
     u64 start_time = rp.Pop<u64>();
     auto& buffer = rp.PopMappedBuffer();
     ASSERT_MSG(sizeof(u16) * hours == buffer.GetSize(),
                "Buffer for steps count has incorrect size");
-
+    
     const u16_le steps_per_hour = Settings::values.steps_per_hour.GetValue();
+    LOG_ERROR(Service_PTM, "steps={}", steps_per_hour);
     for (u32 i = 0; i < hours; ++i) {
         buffer.Write(&steps_per_hour, i * sizeof(u16), sizeof(u16));
     }
-
+    
     IPC::RequestBuilder rb = rp.MakeBuilder(1, 2);
     rb.Push(ResultSuccess);
     rb.PushMappedBuffer(buffer);
-
+    
     LOG_WARNING(Service_PTM, "(STUBBED) called, from time(raw): 0x{:x}, for {} hours", start_time,
                 hours);
 }
@@ -157,8 +158,7 @@ static void WriteGameCoinData(GameCoin gamecoin_data) {
     // If the archive didn't exist, create the files inside
     if (archive_result.Code() == FileSys::ResultNotFormatted) {
         // Format the archive to create the directories
-        extdata_archive_factory.FormatAsExtData(archive_path, FileSys::ArchiveFormatInfo(), 0, 0, 0,
-                                                std::nullopt);
+        extdata_archive_factory.Format(archive_path, FileSys::ArchiveFormatInfo(), 0);
         // Open it again to get a valid archive now that the folder exists
         archive = extdata_archive_factory.Open(archive_path, 0).Unwrap();
         // Create the game coin file
@@ -174,8 +174,7 @@ static void WriteGameCoinData(GameCoin gamecoin_data) {
     auto gamecoin_result = archive->OpenFile(gamecoin_path, open_mode);
     if (gamecoin_result.Succeeded()) {
         auto gamecoin = std::move(gamecoin_result).Unwrap();
-        gamecoin->Write(0, sizeof(GameCoin), true, false,
-                        reinterpret_cast<const u8*>(&gamecoin_data));
+        gamecoin->Write(0, sizeof(GameCoin), true, reinterpret_cast<const u8*>(&gamecoin_data));
         gamecoin->Close();
     }
 }

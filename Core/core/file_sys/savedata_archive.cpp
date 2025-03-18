@@ -36,8 +36,7 @@ public:
 };
 
 ResultVal<std::unique_ptr<FileBackend>> SaveDataArchive::OpenFile(const Path& path,
-                                                                  const Mode& mode,
-                                                                  u32 attributes) {
+                                                                  const Mode& mode) const {
     LOG_DEBUG(Service_FS, "called path={} mode={:01X}", path.DebugStr(), mode.hex);
 
     const PathParser path_parser(path);
@@ -204,7 +203,7 @@ Result SaveDataArchive::DeleteDirectoryRecursively(const Path& path) const {
         path, mount_point, [](const std::string& p) { return FileUtil::DeleteDirRecursively(p); });
 }
 
-Result SaveDataArchive::CreateFile(const FileSys::Path& path, u64 size, u32 attributes) const {
+Result SaveDataArchive::CreateFile(const FileSys::Path& path, u64 size) const {
     const PathParser path_parser(path);
 
     if (!path_parser.IsValid()) {
@@ -254,7 +253,7 @@ Result SaveDataArchive::CreateFile(const FileSys::Path& path, u64 size, u32 attr
                   ErrorLevel::Info);
 }
 
-Result SaveDataArchive::CreateDirectory(const Path& path, u32 attributes) const {
+Result SaveDataArchive::CreateDirectory(const Path& path) const {
     const PathParser path_parser(path);
 
     if (!path_parser.IsValid()) {
@@ -320,7 +319,8 @@ Result SaveDataArchive::RenameDirectory(const Path& src_path, const Path& dest_p
                   ErrorSummary::NothingHappened, ErrorLevel::Status);
 }
 
-ResultVal<std::unique_ptr<DirectoryBackend>> SaveDataArchive::OpenDirectory(const Path& path) {
+ResultVal<std::unique_ptr<DirectoryBackend>> SaveDataArchive::OpenDirectory(
+    const Path& path) const {
     const PathParser path_parser(path);
 
     if (!path_parser.IsValid()) {

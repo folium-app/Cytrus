@@ -9,7 +9,6 @@
 #include <boost/serialization/base_object.hpp>
 #include "common/common_types.h"
 #include "core/file_sys/errors.h"
-#include "core/file_sys/secure_value_backend.h"
 #include "core/hle/service/fs/archive.h"
 #include "core/hle/service/service.h"
 
@@ -76,10 +75,6 @@ public:
             return Result(FileSys::ErrCodes::ArchiveNotMounted, ErrorModule::FS,
                           ErrorSummary::NotFound, ErrorLevel::Status);
         }
-    }
-
-    void RegisterSecureValueBackend(const std::shared_ptr<FileSys::SecureValueBackend>& backend) {
-        secure_value_backend = backend;
     }
 
 private:
@@ -663,21 +658,6 @@ private:
     void ObsoletedGetSaveDataSecureValue(Kernel::HLERequestContext& ctx);
 
     /**
-     * FS_User::ControlSecureSave service function
-     *  Inputs:
-     *      1 : Action
-     *      2 : Input Size
-     *      3 : Output Size
-     *      4 : (Input Size << 4) | 0xA
-     *      5 : Input Pointer
-     *      6 : (Output Size << 4) | 0xC
-     *      7 : Output Pointer
-     *  Outputs:
-     *      1 : Result of function, 0 on success, otherwise error code
-     */
-    void ControlSecureSave(Kernel::HLERequestContext& ctx);
-
-    /**
      * FS_User::SetThisSaveDataSecureValue service function.
      *  Inputs:
      *      1 : Secure Value Slot
@@ -742,10 +722,11 @@ private:
     Core::System& system;
     ArchiveManager& archives;
 
-    std::shared_ptr<FileSys::SecureValueBackend> secure_value_backend;
-
     template <class Archive>
-    void serialize(Archive& ar, const unsigned int);
+    void serialize(Archive& ar, const unsigned int) {
+        ar& boost::serialization::base_object<Kernel::SessionRequestHandler>(*this);
+        ar & priority;
+    }
     friend class boost::serialization::access;
 };
 

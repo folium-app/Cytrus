@@ -19,10 +19,6 @@ class Timing;
 class Movie;
 } // namespace Core
 
-namespace Service::HID {
-class ArticBaseController;
-};
-
 namespace Service::IR {
 
 struct ExtraHIDResponse {
@@ -58,10 +54,6 @@ public:
     /// Requests input devices reload from current settings. Called when the input settings change.
     void RequestInputDevicesReload();
 
-    void UseArticController(const std::shared_ptr<Service::HID::ArticBaseController>& ac) {
-        artic_controller = ac;
-    }
-
 private:
     void SendHIDStatus();
     void HandleConfigureHIDPollingRequest(std::span<const u8> request);
@@ -77,8 +69,6 @@ private:
     std::unique_ptr<Input::ButtonDevice> zr;
     std::unique_ptr<Input::AnalogDevice> c_stick;
     std::atomic<bool> is_device_reload_pending;
-
-    std::shared_ptr<Service::HID::ArticBaseController> artic_controller = nullptr;
 
     template <class Archive>
     void serialize(Archive& ar, const unsigned int) {

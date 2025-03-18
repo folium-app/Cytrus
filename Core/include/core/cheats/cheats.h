@@ -49,6 +49,8 @@ public:
 
     /// Saves currently active cheats to file for the specified title id.
     void SaveCheatFile(u64 title_id) const;
+    
+    std::optional<u64> LoadedTitleID() const { return loaded_title_id; };
 
 private:
     /// The cheat execution callback.

@@ -327,6 +327,7 @@ typedef NS_ENUM(uint8_t, New3DSKernelMemoryMode) {
 
 -(void) updateSettings;
 
+-(uint16_t) stepsPerHour;
 -(void) setStepsPerHour:(uint16_t)stepsPerHour;
 
 -(void) loadState;

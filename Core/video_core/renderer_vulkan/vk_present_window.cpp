@@ -11,7 +11,6 @@
 #include "video_core/renderer_vulkan/vk_present_window.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_swapchain.h"
-#include "video_core/renderer_vulkan/vk_platform.h"
 
 #include <vk_mem_alloc.h>
 
@@ -138,11 +137,11 @@ PresentWindow::PresentWindow(Frontend::EmuWindow& emu_window_, const Instance& i
 
     if (instance.HasDebuggingToolAttached()) {
         for (u32 i = 0; i < num_images; ++i) {
-            SetObjectName(device, swap_chain[i].cmdbuf, "Swapchain Command Buffer {}", i);
-            SetObjectName(device, swap_chain[i].render_ready,
-                          "Swapchain Semaphore: render_ready {}", i);
-            SetObjectName(device, swap_chain[i].present_done, "Swapchain Fence: present_done {}",
-                          i);
+            Vulkan::SetObjectName(device, swap_chain[i].cmdbuf, "Swapchain Command Buffer {}", i);
+            Vulkan::SetObjectName(device, swap_chain[i].render_ready,
+                                  "Swapchain Semaphore: render_ready {}", i);
+            Vulkan::SetObjectName(device, swap_chain[i].present_done,
+                                  "Swapchain Fence: present_done {}", i);
         }
     }
 
@@ -168,15 +167,12 @@ PresentWindow::~PresentWindow() {
 void PresentWindow::RecreateFrame(Frame* frame, u32 width, u32 height) {
     vk::Device device = instance.GetDevice();
     if (frame->framebuffer) {
-        WaitPresent();
         device.destroyFramebuffer(frame->framebuffer);
     }
     if (frame->image_view) {
-        WaitPresent();
         device.destroyImageView(frame->image_view);
     }
     if (frame->image) {
-        WaitPresent();
         vmaDestroyImage(instance.GetAllocator(), frame->image, frame->allocation);
     }
 
@@ -476,7 +472,7 @@ void PresentWindow::CopyToSwapchain(Frame* frame) {
         .pSignalSemaphores = &present_ready,
     };
 
-    std::scoped_lock submit_lock{scheduler.submit_mutex, recreate_surface_mutex};
+    std::scoped_lock submit_lock{scheduler.submit_mutex};
 
     try {
         graphics_queue.submit(submit_info, frame->present_done);

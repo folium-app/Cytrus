@@ -217,39 +217,12 @@ void Module::Interface::GetRegion(Kernel::HLERequestContext& ctx) {
 void Module::Interface::SecureInfoGetByte101(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp(ctx);
 
-    u8 ret = 0;
-    if (cfg->secure_info_a_loaded) {
-        ret = cfg->secure_info_a.unknown;
-    }
+    LOG_DEBUG(Service_CFG, "(STUBBED) called");
 
     IPC::RequestBuilder rb = rp.MakeBuilder(2, 0);
     rb.Push(ResultSuccess);
-    rb.Push<u8>(ret);
-}
-
-void Module::Interface::SecureInfoGetSerialNo(Kernel::HLERequestContext& ctx) {
-    IPC::RequestParser rp(ctx);
-    [[maybe_unused]] u32 out_size = rp.Pop<u32>();
-    auto out_buffer = rp.PopMappedBuffer();
-
-    if (out_buffer.GetSize() < sizeof(SecureInfoA::serial_number)) {
-        IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
-        rb.Push(Result(ErrorDescription::InvalidSize, ErrorModule::Config,
-                       ErrorSummary::WrongArgument, ErrorLevel::Permanent));
-    }
-    // Never happens on real hardware, but may happen if user didn't supply a dump.
-    // Always make sure to have available both secure data kinds or error otherwise.
-    if (!cfg->secure_info_a_loaded || !cfg->local_friend_code_seed_b_loaded) {
-        IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
-        rb.Push(Result(ErrorDescription::NotFound, ErrorModule::Config, ErrorSummary::InvalidState,
-                       ErrorLevel::Permanent));
-    }
-
-    out_buffer.Write(&cfg->secure_info_a.serial_number, 0, sizeof(SecureInfoA::serial_number));
-
-    IPC::RequestBuilder rb = rp.MakeBuilder(1, 2);
-    rb.Push(ResultSuccess);
-    rb.PushMappedBuffer(out_buffer);
+    // According to 3dbrew this is normally 0.
+    rb.Push<u8>(0);
 }
 
 void Module::Interface::SetUUIDClockSequence(Kernel::HLERequestContext& ctx) {
@@ -278,7 +251,7 @@ void Module::Interface::GetTransferableId(Kernel::HLERequestContext& ctx) {
 
     std::array<u8, 12> buffer;
     const Result result =
-        cfg->GetConfigBlock(ConsoleUniqueID2BlockID, 8, AccessFlag::Global, buffer.data());
+        cfg->GetConfigBlock(ConsoleUniqueID2BlockID, 8, AccessFlag::SystemRead, buffer.data());
     rb.Push(result);
     if (result.IsSuccess()) {
         std::memcpy(&buffer[8], &app_id_salt, sizeof(u32));
@@ -392,43 +365,6 @@ void Module::Interface::UpdateConfigNANDSavegame(Kernel::HLERequestContext& ctx)
     rb.Push(cfg->UpdateConfigNANDSavegame());
 }
 
-void Module::Interface::GetLocalFriendCodeSeedData(Kernel::HLERequestContext& ctx) {
-    IPC::RequestParser rp(ctx);
-    [[maybe_unused]] u32 out_size = rp.Pop<u32>();
-    auto out_buffer = rp.PopMappedBuffer();
-    IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
-
-    if (out_buffer.GetSize() < sizeof(LocalFriendCodeSeedB)) {
-        rb.Push(Result(ErrorDescription::InvalidSize, ErrorModule::Config,
-                       ErrorSummary::WrongArgument, ErrorLevel::Permanent));
-    }
-    // Never happens on real hardware, but may happen if user didn't supply a dump.
-    // Always make sure to have available both secure data kinds or error otherwise.
-    if (!cfg->secure_info_a_loaded || !cfg->local_friend_code_seed_b_loaded) {
-        rb.Push(Result(ErrorDescription::NotFound, ErrorModule::Config, ErrorSummary::InvalidState,
-                       ErrorLevel::Permanent));
-    }
-
-    out_buffer.Write(&cfg->local_friend_code_seed_b, 0, sizeof(LocalFriendCodeSeedB));
-    rb.Push(ResultSuccess);
-}
-
-void Module::Interface::GetLocalFriendCodeSeed(Kernel::HLERequestContext& ctx) {
-    IPC::RequestParser rp(ctx);
-
-    // Never happens on real hardware, but may happen if user didn't supply a dump.
-    // Always make sure to have available both secure data kinds or error otherwise.
-    if (!cfg->secure_info_a_loaded || !cfg->local_friend_code_seed_b_loaded) {
-        IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
-        rb.Push(Result(ErrorDescription::NotFound, ErrorModule::Config, ErrorSummary::InvalidState,
-                       ErrorLevel::Permanent));
-    }
-
-    IPC::RequestBuilder rb = rp.MakeBuilder(3, 0);
-    rb.Push(ResultSuccess);
-    rb.Push<u64>(cfg->local_friend_code_seed_b.friend_code_seed);
-}
-
 void Module::Interface::FormatConfig(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp(ctx);
     IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
@@ -502,42 +438,11 @@ ResultVal<void*> Module::GetConfigBlockPointer(u32 block_id, u32 size, AccessFla
 }
 
 Result Module::GetConfigBlock(u32 block_id, u32 size, AccessFlag accesss_flag, void* output) {
-    bool get_from_artic =
-        block_id == ConsoleUniqueID2BlockID &&
-        (static_cast<u16>(accesss_flag) & static_cast<u16>(AccessFlag::UserRead)) != 0;
+    void* pointer = nullptr;
+    CASCADE_RESULT(pointer, GetConfigBlockPointer(block_id, size, accesss_flag));
+    std::memcpy(output, pointer, size);
 
-    if (get_from_artic && artic_client.get()) {
-        auto req = artic_client->NewRequest("CFGU_GetConfigInfoBlk2");
-
-        req.AddParameterS32(block_id);
-        req.AddParameterU32(size);
-
-        auto resp = artic_client->Send(req);
-
-        if (!resp.has_value() || !resp->Succeeded())
-            return Result(-1);
-
-        auto res = Result(static_cast<u32>(resp->GetMethodResult()));
-        if (res.IsError())
-            return res;
-
-        auto buff = resp->GetResponseBuffer(0);
-        if (!buff.has_value())
-            return Result(-1);
-        size_t actually_read = buff->second;
-        if (actually_read > size)
-            return Result(-1);
-
-        memcpy(output, buff->first, actually_read);
-        return ResultSuccess;
-
-    } else {
-        void* pointer = nullptr;
-        CASCADE_RESULT(pointer, GetConfigBlockPointer(block_id, size, accesss_flag));
-        std::memcpy(output, pointer, size);
-
-        return ResultSuccess;
-    }
+    return ResultSuccess;
 }
 
 Result Module::SetConfigBlock(u32 block_id, u32 size, AccessFlag accesss_flag, const void* input) {
@@ -596,17 +501,9 @@ Result Module::UpdateConfigNANDSavegame() {
     ASSERT_MSG(config_result.Succeeded(), "could not open file");
 
     auto config = std::move(config_result).Unwrap();
-    config->Write(0, CONFIG_SAVEFILE_SIZE, true, false, cfg_config_file_buffer.data());
+    config->Write(0, CONFIG_SAVEFILE_SIZE, 1, cfg_config_file_buffer.data());
 
     return ResultSuccess;
-}
-
-std::string Module::GetLocalFriendCodeSeedBPath() {
-    return FileUtil::GetUserPath(FileUtil::UserPath::NANDDir) + "rw/sys/LocalFriendCodeSeed_B";
-}
-
-std::string Module::GetSecureInfoAPath() {
-    return FileUtil::GetUserPath(FileUtil::UserPath::NANDDir) + "rw/sys/SecureInfo_A";
 }
 
 Result Module::FormatConfig() {
@@ -656,7 +553,7 @@ Result Module::LoadConfigNANDSaveFile() {
     // If the archive didn't exist, create the files inside
     if (archive_result.Code() == FileSys::ResultNotFound) {
         // Format the archive to create the directories
-        systemsavedata_factory.Format(archive_path, FileSys::ArchiveFormatInfo(), 0, 0, 0);
+        systemsavedata_factory.Format(archive_path, FileSys::ArchiveFormatInfo(), 0);
 
         // Open it again to get a valid archive now that the folder exists
         cfg_system_save_data_archive = systemsavedata_factory.Open(archive_path, 0).Unwrap();
@@ -680,55 +577,6 @@ Result Module::LoadConfigNANDSaveFile() {
     }
 
     return FormatConfig();
-}
-
-void Module::InvalidateSecureData() {
-    secure_info_a_loaded = local_friend_code_seed_b_loaded = false;
-}
-
-SecureDataLoadStatus Module::LoadSecureInfoAFile() {
-    if (secure_info_a_loaded) {
-        return SecureDataLoadStatus::Loaded;
-    }
-    std::string file_path = GetSecureInfoAPath();
-    if (!FileUtil::Exists(file_path)) {
-        return SecureDataLoadStatus::NotFound;
-    }
-    FileUtil::IOFile file(file_path, "rb");
-    if (!file.IsOpen()) {
-        return SecureDataLoadStatus::IOError;
-    }
-    if (file.GetSize() != sizeof(SecureInfoA)) {
-        return SecureDataLoadStatus::Invalid;
-    }
-    if (file.ReadBytes(&secure_info_a, sizeof(SecureInfoA)) != sizeof(SecureInfoA)) {
-        return SecureDataLoadStatus::IOError;
-    }
-    secure_info_a_loaded = true;
-    return SecureDataLoadStatus::Loaded;
-}
-
-SecureDataLoadStatus Module::LoadLocalFriendCodeSeedBFile() {
-    if (local_friend_code_seed_b_loaded) {
-        return SecureDataLoadStatus::Loaded;
-    }
-    std::string file_path = GetLocalFriendCodeSeedBPath();
-    if (!FileUtil::Exists(file_path)) {
-        return SecureDataLoadStatus::NotFound;
-    }
-    FileUtil::IOFile file(file_path, "rb");
-    if (!file.IsOpen()) {
-        return SecureDataLoadStatus::IOError;
-    }
-    if (file.GetSize() != sizeof(LocalFriendCodeSeedB)) {
-        return SecureDataLoadStatus::Invalid;
-    }
-    if (file.ReadBytes(&local_friend_code_seed_b, sizeof(LocalFriendCodeSeedB)) !=
-        sizeof(LocalFriendCodeSeedB)) {
-        return SecureDataLoadStatus::IOError;
-    }
-    local_friend_code_seed_b_loaded = true;
-    return SecureDataLoadStatus::Loaded;
 }
 
 void Module::LoadMCUConfig() {
@@ -768,8 +616,6 @@ Module::Module(Core::System& system_) : system(system_) {
         SetEULAVersion(default_version);
         UpdateConfigNANDSavegame();
     }
-    LoadSecureInfoAFile();
-    LoadLocalFriendCodeSeedBFile();
 }
 
 Module::~Module() = default;

@@ -12,6 +12,8 @@ import UIKit
 public struct Cytrus : @unchecked Sendable {
     public static var shared = Cytrus()
     
+    public init() {}
+    
     fileprivate let cytrusObjC = CytrusObjC.shared()
     
     public func information(for cartridge: URL) -> CytrusGameInformation {
@@ -102,9 +104,13 @@ public struct Cytrus : @unchecked Sendable {
         cytrusObjC.updateSettings()
     }
     
-    public var stepsPerHour: UInt16 = 42 {
-        didSet {
-            cytrusObjC.setStepsPerHour(stepsPerHour)
+    public var stepsPerHour: UInt16 {
+        get {
+            cytrusObjC.stepsPerHour()
+        }
+        
+        set {
+            cytrusObjC.setStepsPerHour(newValue)
         }
     }
     

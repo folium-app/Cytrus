@@ -8,6 +8,14 @@
 
 #import <Foundation/Foundation.h>
 
+#ifdef __cplusplus
+#include <algorithm>
+#include <memory>
+#include <utility>
+
+#include "core/cheats/cheats.h"
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 NS_SWIFT_SENDABLE
@@ -18,11 +26,14 @@ NS_SWIFT_SENDABLE
 -(Cheat *) initWithEnabled:(BOOL)enabled name:(NSString *)name code:(NSString *)code comments:(NSString *)comments;
 @end
 
-@interface CheatsManager : NSObject
-+(CheatsManager *) sharedInstance NS_SWIFT_NAME(shared());
+@interface CheatsManager : NSObject {
+    uint64_t _identifier;
+}
 
--(void) loadCheats:(uint64_t)titleIdentifier;
--(void) saveCheats:(uint64_t)titleIdentifier;
+-(CheatsManager *) initWithIdentifier:(uint64_t)identifier;
+
+-(void) loadCheats;
+-(void) saveCheats;
 
 -(NSArray<Cheat *> *) getCheats;
 

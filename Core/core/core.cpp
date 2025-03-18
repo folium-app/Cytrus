@@ -257,26 +257,10 @@ System::ResultStatus System::SingleStep() {
 System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::string& filepath,
                                   Frontend::EmuWindow* secondary_window) {
     FileUtil::SetCurrentRomPath(filepath);
-    if (early_app_loader) {
-        app_loader = std::move(early_app_loader);
-    } else {
-        app_loader = Loader::GetLoader(filepath);
-    }
+    app_loader = Loader::GetLoader(filepath);
     if (!app_loader) {
         LOG_CRITICAL(Core, "Failed to obtain loader for {}!", filepath);
         return ResultStatus::ErrorGetLoader;
-    }
-
-    if (restore_plugin_context.has_value() && restore_plugin_context->is_enabled &&
-        restore_plugin_context->use_user_load_parameters) {
-        u64_le program_id = 0;
-        app_loader->ReadProgramId(program_id);
-        if (restore_plugin_context->user_load_parameters.low_title_Id ==
-                static_cast<u32_le>(program_id) &&
-            restore_plugin_context->user_load_parameters.plugin_memory_strategy ==
-                Service::PLGLDR::PLG_LDR::PluginMemoryStrategy::PLG_STRATEGY_MODE3) {
-            app_loader->SetKernelMemoryModeOverride(Kernel::MemoryMode::Dev2);
-        }
     }
 
     auto memory_mode = app_loader->LoadKernelMemoryMode();
@@ -291,8 +275,6 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
             return ResultStatus::ErrorLoader_ErrorInvalidFormat;
         case Loader::ResultStatus::ErrorGbaTitle:
             return ResultStatus::ErrorLoader_ErrorGbaTitle;
-        case Loader::ResultStatus::ErrorArtic:
-            return ResultStatus::ErrorArticDisconnected;
         default:
             return ResultStatus::ErrorSystemMode;
         }
@@ -342,8 +324,6 @@ System::ResultStatus System::Load(Frontend::EmuWindow& emu_window, const std::st
             return ResultStatus::ErrorLoader_ErrorInvalidFormat;
         case Loader::ResultStatus::ErrorGbaTitle:
             return ResultStatus::ErrorLoader_ErrorGbaTitle;
-        case Loader::ResultStatus::ErrorArtic:
-            return ResultStatus::ErrorArticDisconnected;
         default:
             return ResultStatus::ErrorLoader;
         }
@@ -716,10 +696,6 @@ void System::ApplySettings() {
         plg_ldr->SetEnabled(Settings::values.plugin_loader_enabled.GetValue());
         plg_ldr->SetAllowGameChangeState(Settings::values.allow_plugin_loader.GetValue());
     }
-}
-
-void System::RegisterAppLoaderEarly(std::unique_ptr<Loader::AppLoader>& loader) {
-    early_app_loader = std::move(loader);
 }
 
 template <class Archive>

@@ -563,7 +563,12 @@ static void TryShutdown() {
     NetSettings::values.web_api_url = [[defaults stringForKey:@"cytrus.webAPIURL"] UTF8String];
 }
 
+-(uint16_t) stepsPerHour {
+    return Settings::values.steps_per_hour.GetValue();
+}
+
 -(void) setStepsPerHour:(uint16_t)stepsPerHour {
+    NSLog(@"%s, steps=%hu", __FUNCTION__, stepsPerHour);
     Settings::values.steps_per_hour = stepsPerHour;
 }
 

@@ -312,6 +312,10 @@ init_ticks_override =
 plugin_loader =
 allow_plugin_loader =
 
+# Number of steps per hour reported by the pedometer. Range from 0 to 65,535.
+# Defaults to 0.
+steps_per_hour =
+
 [Camera]
 # Which camera engine to use for the right outer camera
 # blank: a dummy camera that always returns black image
