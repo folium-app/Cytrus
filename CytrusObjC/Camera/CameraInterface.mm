@@ -409,77 +409,80 @@ CVPixelBufferRef scaledPixelBuffer(CVPixelBufferRef pixelBuffer, CGSize size) {
 }
 
 -(void) captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
-    UIDeviceOrientation orientation = [[UIDevice currentDevice] orientation];
-    if (!UIDeviceOrientationIsFlat(orientation))
-        [connection setVideoOrientation:(AVCaptureVideoOrientation)orientation];
-    else
-        [connection setVideoOrientation:AVCaptureVideoOrientationPortrait];
-    
-    CVPixelBufferRef ref = CMSampleBufferGetImageBuffer(sampleBuffer);
-    CVPixelBufferRef pixelBuffer = scaledPixelBuffer(ref, {_width, _height});
-    
-    CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-    
-    uint8_t *bgraData = (uint8_t *)CVPixelBufferGetBaseAddress(pixelBuffer);
-    size_t bgraStride = CVPixelBufferGetBytesPerRow(pixelBuffer);
-    size_t width = CVPixelBufferGetWidth(pixelBuffer);
-    size_t height = CVPixelBufferGetHeight(pixelBuffer);
-    
-    CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-    
-    if (isRGB565) {
-        std::vector<uint16_t> rgb565Buffer(width * height);
+    @autoreleasepool {
+        UIDeviceOrientation orientation = [[UIDevice currentDevice] orientation];
+        if (!UIDeviceOrientationIsFlat(orientation))
+            [connection setVideoOrientation:(AVCaptureVideoOrientation)orientation];
+        else
+            [connection setVideoOrientation:AVCaptureVideoOrientationPortrait];
         
-        for (size_t y = 0; y < height; ++y) {
-            for (size_t x = 0; x < width; ++x) {
-                size_t bgraOffset = y * bgraStride + x * 4;
-                
-                uint8_t b = bgraData[bgraOffset];
-                uint8_t g = bgraData[bgraOffset + 1];
-                uint8_t r = bgraData[bgraOffset + 2];
-                
-                rgb565Buffer[y * width + x] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-            }
-        }
+        CVPixelBufferRef ref = CMSampleBufferGetImageBuffer(sampleBuffer);
+        CVPixelBufferRef pixelBuffer = scaledPixelBuffer(ref, {_width, _height});
         
-        memcpy(framebuffer.data(), rgb565Buffer.data(), width * height * sizeof(uint16_t));
-    } else {
-        std::vector<uint16_t> yuv422Buffer(width * height);
-        auto dest = yuv422Buffer.begin();
+        CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
         
-        bool write = false;
-        int py = 0, pu = 0, pv = 0;
-        for (int j = 0; j < height; ++j) {
-            for (int i = 0; i < width; ++i) {
-                uint32_t bgra = *reinterpret_cast<uint32_t*>(&bgraData[(j * width + i) * 4]);
-                
-                uint8_t b  = (bgra & 0x000000FF);        // Extract Blue
-                uint8_t g = (bgra & 0x0000FF00) >> 8;   // Extract Green
-                uint8_t r   = (bgra & 0x00FF0000) >> 16;  // Extract Red
-                uint8_t a = (bgra & 0xFF000000) >> 24;  // Extract Alpha
-                
-                // The following transformation is a reverse of the one in Y2R using ITU_Rec601
-                int y = YuvTable::Y(r, g, b);
-                int u = YuvTable::U(r, g, b);
-                int v = YuvTable::V(r, g, b);
-                
-                if (write) {
-                    pu = (pu + u) / 2;
-                    pv = (pv + v) / 2;
-                    *(dest++) =
-                    static_cast<u16>(std::clamp(py, 0, 0xFF) | (std::clamp(pu, 0, 0xFF) << 8));
-                    *(dest++) =
-                    static_cast<u16>(std::clamp(y, 0, 0xFF) | (std::clamp(pv, 0, 0xFF) << 8));
-                } else {
-                    py = y;
-                    pu = u;
-                    pv = v;
+        uint8_t *bgraData = (uint8_t *)CVPixelBufferGetBaseAddress(pixelBuffer);
+        size_t bgraStride = CVPixelBufferGetBytesPerRow(pixelBuffer);
+        size_t width = CVPixelBufferGetWidth(pixelBuffer);
+        size_t height = CVPixelBufferGetHeight(pixelBuffer);
+        
+        CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
+        
+        if (isRGB565) {
+            std::vector<uint16_t> rgb565Buffer(width * height);
+            
+            for (size_t y = 0; y < height; ++y) {
+                for (size_t x = 0; x < width; ++x) {
+                    size_t bgraOffset = y * bgraStride + x * 4;
+                    
+                    uint8_t b = bgraData[bgraOffset];
+                    uint8_t g = bgraData[bgraOffset + 1];
+                    uint8_t r = bgraData[bgraOffset + 2];
+                    
+                    rgb565Buffer[y * width + x] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
                 }
-                write = !write;
             }
+            
+            memcpy(framebuffer.data(), rgb565Buffer.data(), width * height * sizeof(uint16_t));
+        } else {
+            std::vector<uint16_t> yuv422Buffer(width * height);
+            auto dest = yuv422Buffer.begin();
+            
+            bool write = false;
+            int py = 0, pu = 0, pv = 0;
+            for (int j = 0; j < height; ++j) {
+                for (int i = 0; i < width; ++i) {
+                    uint32_t bgra = *reinterpret_cast<uint32_t*>(&bgraData[(j * width + i) * 4]);
+                    
+                    uint8_t b  = (bgra & 0x000000FF);        // Extract Blue
+                    uint8_t g = (bgra & 0x0000FF00) >> 8;   // Extract Green
+                    uint8_t r   = (bgra & 0x00FF0000) >> 16;  // Extract Red
+                    uint8_t a = (bgra & 0xFF000000) >> 24;  // Extract Alpha
+                    
+                    // The following transformation is a reverse of the one in Y2R using ITU_Rec601
+                    int y = YuvTable::Y(r, g, b);
+                    int u = YuvTable::U(r, g, b);
+                    int v = YuvTable::V(r, g, b);
+                    
+                    if (write) {
+                        pu = (pu + u) / 2;
+                        pv = (pv + v) / 2;
+                        *(dest++) =
+                        static_cast<u16>(std::clamp(py, 0, 0xFF) | (std::clamp(pu, 0, 0xFF) << 8));
+                        *(dest++) =
+                        static_cast<u16>(std::clamp(y, 0, 0xFF) | (std::clamp(pv, 0, 0xFF) << 8));
+                    } else {
+                        py = y;
+                        pu = u;
+                        pv = v;
+                    }
+                    write = !write;
+                }
+            }
+            
+            memcpy(framebuffer.data(), yuv422Buffer.data(), width * height * sizeof(uint16_t));
         }
-        
-        memcpy(framebuffer.data(), yuv422Buffer.data(), width * height * sizeof(uint16_t));
+        CVPixelBufferRelease(pixelBuffer);
     }
 }
 @end
@@ -623,85 +626,83 @@ CVPixelBufferRef scaledPixelBuffer(CVPixelBufferRef pixelBuffer, CGSize size) {
 }
 
 -(void) captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
-    UIDeviceOrientation orientation = [[UIDevice currentDevice] orientation];
-    if (!UIDeviceOrientationIsFlat(orientation))
-        [connection setVideoOrientation:(AVCaptureVideoOrientation)orientation];
-    else
-        [connection setVideoOrientation:AVCaptureVideoOrientationPortrait];
-    
-    [connection setVideoMirrored:TRUE];
-    
-    CVPixelBufferRef ref = CMSampleBufferGetImageBuffer(sampleBuffer);
-    CVPixelBufferRef pixelBuffer = scaledPixelBuffer(ref, {_width, _height});
-    
-    CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-    
-    uint8_t *bgraData = (uint8_t *)CVPixelBufferGetBaseAddress(pixelBuffer);
-    size_t bgraStride = CVPixelBufferGetBytesPerRow(pixelBuffer);
-    size_t width = CVPixelBufferGetWidth(pixelBuffer);
-    size_t height = CVPixelBufferGetHeight(pixelBuffer);
-    
-    CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-    
-    if (isRGB565) {
-        std::vector<uint16_t> rgb565Buffer(width * height);
+    @autoreleasepool {
+        UIDeviceOrientation orientation = [[UIDevice currentDevice] orientation];
+        if (!UIDeviceOrientationIsFlat(orientation))
+            [connection setVideoOrientation:(AVCaptureVideoOrientation)orientation];
+        else
+            [connection setVideoOrientation:AVCaptureVideoOrientationPortrait];
         
-        for (size_t y = 0; y < height; ++y) {
-            for (size_t x = 0; x < width; ++x) {
-                size_t bgraOffset = y * bgraStride + x * 4;
-                
-                uint8_t b = bgraData[bgraOffset];
-                uint8_t g = bgraData[bgraOffset + 1];
-                uint8_t r = bgraData[bgraOffset + 2];
-                
-                rgb565Buffer[y * width + x] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-            }
-        }
+        CVPixelBufferRef ref = CMSampleBufferGetImageBuffer(sampleBuffer);
+        CVPixelBufferRef pixelBuffer = scaledPixelBuffer(ref, {_width, _height});
         
-        memcpy(framebuffer.data(), rgb565Buffer.data(), width * height * sizeof(uint16_t));
-    } else {
-        std::vector<uint16_t> yuv422Buffer(width * height);
-        auto dest = yuv422Buffer.begin();
+        CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
         
-        bool write = false;
-        int py = 0, pu = 0, pv = 0;
-        for (int j = 0; j < height; ++j) {
-            for (int i = 0; i < width; ++i) {
-                uint32_t bgra = *reinterpret_cast<uint32_t*>(&bgraData[(j * width + i) * 4]);
-                
-                uint8_t b  = (bgra & 0x000000FF);        // Extract Blue
-                uint8_t g = (bgra & 0x0000FF00) >> 8;   // Extract Green
-                uint8_t r   = (bgra & 0x00FF0000) >> 16;  // Extract Red
-                uint8_t a = (bgra & 0xFF000000) >> 24;  // Extract Alpha
-                
-                // The following transformation is a reverse of the one in Y2R using ITU_Rec601
-                int y = YuvTable::Y(r, g, b);
-                int u = YuvTable::U(r, g, b);
-                int v = YuvTable::V(r, g, b);
-                
-                if (write) {
-                    pu = (pu + u) / 2;
-                    pv = (pv + v) / 2;
-                    *(dest++) =
-                    static_cast<u16>(std::clamp(py, 0, 0xFF) | (std::clamp(pu, 0, 0xFF) << 8));
-                    *(dest++) =
-                    static_cast<u16>(std::clamp(y, 0, 0xFF) | (std::clamp(pv, 0, 0xFF) << 8));
-                } else {
-                    py = y;
-                    pu = u;
-                    pv = v;
+        uint8_t *bgraData = (uint8_t *)CVPixelBufferGetBaseAddress(pixelBuffer);
+        size_t bgraStride = CVPixelBufferGetBytesPerRow(pixelBuffer);
+        size_t width = CVPixelBufferGetWidth(pixelBuffer);
+        size_t height = CVPixelBufferGetHeight(pixelBuffer);
+        
+        CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
+        
+        if (isRGB565) {
+            std::vector<uint16_t> rgb565Buffer(width * height);
+            
+            for (size_t y = 0; y < height; ++y) {
+                for (size_t x = 0; x < width; ++x) {
+                    size_t bgraOffset = y * bgraStride + x * 4;
+                    
+                    uint8_t b = bgraData[bgraOffset];
+                    uint8_t g = bgraData[bgraOffset + 1];
+                    uint8_t r = bgraData[bgraOffset + 2];
+                    
+                    rgb565Buffer[y * width + x] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
                 }
-                write = !write;
             }
+            
+            memcpy(framebuffer.data(), rgb565Buffer.data(), width * height * sizeof(uint16_t));
+        } else {
+            std::vector<uint16_t> yuv422Buffer(width * height);
+            auto dest = yuv422Buffer.begin();
+            
+            bool write = false;
+            int py = 0, pu = 0, pv = 0;
+            for (int j = 0; j < height; ++j) {
+                for (int i = 0; i < width; ++i) {
+                    uint32_t bgra = *reinterpret_cast<uint32_t*>(&bgraData[(j * width + i) * 4]);
+                    
+                    uint8_t b  = (bgra & 0x000000FF);        // Extract Blue
+                    uint8_t g = (bgra & 0x0000FF00) >> 8;   // Extract Green
+                    uint8_t r   = (bgra & 0x00FF0000) >> 16;  // Extract Red
+                    uint8_t a = (bgra & 0xFF000000) >> 24;  // Extract Alpha
+                    
+                    // The following transformation is a reverse of the one in Y2R using ITU_Rec601
+                    int y = YuvTable::Y(r, g, b);
+                    int u = YuvTable::U(r, g, b);
+                    int v = YuvTable::V(r, g, b);
+                    
+                    if (write) {
+                        pu = (pu + u) / 2;
+                        pv = (pv + v) / 2;
+                        *(dest++) =
+                        static_cast<u16>(std::clamp(py, 0, 0xFF) | (std::clamp(pu, 0, 0xFF) << 8));
+                        *(dest++) =
+                        static_cast<u16>(std::clamp(y, 0, 0xFF) | (std::clamp(pv, 0, 0xFF) << 8));
+                    } else {
+                        py = y;
+                        pu = u;
+                        pv = v;
+                    }
+                    write = !write;
+                }
+            }
+            
+            memcpy(framebuffer.data(), yuv422Buffer.data(), width * height * sizeof(uint16_t));
         }
-        
-        memcpy(framebuffer.data(), yuv422Buffer.data(), width * height * sizeof(uint16_t));
+        CVPixelBufferRelease(pixelBuffer);
     }
 }
 @end
-
-
-
 
 
 namespace Camera {

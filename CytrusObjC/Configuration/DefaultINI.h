@@ -9,7 +9,7 @@
 
 namespace DefaultINI {
 
-const char* sdl2_config_file = R"(
+const char* sdl3_config_file = R"(
 [Controls]
 # The input devices and parameters for each 3DS native input
 # It should be in the format of "engine:[engine_name],[param1]:[value1],[param2]:[value2]..."
@@ -243,16 +243,12 @@ enable_dsp_lle_thread =
 # 0: No, 1 (default): Yes
 enable_audio_stretching =
 
-# Scales audio playback speed to account for drops in emulation framerate
-# 0 (default): No, 1: Yes
-enable_realtime_audio =
-
 # Output volume.
 # 1.0 (default): 100%, 0.0; mute
 volume =
 
 # Which audio output type to use.
-# 0 (default): Auto-select, 1: No audio output, 2: Cubeb (if available), 3: OpenAL (if available), 4: SDL2 (if available)
+# 0 (default): Auto-select, 1: No audio output, 2: Cubeb (if available), 3: OpenAL (if available), 4: SDL3 (if available)
 output_type =
 
 # Which audio output device to use.
@@ -290,7 +286,7 @@ region_value =
 # 6: Simplified Chinese, 7: Korean, 8: Dutch, 9: Portuguese, 10: Russian, 11: Traditional Chinese
 language =
 
-# The clock to use when Cytrus starts
+# The clock to use when cytrus starts
 # 0: System clock (default), 1: fixed time
 init_clock =
 
@@ -299,7 +295,7 @@ init_clock =
 # Note: 3DS can only handle times later then Jan 1 2000
 init_time =
 
-# The system ticks count to use when Cytrus starts
+# The system ticks count to use when cytrus starts
 # 0: Random (default), 1: Fixed
 init_ticks_type =
 
@@ -311,10 +307,6 @@ init_ticks_override =
 # You can also set if homebrew apps are allowed to enable the plugin loader
 plugin_loader =
 allow_plugin_loader =
-
-# Number of steps per hour reported by the pedometer. Range from 0 to 65,535.
-# Defaults to 0.
-steps_per_hour =
 
 [Camera]
 # Which camera engine to use for the right outer camera
@@ -364,9 +356,13 @@ gdbstub_port=24689
 # To LLE a service module add "LLE\<module name>=true"
 
 [WebService]
+# Whether or not to enable telemetry
+# 0 (default): No, 1: Yes
+enable_telemetry =
 # URL for Web API
-web_api_url = http://88.198.47.46:5000
+web_api_url = https://api.cytrus-emu.org
 # Username and token for Cytrus Web Service
+# See https://profile.cytrus-emu.org/ for more info
 cytrus_username =
 cytrus_token =
 )";

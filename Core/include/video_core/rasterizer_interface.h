@@ -19,7 +19,7 @@ struct MemoryFillConfig;
 
 namespace VideoCore {
 
-enum class LoadCallbackStage {
+enum class LoadCallbackStage : u8 {
     Prepare,
     Preload,
     Decompile,

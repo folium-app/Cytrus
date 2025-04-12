@@ -32,9 +32,8 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugUtilsCallback(
     vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type,
     const vk::DebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data) {
 
-    switch (static_cast<u32>(callback_data->messageIdNumber)) {
+    switch (callback_data->messageIdNumber) {
     case 0x609a13b: // Vertex attribute at location not consumed by shader
-    case 0xc81ad50e:
         return VK_FALSE;
     default:
         break;
@@ -328,20 +327,15 @@ vk::UniqueInstance CreateInstance(const Common::DynamicLibrary& library,
     constexpr auto resume_lost_device = true;
     // Maximize concurrency to improve shader compilation performance.
     constexpr auto maximize_concurrent_compilation = true;
-    constexpr auto image_swizzle = true;
-    
-    constexpr auto compression_algo = 1;
 
     constexpr auto layer_name = "MoltenVK";
     const vk::LayerSettingEXT layer_settings[] = {
         {layer_name, "MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS", vk::LayerSettingTypeEXT::eBool32, 1,
-            &synchronous_queue_submits},
+         &synchronous_queue_submits},
         {layer_name, "MVK_CONFIG_RESUME_LOST_DEVICE", vk::LayerSettingTypeEXT::eBool32, 1,
-            &resume_lost_device},
+         &resume_lost_device},
         {layer_name, "MVK_CONFIG_SHOULD_MAXIMIZE_CONCURRENT_COMPILATION",
-            vk::LayerSettingTypeEXT::eBool32, 1, &maximize_concurrent_compilation},
-        {layer_name, "MVK_CONFIG_FULL_IMAGE_VIEW_SWIZZLE", vk::LayerSettingTypeEXT::eBool32, 1, &image_swizzle},
-        {layer_name, "MVK_CONFIG_SHADER_COMPRESSION_ALGORITHM", vk::LayerSettingTypeEXT::eUint32, 1, &compression_algo}
+         vk::LayerSettingTypeEXT::eBool32, 1, &maximize_concurrent_compilation},
     };
     const vk::LayerSettingsCreateInfoEXT layer_settings_ci = {
         .pNext = nullptr,
@@ -365,14 +359,14 @@ vk::UniqueInstance CreateInstance(const Common::DynamicLibrary& library,
 vk::UniqueDebugUtilsMessengerEXT CreateDebugMessenger(vk::Instance instance) {
     const vk::DebugUtilsMessengerCreateInfoEXT msg_ci = {
         .messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo |
-        vk::DebugUtilsMessageSeverityFlagBitsEXT::eError |
-        vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning |
-        vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose,
-            .messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
-        vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
-        vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
-        vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
-            .pfnUserCallback = &DebugUtilsCallback
+                           vk::DebugUtilsMessageSeverityFlagBitsEXT::eError |
+                           vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning |
+                           vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose,
+        .messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
+                       vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+                       vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding |
+                       vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+        .pfnUserCallback = DebugUtilsCallback,
     };
     return instance.createDebugUtilsMessengerEXTUnique(msg_ci);
 }
@@ -380,10 +374,10 @@ vk::UniqueDebugUtilsMessengerEXT CreateDebugMessenger(vk::Instance instance) {
 vk::UniqueDebugReportCallbackEXT CreateDebugReportCallback(vk::Instance instance) {
     const vk::DebugReportCallbackCreateInfoEXT callback_ci = {
         .flags = vk::DebugReportFlagBitsEXT::eDebug | vk::DebugReportFlagBitsEXT::eInformation |
-        vk::DebugReportFlagBitsEXT::eError |
-        vk::DebugReportFlagBitsEXT::ePerformanceWarning |
-        vk::DebugReportFlagBitsEXT::eWarning,
-            .pfnCallback = &DebugReportCallback
+                 vk::DebugReportFlagBitsEXT::eError |
+                 vk::DebugReportFlagBitsEXT::ePerformanceWarning |
+                 vk::DebugReportFlagBitsEXT::eWarning,
+        .pfnCallback = DebugReportCallback,
     };
     return instance.createDebugReportCallbackEXTUnique(callback_ci);
 }

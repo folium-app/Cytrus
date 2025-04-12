@@ -363,23 +363,27 @@ public:
     }
     
     void Destruct() {
-        
+        [motionManager stopDeviceMotionUpdates];
+        motionManager = NULL;
     }
     
     void Update() const {
         CMDeviceMotion *motion = [motionManager deviceMotion];
         
-        acceleration = {
-            (motion.gravity.x + motion.userAcceleration.x),
-            (motion.gravity.y + motion.userAcceleration.y),
-            (motion.gravity.z + motion.userAcceleration.z)
+        Vec3<float> new_accel{}, new_gyro{};
+        new_accel = {
+            static_cast<float>(motion.gravity.x + motion.userAcceleration.x),
+            static_cast<float>(motion.gravity.y + motion.userAcceleration.y),
+            static_cast<float>(motion.gravity.z + motion.userAcceleration.z)
         };
         
-        rotation = {
-            motion.rotationRate.x,
-            motion.rotationRate.y,
-            motion.rotationRate.z
+        new_gyro = {
+            static_cast<float>(-motion.rotationRate.x),
+            static_cast<float>(motion.rotationRate.y),
+            static_cast<float>(motion.rotationRate.z)
         };
+        
+        rotation = new_gyro * 180.f / static_cast<float>(M_PI);
     }
     
     void DisableSensors() {

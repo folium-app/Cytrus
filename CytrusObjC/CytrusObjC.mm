@@ -102,6 +102,7 @@ std::pair<std::string, uint8_t> Keyboard::GetKeyboardText(const Frontend::Keyboa
 
 std::unique_ptr<EmulationWindow_Vulkan> top_window;
 std::shared_ptr<Common::DynamicLibrary> library;
+std::shared_ptr<Service::CFG::Module> cfg;
 
 static void TryShutdown() {
     if (!top_window)
@@ -327,8 +328,17 @@ static void TryShutdown() {
     stop_run = false;
     pause_emulation = false;
     
+    if (_disk_cache_callback)
+        _disk_cache_callback(static_cast<uint8_t>(VideoCore::LoadCallbackStage::Prepare), 0, 0);
+    
     std::unique_ptr<Frontend::GraphicsContext> cpu_context;
-    system.GPU().Renderer().Rasterizer()->LoadDiskResources(stop_run, [](VideoCore::LoadCallbackStage, std::size_t, std::size_t) {});
+    system.GPU().Renderer().Rasterizer()->LoadDiskResources(stop_run, [&](VideoCore::LoadCallbackStage stage, std::size_t progress, std::size_t maximum) {
+        if (_disk_cache_callback)
+            _disk_cache_callback(static_cast<uint8_t>(stage), progress, maximum);
+    });
+    
+    if (_disk_cache_callback)
+        _disk_cache_callback(static_cast<uint8_t>(VideoCore::LoadCallbackStage::Complete), 0, 0);
     
     SCOPE_EXIT({
         TryShutdown();
@@ -572,12 +582,35 @@ static void TryShutdown() {
     Settings::values.steps_per_hour = stepsPerHour;
 }
 
--(void) loadState {
-    Core::System::GetInstance().SendSignal(Core::System::Signal::Load, 0);
+-(BOOL) loadState {
+    return Core::System::GetInstance().SendSignal(Core::System::Signal::Load, 0);
 }
 
--(void) saveState {
-    Core::System::GetInstance().SendSignal(Core::System::Signal::Save, 0);
+-(BOOL) saveState {
+    return Core::System::GetInstance().SendSignal(Core::System::Signal::Save, 0);
+}
+
+-(void) loadConfig {
+    cfg = Service::CFG::GetModule(Core::System::GetInstance());
+}
+
+-(int) getSystemLanguage {
+    return cfg->GetSystemLanguage();
+}
+
+-(void) setSystemLanguage:(int)systemLanguage {
+    cfg->SetSystemLanguage(static_cast<Service::CFG::SystemLanguage>(systemLanguage));
+    cfg->UpdateConfigNANDSavegame();
+}
+
+-(NSString *) getUsername {
+    auto username = Common::UTF16ToUTF8(cfg->GetUsername());
+    return [NSString stringWithCString:username.c_str() encoding:NSUTF8StringEncoding];
+}
+
+-(void) setUsername:(NSString *)username {
+    cfg->SetUsername(Common::UTF8ToUTF16([username UTF8String]));
+    cfg->UpdateConfigNANDSavegame();
 }
 
 -(NSArray<SaveStateInfo *> *) saveStates:(uint64_t)identifier {

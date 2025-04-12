@@ -40,9 +40,6 @@ const MemoryInfo GetMemInfo() {
     // sysctlbyname(const char *, void *, size_t *, void *, size_t);
     sysctlbyname("hw.memsize", &ramsize, &sizeof_ramsize, nullptr, 0);
     sysctlbyname("vm.swapusage", &vmusage, &sizeof_vmusage, nullptr, 0);
-    
-    printf("memsize = %llu, swapusage = %llu\n", ramsize, vmusage.xsu_total);
-    
     mem_info.total_physical_memory = ramsize;
     mem_info.total_swap_memory = vmusage.xsu_total;
 #elif defined(__FreeBSD__)

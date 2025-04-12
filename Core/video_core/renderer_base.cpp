@@ -18,12 +18,6 @@ RendererBase::RendererBase(Core::System& system_, Frontend::EmuWindow& window,
 RendererBase::~RendererBase() = default;
 
 u32 RendererBase::GetResolutionScaleFactor() {
-    const auto graphics_api = Settings::values.graphics_api.GetValue();
-    if (graphics_api == Settings::GraphicsAPI::Software) {
-        // Software renderer always render at native resolution
-        return 1;
-    }
-
     const u32 scale_factor = Settings::values.resolution_factor.GetValue();
     return scale_factor != 0 ? scale_factor
                              : render_window.GetFramebufferLayout().GetScalingRatio();

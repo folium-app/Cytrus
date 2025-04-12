@@ -27,11 +27,14 @@
 #include "common/dynamic_library/dynamic_library.h"
 #include "common/scope_exit.h"
 #include "common/settings.h"
+#include "common/string_util.h"
 #include "core/core.h"
 #include "core/frontend/applets/default_applets.h"
 #include "core/frontend/applets/swkbd.h"
 #include "core/hle/service/am/am.h"
+#include "core/hle/service/cfg/cfg.h"
 #include "core/hle/service/fs/archive.h"
+#include "core/hle/service/ptm/ptm.h"
 #include "core/loader/loader.h"
 #include "core/loader/smdh.h"
 #include "core/savestate.h"
@@ -290,6 +293,8 @@ typedef NS_ENUM(uint8_t, New3DSKernelMemoryMode) {
 #endif
 }
 
+@property (nonatomic, strong) void (^disk_cache_callback) (uint8_t, size_t, size_t);
+
 +(CytrusObjC *) sharedInstance NS_SWIFT_NAME(shared());
 
 -(CytrusGameInformation *) informationForGameAt:(NSURL *)url NS_SWIFT_NAME(informationForGame(at:));
@@ -330,8 +335,14 @@ typedef NS_ENUM(uint8_t, New3DSKernelMemoryMode) {
 -(uint16_t) stepsPerHour;
 -(void) setStepsPerHour:(uint16_t)stepsPerHour;
 
--(void) loadState;
--(void) saveState;
+-(BOOL) loadState;
+-(BOOL) saveState;
+
+-(void) loadConfig;
+-(int) getSystemLanguage NS_SWIFT_NAME(systemLanguage());
+-(void) setSystemLanguage:(int)systemLanguage NS_SWIFT_NAME(set(systemLanguage:));
+-(NSString *) getUsername NS_SWIFT_NAME(username());
+-(void) setUsername:(NSString *)username NS_SWIFT_NAME(set(username:));
 
 -(NSArray<SaveStateInfo *> *) saveStates:(uint64_t)identifier;
 -(NSString *) saveStatePath:(uint64_t)identifier;

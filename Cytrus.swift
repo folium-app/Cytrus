@@ -9,116 +9,136 @@ import Foundation
 import MetalKit
 import UIKit
 
-public struct Cytrus : @unchecked Sendable {
-    public static var shared = Cytrus()
+public struct SystemSaveGame {
+    public static var shared: SystemSaveGame = .init()
     
-    public init() {}
+    public var systemLanguage: Int { .init(Cytrus.shared.emulator.systemLanguage()) }
+    public func set(_ systemLanguage: Int) { Cytrus.shared.emulator.set(systemLanguage: .init(systemLanguage))}
     
-    fileprivate let cytrusObjC = CytrusObjC.shared()
+    public var username: String { Cytrus.shared.emulator.username() }
+    public func set(_ username: String) { Cytrus.shared.emulator.set(username: username) }
+}
+
+public struct Cytrus {
+    public static var shared: Cytrus = .init()
+    
+    public var emulator: CytrusObjC = .shared()
+    public var multiplayer: Multiplayer = .shared
+    
+    public init() {
+        emulator.loadConfig() // loads the cfg for birth date, username, etc
+    }
+}
+
+
+extension Cytrus {
+    public func diskCacheCallback(_ callback: @escaping (UInt8, Int, Int) -> Void) {
+        emulator.disk_cache_callback = callback
+    }
     
     public func information(for cartridge: URL) -> CytrusGameInformation {
-        cytrusObjC.informationForGame(at: cartridge)
+        emulator.informationForGame(at: cartridge)
     }
     
     public func allocateVulkanLibrary() {
-        cytrusObjC.allocateVulkanLibrary()
+        emulator.allocateVulkanLibrary()
     }
     
     public func deallocateVulkanLibrary() {
-        cytrusObjC.deallocateVulkanLibrary()
+        emulator.deallocateVulkanLibrary()
     }
     
     public func allocateMetalLayer(for layer: CAMetalLayer, with size: CGSize, isSecondary: Bool = false) {
-        cytrusObjC.allocateMetalLayer(layer, with: size, isSecondary: isSecondary)
+        emulator.allocateMetalLayer(layer, with: size, isSecondary: isSecondary)
     }
     
     public func deallocateMetalLayers() {
-        cytrusObjC.deallocateMetalLayers()
+        emulator.deallocateMetalLayers()
     }
     
     public func insertCartridgeAndBoot(with url: URL) {
-        cytrusObjC.insertCartridgeAndBoot(url)
+        emulator.insertCartridgeAndBoot(url)
     }
     
     public func importGame(at url: URL) -> ImportResultStatus {
-        cytrusObjC.importGame(at: url)
+        emulator.importGame(at: url)
     }
     
     public func touchBegan(at point: CGPoint) {
-        cytrusObjC.touchBegan(at: point)
+        emulator.touchBegan(at: point)
     }
     
     public func touchEnded() {
-        cytrusObjC.touchEnded()
+        emulator.touchEnded()
     }
     
     public func touchMoved(at point: CGPoint) {
-        cytrusObjC.touchMoved(at: point)
+        emulator.touchMoved(at: point)
     }
     
     public func virtualControllerButtonDown(_ button: VirtualControllerButtonType) {
-        cytrusObjC.virtualControllerButtonDown(button)
+        emulator.virtualControllerButtonDown(button)
     }
     
     public func virtualControllerButtonUp(_ button: VirtualControllerButtonType) {
-        cytrusObjC.virtualControllerButtonUp(button)
+        emulator.virtualControllerButtonUp(button)
     }
     
     public func thumbstickMoved(_ thumbstick: VirtualControllerAnalogType, _ x: Float, _ y: Float) {
-        cytrusObjC.thumbstickMoved(thumbstick, x: CGFloat(x), y: CGFloat(y))
+        emulator.thumbstickMoved(thumbstick, x: CGFloat(x), y: CGFloat(y))
     }
     
     public func isPaused() -> Bool {
-        cytrusObjC.isPaused()
+        emulator.isPaused()
     }
     
     public func pausePlay(_ pausePlay: Bool) {
-        cytrusObjC.pausePlay(pausePlay)
+        emulator.pausePlay(pausePlay)
     }
     
     public func stop() {
-        cytrusObjC.stop()
+        emulator.stop()
     }
     
     public func running() -> Bool {
-        cytrusObjC.running()
+        emulator.running()
     }
     
     public func stopped() -> Bool {
-        cytrusObjC.stopped()
+        emulator.stopped()
     }
     
     public func orientationChange(with orientation: UIInterfaceOrientation, using mtkView: UIView) {
-        cytrusObjC.orientationChanged(orientation, metalView: mtkView)
+        emulator.orientationChanged(orientation, metalView: mtkView)
     }
     
     public func installed() -> [URL] {
-        cytrusObjC.installedGamePaths() as? [URL] ?? []
+        emulator.installedGamePaths() as? [URL] ?? []
     }
         
     public func system() -> [URL] {
-        cytrusObjC.systemGamePaths() as? [URL] ?? []
+        emulator.systemGamePaths() as? [URL] ?? []
     }
     
     public func updateSettings() {
-        cytrusObjC.updateSettings()
+        emulator.updateSettings()
     }
     
     public var stepsPerHour: UInt16 {
         get {
-            cytrusObjC.stepsPerHour()
+            emulator.stepsPerHour()
         }
         
         set {
-            cytrusObjC.setStepsPerHour(newValue)
+            emulator.setStepsPerHour(newValue)
         }
     }
     
-    public func loadState() { cytrusObjC.loadState() }
-    public func saveState() { cytrusObjC.saveState() }
+    public func loadState(_ completionHandler: @escaping (Bool) -> Void) { completionHandler(emulator.loadState()) }
+    public func saveState(_ completionHandler: @escaping (Bool) -> Void) { completionHandler(emulator.saveState()) }
     
-    public func saves(for identifier: UInt64) -> [SaveStateInfo] { cytrusObjC.saveStates(identifier) }
-    public func saveStatePath(for identifier: UInt64) -> String { cytrusObjC.saveStatePath(identifier) }
+    public func saves(for identifier: UInt64) -> [SaveStateInfo] { emulator.saveStates(identifier) }
+    public func saveStatePath(for identifier: UInt64) -> String { emulator.saveStatePath(identifier) }
     
     public struct Multiplayer : @unchecked Sendable {
         public static let shared = Multiplayer()
@@ -147,6 +167,4 @@ public struct Cytrus : @unchecked Sendable {
             multiplayerObjC.updateWebAPIURL()
         }
     }
-    
-    public let multiplayer = Multiplayer.shared
 }

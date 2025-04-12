@@ -18,10 +18,6 @@
 #include "core/savestate_data.h"
 #include "network/network.h"
 
-#if defined(__APPLE__)
-#import <TargetConditionals.h>
-#endif
-
 namespace Core {
 
 #pragma pack(push, 1)
@@ -93,7 +89,7 @@ static bool ValidateSaveState(const CSTHeader& header, SaveStateInfo& info, u64 
 std::vector<SaveStateInfo> ListSaveStates(u64 program_id, u64 movie_id) {
     std::vector<SaveStateInfo> result;
     result.reserve(SaveStateSlotCount);
-    for (u32 slot = 0; slot <= SaveStateSlotCount; ++slot) {
+    for (u32 slot = 1; slot <= SaveStateSlotCount; ++slot) {
         const auto path = GetSaveStatePath(program_id, movie_id, slot);
         if (!FileUtil::Exists(path)) {
             continue;
@@ -191,11 +187,7 @@ void System::LoadState(u32 slot) {
         SaveStateInfo info;
         info.slot = slot;
         if (!ValidateSaveState(header, info, title_id, movie_id)) {
-#if defined(TARGET_OS_IPHONE)
-            LOG_WARNING(Core, "Invalid save state {}, continuing...", path);
-#else
             throw std::runtime_error("Invalid savestate");
-#endif
         }
 
         if (file.ReadBytes(buffer.data(), buffer.size()) != buffer.size()) {
