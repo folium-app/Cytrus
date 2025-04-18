@@ -19,6 +19,70 @@ public struct SystemSaveGame {
     public func set(_ username: String) { Cytrus.shared.emulator.set(username: username) }
 }
 
+public enum CytrusAnalogType : UInt32 {
+    case circlePad      = 713
+    case circlePadUp    = 714
+    case circlePadDown  = 715
+    case circlePadLeft  = 716
+    case circlePadRight = 717
+    
+    case cStick         = 718
+    case cStickUp       = 719
+    case cStickDown     = 720
+    case cStickLeft     = 721
+    case cStickRight    = 722
+}
+
+public enum CytrusButtonType : UInt32 {
+    case a      = 700
+    case b      = 701
+    case x      = 702
+    case y      = 703
+    case start  = 704
+    case select = 705
+    case home   = 706
+    case zl     = 707
+    case zr     = 708
+    case up     = 709
+    case down   = 710
+    case left   = 711
+    case right  = 712
+    case l      = 773
+    case r      = 774
+    case debug  = 781
+    case gpio14 = 782
+    
+    public static func type(_ string: String) -> Self? {
+        switch string {
+        case "a": .a
+        case "b": .b
+        case "x": .x
+        case "y": .y
+        case "dpadUp": .up
+        case "dpadDown": .down
+        case "dpadLeft": .left
+        case "dpadRight": .right
+        case "l": .l
+        case "r": .r
+        case "zl": .zl
+        case "zr": .zr
+        case "home": .home
+        case "minus": .select
+        case "plus": .start
+        default: nil
+        }
+    }
+}
+
+public enum CytrusImportResult : UInt32 {
+    case success          = 0
+    case failedToOpenFile = 1
+    case fileNotFound     = 2
+    case aborted          = 3
+    case invalid          = 4
+    case encrypted        = 5
+}
+
 public struct Cytrus {
     public static var shared: Cytrus = .init()
     
@@ -30,39 +94,24 @@ public struct Cytrus {
     }
 }
 
-
 extension Cytrus {
     public func diskCacheCallback(_ callback: @escaping (UInt8, Int, Int) -> Void) {
         emulator.disk_cache_callback = callback
     }
     
-    public func information(for cartridge: URL) -> CytrusGameInformation {
-        emulator.informationForGame(at: cartridge)
-    }
+    public func information(_ url: URL) -> GameInformation { emulator.information(from: url) }
     
-    public func allocateVulkanLibrary() {
-        emulator.allocateVulkanLibrary()
-    }
+    public func allocate() { emulator.allocate() }
+    public func deallocate() { emulator.deallocate() }
     
-    public func deallocateVulkanLibrary() {
-        emulator.deallocateVulkanLibrary()
+    public func initialize(_ layer: CAMetalLayer, _ size: CGSize, _ secondary: Bool = false) {
+        emulator.initialize(layer, size: size, secondary: secondary)
     }
+    public func deinitialize() { emulator.deinitialize() }
     
-    public func allocateMetalLayer(for layer: CAMetalLayer, with size: CGSize, isSecondary: Bool = false) {
-        emulator.allocateMetalLayer(layer, with: size, isSecondary: isSecondary)
-    }
+    public func insert(_ url: URL) { emulator.insert(from: url) }
     
-    public func deallocateMetalLayers() {
-        emulator.deallocateMetalLayers()
-    }
-    
-    public func insertCartridgeAndBoot(with url: URL) {
-        emulator.insertCartridgeAndBoot(url)
-    }
-    
-    public func importGame(at url: URL) -> ImportResultStatus {
-        emulator.importGame(at: url)
-    }
+    public func `import`(_ url: URL) -> CytrusImportResult { .init(rawValue: emulator.import(from: url)) ?? .success }
     
     public func touchBegan(at point: CGPoint) {
         emulator.touchBegan(at: point)
@@ -76,16 +125,12 @@ extension Cytrus {
         emulator.touchMoved(at: point)
     }
     
-    public func virtualControllerButtonDown(_ button: VirtualControllerButtonType) {
-        emulator.virtualControllerButtonDown(button)
+    public func input(_ slot: Int, _ button: CytrusButtonType, _ pressed: Bool) {
+        emulator.input(.init(slot), button: button.rawValue, pressed: pressed)
     }
     
-    public func virtualControllerButtonUp(_ button: VirtualControllerButtonType) {
-        emulator.virtualControllerButtonUp(button)
-    }
-    
-    public func thumbstickMoved(_ thumbstick: VirtualControllerAnalogType, _ x: Float, _ y: Float) {
-        emulator.thumbstickMoved(thumbstick, x: CGFloat(x), y: CGFloat(y))
+    public func thumbstickMoved(_ thumbstick: CytrusAnalogType, _ x: Float, _ y: Float) {
+        emulator.thumbstickMoved(thumbstick.rawValue, x: CGFloat(x), y: CGFloat(y))
     }
     
     public func isPaused() -> Bool {
@@ -125,13 +170,8 @@ extension Cytrus {
     }
     
     public var stepsPerHour: UInt16 {
-        get {
-            emulator.stepsPerHour()
-        }
-        
-        set {
-            emulator.setStepsPerHour(newValue)
-        }
+        get { emulator.stepsPerHour() }
+        set { emulator.setStepsPerHour(newValue) }
     }
     
     public func loadState(_ completionHandler: @escaping (Bool) -> Void) { completionHandler(emulator.loadState()) }

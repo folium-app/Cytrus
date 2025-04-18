@@ -8,6 +8,7 @@
 #pragma once
 
 #ifdef __cplusplus
+#include <atomic>
 #include <memory>
 #include <string>
 

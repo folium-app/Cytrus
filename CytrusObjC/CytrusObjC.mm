@@ -4,101 +4,14 @@
 //
 //  Created by Jarrod Norwell on 12/7/2024.
 //
-
-#import <TargetConditionals.h>
-
 #import "Configuration.h"
 #import "CytrusObjC.h"
 #import "EmulationWindow_Vulkan.h"
-
-#include <Metal/Metal.hpp>
-
 #import "CameraFactory.h"
 #import "InputManager.h"
+#import "SoftwareKeyboard.h"
 
-
-// MARK: Keyboard
-
-namespace SoftwareKeyboard {
-
-class Keyboard final : public Frontend::SoftwareKeyboard {
-public:
-    ~Keyboard();
-    
-    void Execute(const Frontend::KeyboardConfig& config) override;
-    void ShowError(const std::string& error) override;
-    
-    void KeyboardText(std::condition_variable& cv);
-    std::pair<std::string, uint8_t> GetKeyboardText(const Frontend::KeyboardConfig& config);
-    
-private:
-    __block NSString *_Nullable keyboardText = @"";
-    __block uint8_t buttonPressed = 0;
-    
-    __block BOOL isReady = FALSE;
-};
-
-} // namespace SoftwareKeyboard
-
-@implementation KeyboardConfig
--(KeyboardConfig *) initWithHintText:(NSString *)hintText buttonConfig:(KeyboardButtonConfig)buttonConfig {
-    if (self = [super init]) {
-        self.hintText = hintText;
-        self.buttonConfig = buttonConfig;
-    } return self;
-}
-@end
-
-namespace SoftwareKeyboard {
-
-Keyboard::~Keyboard() = default;
-
-void Keyboard::Execute(const Frontend::KeyboardConfig& config) {
-    SoftwareKeyboard::Execute(config);
-    
-    std::pair<std::string, uint8_t> it = this->GetKeyboardText(config);
-    if (this->config.button_config != Frontend::ButtonConfig::None)
-        it.second = static_cast<uint8_t>(this->config.button_config);
-    
-    Finalize(it.first, it.second);
-}
-
-void Keyboard::ShowError(const std::string& error) {
-    printf("error = %s\n", error.c_str());
-}
-
-void Keyboard::KeyboardText(std::condition_variable& cv) {
-    [[NSNotificationCenter defaultCenter] addObserverForName:@"closeKeyboard" object:NULL queue:[NSOperationQueue mainQueue]
-                                                  usingBlock:^(NSNotification *notification) {
-        this->buttonPressed = (NSUInteger)notification.userInfo[@"buttonPressed"];
-        
-        NSString *_Nullable text = notification.userInfo[@"keyboardText"];
-        if (text != NULL)
-            this->keyboardText = text;
-        
-        isReady = TRUE;
-        cv.notify_all();
-    }];
-}
-
-std::pair<std::string, uint8_t> Keyboard::GetKeyboardText(const Frontend::KeyboardConfig& config) {
-    [[NSNotificationCenter defaultCenter] postNotification:[NSNotification notificationWithName:@"openKeyboard"
-                                                                                         object:[[KeyboardConfig alloc] initWithHintText:[NSString stringWithCString:config.hint_text.c_str() encoding:NSUTF8StringEncoding] buttonConfig:(KeyboardButtonConfig)config.button_config]]];
-    
-    std::condition_variable cv;
-    std::mutex mutex;
-    auto t1 = std::async(&Keyboard::KeyboardText, this, std::ref(cv));
-    std::unique_lock<std::mutex> lock(mutex);
-    while (!isReady)
-        cv.wait(lock);
-    
-    isReady = FALSE;
-    
-    return std::make_pair([this->keyboardText UTF8String], this->buttonPressed);
-}
-}
-
-// MARK: Keyboard
+#include <Metal/Metal.hpp>
 
 std::unique_ptr<EmulationWindow_Vulkan> top_window;
 std::shared_ptr<Common::DynamicLibrary> library;
@@ -113,52 +26,6 @@ static void TryShutdown() {
     top_window.reset();
     InputManager::Shutdown();
 };
-
-@implementation CoreVersion
--(CoreVersion *) initWithCoreVersion:(uint32_t)coreVersion {
-    if (self = [super init]) {
-        Kernel::CoreVersion version = Kernel::CoreVersion(coreVersion);
-        
-        self.major = version.major;
-        self.minor = version.minor;
-        self.revision = version.revision;
-    } return self;
-}
-@end
-
-@implementation CytrusGameInformation
--(CytrusGameInformation *) initWithURL:(NSURL *)url {
-    if (self = [super init]) {
-        using namespace InformationForGame;
-        
-        const auto data = GetSMDHData([url.path UTF8String]);
-        const auto publisher = Publisher(data);
-        const auto regions = Regions(data);
-        const auto title = Title(data);
-        
-        u64 program_id{0};
-        auto app_loader = Loader::GetLoader([url.path UTF8String]);
-        if (app_loader) {
-            app_loader->ReadProgramId(program_id);
-        }
-        
-        uint32_t defaultCoreVersion = (1 << 24) | (0 << 16) | (1 << 8);
-        
-        self.coreVersion = [[CoreVersion alloc] initWithCoreVersion:defaultCoreVersion];
-        self.kernelMemoryMode = (KernelMemoryMode)(app_loader->LoadKernelMemoryMode().first || 0);
-        self.new3DSKernelMemoryMode = (New3DSKernelMemoryMode)app_loader->LoadNew3dsHwCapabilities().first->memory_mode;
-        
-        self.identifier = program_id;
-        if (Icon(data).empty())
-            self.icon = NULL;
-        else
-            self.icon = [NSData dataWithBytes:InformationForGame::Icon(data).data() length:48 * 48 * sizeof(uint16_t)];
-        self.publisher = [NSString stringWithCharacters:(const unichar*)publisher.c_str() length:publisher.length()];
-        self.regions = [NSString stringWithCString:regions.c_str() encoding:NSUTF8StringEncoding];
-        self.title = [NSString stringWithCharacters:(const unichar*)title.c_str() length:title.length()];
-    } return self;
-}
-@end
 
 @implementation SaveStateInfo
 -(SaveStateInfo *) initWithSlot:(uint32_t)slot time:(uint64_t)time buildName:(NSString *)buildName status:(int)status {
@@ -195,27 +62,27 @@ static void TryShutdown() {
     return sharedInstance;
 }
 
--(CytrusGameInformation *) informationForGameAt:(NSURL *)url {
-    return [[CytrusGameInformation alloc] initWithURL:url];
+-(GameInformation *) information:(NSURL *)url {
+    return [[GameInformation alloc] initWithURL:url];
 }
 
--(void) allocateVulkanLibrary {
+-(void) allocate {
     library = std::make_shared<Common::DynamicLibrary>(dlopen("@rpath/MoltenVK.framework/MoltenVK", RTLD_NOW));
 }
 
--(void) deallocateVulkanLibrary {
+-(void) deallocate {
     library.reset();
 }
 
--(void) allocateMetalLayer:(CAMetalLayer*)layer withSize:(CGSize)size isSecondary:(BOOL)secondary {
+-(void) initialize:(CAMetalLayer*)layer size:(CGSize)size secondary:(BOOL)secondary {
     top_window = std::make_unique<EmulationWindow_Vulkan>((__bridge CA::MetalLayer*)layer, library, secondary, size);
 }
 
--(void) deallocateMetalLayers {
+-(void) deinitialize {
     top_window.reset();
 }
 
--(void) insertCartridgeAndBoot:(NSURL *)url {
+-(void) insert:(NSURL *)url {
     std::scoped_lock lock(running_mutex);
         
     Core::System& system{Core::System::GetInstance()};
@@ -366,8 +233,8 @@ static void TryShutdown() {
     }
 }
 
--(ImportResultStatus) importGameAt:(NSURL *)url {
-    return (ImportResultStatus)Service::AM::InstallCIA([url.path UTF8String], [](std::size_t total_bytes_read, std::size_t file_size) {});
+-(uint32_t) import:(NSURL *)url {
+    return static_cast<uint32_t>(Service::AM::InstallCIA([url.path UTF8String], [](std::size_t, std::size_t) {}));
 }
 
 -(void) touchBeganAtPoint:(CGPoint)point {
@@ -390,15 +257,17 @@ static void TryShutdown() {
     top_window->TouchMoved((point.x) * [[UIScreen mainScreen] nativeScale] * w_ratio, ((point.y) * [[UIScreen mainScreen] nativeScale] * h_ratio));
 }
 
--(void) virtualControllerButtonDown:(VirtualControllerButtonType)button {
-    InputManager::ButtonHandler()->PressKey([[NSNumber numberWithUnsignedInteger:button] intValue]);
+-(BOOL) input:(int)slot button:(uint32_t)button pressed:(BOOL)pressed {
+    auto key = [[NSNumber numberWithUnsignedInt:button] intValue];
+    BOOL result;
+    if (pressed)
+        result = InputManager::ButtonHandler()->PressKey(key);
+    else
+        result = InputManager::ButtonHandler()->ReleaseKey(key);
+    return result;
 }
 
--(void) virtualControllerButtonUp:(VirtualControllerButtonType)button {
-    InputManager::ButtonHandler()->ReleaseKey([[NSNumber numberWithUnsignedInteger:button] intValue]);
-}
-
--(void) thumbstickMoved:(VirtualControllerAnalogType)analog x:(CGFloat)x y:(CGFloat)y {
+-(void) thumbstickMoved:(uint32_t)analog x:(CGFloat)x y:(CGFloat)y {
     InputManager::AnalogHandler()->MoveJoystick([[NSNumber numberWithUnsignedInteger:analog] intValue], x, y);
 }
 

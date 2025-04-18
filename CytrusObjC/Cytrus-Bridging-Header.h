@@ -8,6 +8,7 @@
 #ifndef Cytrus_Bridging_Header_h
 #define Cytrus_Bridging_Header_h
 
+#import "Common.h"
 #import "CytrusObjC.h"
 
 #endif /* Cytrus_Bridging_Header_h */

@@ -6,9 +6,9 @@
 //  Copyright © 2025 Jarrod Norwell. All rights reserved.
 //
 
-#import "BuildStrings.h"
-
 #import <Foundation/Foundation.h>
+
+#import "BuildStrings.h"
 
 const char* buildDate(void) {
     NSDate *date = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"BUILD_DATE"];
