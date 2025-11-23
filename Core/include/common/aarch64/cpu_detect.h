@@ -5,7 +5,7 @@
 #pragma once
 
 #include "common/arch.h"
-#if CYTRUS_ARCH(arm64)
+#if CITRA_ARCH(arm64)
 
 #include <string>
 
@@ -33,4 +33,4 @@ const CPUCaps& GetCPUCaps();
 
 } // namespace Common
 
-#endif // CYTRUS_ARCH(arm64)
+#endif // CITRA_ARCH(arm64)

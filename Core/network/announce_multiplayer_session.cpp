@@ -5,7 +5,7 @@
 #include <chrono>
 #include <future>
 #include <vector>
-#include "network/announce_multiplayer_session.h"
+#include "announce_multiplayer_session.h"
 #include "common/announce_multiplayer_room.h"
 #include "common/assert.h"
 #include "network/network.h"
@@ -23,8 +23,8 @@ static constexpr std::chrono::seconds announce_time_interval(15);
 AnnounceMultiplayerSession::AnnounceMultiplayerSession() {
 #ifdef ENABLE_WEB_SERVICE
     backend = std::make_unique<WebService::RoomJson>(NetSettings::values.web_api_url,
-                                                     NetSettings::values.cytrus_username,
-                                                     NetSettings::values.cytrus_token);
+                                                     NetSettings::values.citra_username,
+                                                     NetSettings::values.citra_token);
 #else
     backend = std::make_unique<AnnounceMultiplayerRoom::NullBackend>();
 #endif
@@ -156,8 +156,8 @@ void AnnounceMultiplayerSession::UpdateCredentials() {
 
 #ifdef ENABLE_WEB_SERVICE
     backend = std::make_unique<WebService::RoomJson>(NetSettings::values.web_api_url,
-                                                     NetSettings::values.cytrus_username,
-                                                     NetSettings::values.cytrus_token);
+                                                     NetSettings::values.citra_username,
+                                                     NetSettings::values.citra_token);
 #endif
 }
 

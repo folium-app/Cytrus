@@ -9,6 +9,7 @@
 #include <boost/serialization/base_object.hpp>
 #include "common/common_types.h"
 #include "core/file_sys/errors.h"
+#include "core/file_sys/secure_value_backend.h"
 #include "core/hle/service/fs/archive.h"
 #include "core/hle/service/service.h"
 
@@ -75,6 +76,10 @@ public:
             return Result(FileSys::ErrCodes::ArchiveNotMounted, ErrorModule::FS,
                           ErrorSummary::NotFound, ErrorLevel::Status);
         }
+    }
+
+    void RegisterSecureValueBackend(const std::shared_ptr<FileSys::SecureValueBackend>& backend) {
+        secure_value_backend = backend;
     }
 
 private:
@@ -519,6 +524,8 @@ private:
      */
     void GetArchiveResource(Kernel::HLERequestContext& ctx);
 
+    void ExportIntegrityVerificationSeed(Kernel::HLERequestContext& ctx);
+
     /**
      * FS_User::GetFormatInfo service function.
      *  Inputs:
@@ -606,17 +613,6 @@ private:
     void GetSpecialContentIndex(Kernel::HLERequestContext& ctx);
 
     /**
-     * FS_User::GetNumSeeds service function.
-     *  Inputs:
-     *      0 : 0x087D0000
-     *  Outputs:
-     *      0 : 0x087D0080
-     *      1 : Result of function, 0 on success, otherwise error code
-     *      2 : Number of seeds in the SEEDDB
-     */
-    void GetNumSeeds(Kernel::HLERequestContext& ctx);
-
-    /**
      * FS_User::AddSeed service function.
      *  Inputs:
      *      0 : 0x087A0180
@@ -627,6 +623,25 @@ private:
      *      1 : Result of function, 0 on success, otherwise error code
      */
     void AddSeed(Kernel::HLERequestContext& ctx);
+
+    void GetSeed(Kernel::HLERequestContext& ctx);
+
+    void DeleteSeed(Kernel::HLERequestContext& ctx);
+
+    /**
+     * FS_User::GetNumSeeds service function.
+     *  Inputs:
+     *      0 : 0x087D0000
+     *  Outputs:
+     *      0 : 0x087D0080
+     *      1 : Result of function, 0 on success, otherwise error code
+     *      2 : Number of seeds in the SEEDDB
+     */
+    void GetNumSeeds(Kernel::HLERequestContext& ctx);
+
+    void SetUnknown0x80Data(Kernel::HLERequestContext& ctx);
+
+    void GetUnknown0x80Data(Kernel::HLERequestContext& ctx);
 
     /**
      * FS_User::SetSaveDataSecureValue service function.
@@ -656,6 +671,21 @@ private:
      *      3-4 : Secure Value
      */
     void ObsoletedGetSaveDataSecureValue(Kernel::HLERequestContext& ctx);
+
+    /**
+     * FS_User::ControlSecureSave service function
+     *  Inputs:
+     *      1 : Action
+     *      2 : Input Size
+     *      3 : Output Size
+     *      4 : (Input Size << 4) | 0xA
+     *      5 : Input Pointer
+     *      6 : (Output Size << 4) | 0xC
+     *      7 : Output Pointer
+     *  Outputs:
+     *      1 : Result of function, 0 on success, otherwise error code
+     */
+    void ControlSecureSave(Kernel::HLERequestContext& ctx);
 
     /**
      * FS_User::SetThisSaveDataSecureValue service function.
@@ -722,11 +752,10 @@ private:
     Core::System& system;
     ArchiveManager& archives;
 
+    std::shared_ptr<FileSys::SecureValueBackend> secure_value_backend;
+
     template <class Archive>
-    void serialize(Archive& ar, const unsigned int) {
-        ar& boost::serialization::base_object<Kernel::SessionRequestHandler>(*this);
-        ar & priority;
-    }
+    void serialize(Archive& ar, const unsigned int);
     friend class boost::serialization::access;
 };
 

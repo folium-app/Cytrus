@@ -1,4 +1,8 @@
-// Copyright 2013 Dolphin Emulator Project / 2014 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
+// Licensed under GPLv2 or any later version
+// Refer to the license.txt file included.
+
+// Copyright Dolphin Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -10,7 +14,10 @@
 #include <unordered_map>
 #include <boost/iostreams/device/file_descriptor.hpp>
 #include <boost/iostreams/stream.hpp>
+#include <cryptopp/aes.h>
+#include <cryptopp/modes.h>
 #include <fmt/format.h>
+#include "common/archives.h"
 #include "common/assert.h"
 #include "common/common_funcs.h"
 #include "common/common_paths.h"
@@ -36,12 +43,6 @@
 #define fseeko _fseeki64
 #define ftello _ftelli64
 #define fileno _fileno
-#endif
-
-// 64 bit offsets for MSVC and MinGW. MinGW also needs this for using _wstat64
-#ifndef __MINGW64__
-#define stat _stat64
-#define fstat _fstat64
 #endif
 
 #else
@@ -112,7 +113,7 @@ bool Exists(const std::string& filename) {
     StripTailDirSlashes(copy);
 
 #ifdef _WIN32
-    struct stat file_info;
+    struct _stat64 file_info;
     // Windows needs a slash to identify a driver root
     if (copy.size() != 0 && copy.back() == ':')
         copy += DIR_SEP_CHR;
@@ -133,18 +134,18 @@ bool IsDirectory(const std::string& filename) {
     return AndroidStorage::IsDirectory(filename);
 #endif
 
-    struct stat file_info;
-
     std::string copy(filename);
     StripTailDirSlashes(copy);
 
 #ifdef _WIN32
+    struct _stat64 file_info;
     // Windows needs a slash to identify a driver root
     if (copy.size() != 0 && copy.back() == ':')
         copy += DIR_SEP_CHR;
 
     int result = _wstat64(Common::UTF8ToUTF16W(copy).c_str(), &file_info);
 #else
+    struct stat file_info;
     int result = stat(copy.c_str(), &file_info);
 #endif
 
@@ -249,8 +250,14 @@ bool CreateFullPath(const std::string& fullPath) {
 
     std::size_t position = 0;
     while (true) {
+        std::size_t prev_pos = position;
         // Find next sub path
-        position = fullPath.find(DIR_SEP_CHR, position);
+        position = fullPath.find(DIR_SEP_CHR, prev_pos);
+
+#ifdef _WIN32
+        if (position == fullPath.npos)
+            position = fullPath.find(DIR_SEP_CHR_WIN, prev_pos);
+#endif
 
         // we're done, yay!
         if (position == fullPath.npos)
@@ -384,9 +391,11 @@ u64 GetSize(const std::string& filename) {
         LOG_ERROR(Common_Filesystem, "failed {}: is a directory", filename);
         return 0;
     }
-
+#ifndef _WIN32
     struct stat buf;
+#endif
 #ifdef _WIN32
+    struct _stat64 buf;
     if (_wstat64(Common::UTF8ToUTF16W(filename).c_str(), &buf) == 0)
 #elif ANDROID
     u64 result = AndroidStorage::GetSize(filename);
@@ -504,11 +513,16 @@ bool ForeachDirectoryEntry(u64* num_entries_out, const std::string& directory,
     return true;
 }
 
-u64 ScanDirectoryTree(const std::string& directory, FSTEntry& parent_entry,
-                      unsigned int recursion) {
-    const auto callback = [recursion, &parent_entry](u64* num_entries_out,
-                                                     const std::string& directory,
-                                                     const std::string& virtual_name) -> bool {
+u64 ScanDirectoryTree(const std::string& directory, FSTEntry& parent_entry, unsigned int recursion,
+                      std::atomic<bool>* stop_flag) {
+    const auto callback = [recursion, &parent_entry,
+                           stop_flag](u64* num_entries_out, const std::string& directory,
+                                      const std::string& virtual_name) -> bool {
+        // Break early and return error if stop is requested
+        if (stop_flag && *stop_flag) {
+            return false;
+        }
+
         FSTEntry entry;
         entry.virtualName = virtual_name;
         entry.physicalName = directory + DIR_SEP + virtual_name;
@@ -707,8 +721,8 @@ std::string AppDataRoamingDirectory() {
 /**
  * @return The user’s home directory on POSIX systems
  */
-static const std::string& GetHomeDirectory() {
-    static std::string home_path;
+const std::string GetHomeDirectory() {
+    std::string home_path;
     if (home_path.empty()) {
         const char* envvar = getenv("HOME");
         if (envvar) {
@@ -729,7 +743,7 @@ static const std::string& GetHomeDirectory() {
  * @return The directory path
  * @sa http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
  */
-[[maybe_unused]] static const std::string GetUserDirectory(const std::string& envvar) {
+[[maybe_unused]] const std::string GetUserDirectory(const std::string& envvar) {
     const char* directory = getenv(envvar.c_str());
 
     std::string user_dir;
@@ -771,8 +785,15 @@ void SetUserPath(const std::string& path) {
     } else {
 #ifdef _WIN32
         user_path = GetExeDirectory() + DIR_SEP USERDATA_DIR DIR_SEP;
+        std::string& legacy_citra_user_path = g_paths[UserPath::LegacyCitraUserDir];
+        std::string& legacy_lime3ds_user_path = g_paths[UserPath::LegacyLime3DSUserDir];
+
         if (!FileUtil::IsDirectory(user_path)) {
             user_path = AppDataRoamingDirectory() + DIR_SEP EMU_DATA_DIR DIR_SEP;
+            legacy_citra_user_path =
+                AppDataRoamingDirectory() + DIR_SEP LEGACY_CITRA_DATA_DIR DIR_SEP;
+            legacy_lime3ds_user_path =
+                AppDataRoamingDirectory() + DIR_SEP LEGACY_LIME3DS_DATA_DIR DIR_SEP;
         } else {
             LOG_INFO(Common_Filesystem, "Using the local user directory");
         }
@@ -784,6 +805,8 @@ void SetUserPath(const std::string& path) {
         g_paths.emplace(UserPath::ConfigDir, user_path + CONFIG_DIR DIR_SEP);
         g_paths.emplace(UserPath::CacheDir, user_path + CACHE_DIR DIR_SEP);
 #else
+        std::string& legacy_citra_user_path = g_paths[UserPath::LegacyCitraUserDir];
+        std::string& legacy_lime3ds_user_path = g_paths[UserPath::LegacyLime3DSUserDir];
         auto current_dir = FileUtil::GetCurrentDir();
         if (current_dir.has_value() &&
             FileUtil::Exists(current_dir.value() + USERDATA_DIR DIR_SEP)) {
@@ -792,23 +815,47 @@ void SetUserPath(const std::string& path) {
             g_paths.emplace(UserPath::CacheDir, user_path + CACHE_DIR DIR_SEP);
         } else {
             std::string data_dir = GetUserDirectory("XDG_DATA_HOME") + DIR_SEP EMU_DATA_DIR DIR_SEP;
+
+            std::string legacy_citra_data_dir =
+                GetUserDirectory("XDG_DATA_HOME") + DIR_SEP LEGACY_CITRA_DATA_DIR DIR_SEP;
+            std::string legacy_lime3ds_data_dir =
+                GetUserDirectory("XDG_DATA_HOME") + DIR_SEP LEGACY_LIME3DS_DATA_DIR DIR_SEP;
             std::string config_dir =
                 GetUserDirectory("XDG_CONFIG_HOME") + DIR_SEP EMU_DATA_DIR DIR_SEP;
             std::string cache_dir =
                 GetUserDirectory("XDG_CACHE_HOME") + DIR_SEP EMU_DATA_DIR DIR_SEP;
+
+            g_paths.emplace(UserPath::LegacyCitraConfigDir,
+                            GetUserDirectory("XDG_CONFIG_HOME") +
+                                DIR_SEP LEGACY_CITRA_DATA_DIR DIR_SEP);
+            g_paths.emplace(UserPath::LegacyCitraCacheDir,
+                            GetUserDirectory("XDG_CACHE_HOME") +
+                                DIR_SEP LEGACY_CITRA_DATA_DIR DIR_SEP);
+            g_paths.emplace(UserPath::LegacyLime3DSConfigDir,
+                            GetUserDirectory("XDG_CONFIG_HOME") +
+                                DIR_SEP LEGACY_LIME3DS_DATA_DIR DIR_SEP);
+            g_paths.emplace(UserPath::LegacyLime3DSCacheDir,
+                            GetUserDirectory("XDG_CACHE_HOME") +
+                                DIR_SEP LEGACY_LIME3DS_DATA_DIR DIR_SEP);
 
 #if defined(__APPLE__)
             // If XDG directories don't already exist from a previous setup, use standard macOS
             // paths.
             if (!FileUtil::Exists(data_dir) && !FileUtil::Exists(config_dir) &&
                 !FileUtil::Exists(cache_dir)) {
-                data_dir = GetHomeDirectory() + DIR_SEP APPLE_EMU_DATA_DIR DIR_SEP;
+                data_dir = GetHomeDirectory() + DIR_SEP EMU_APPLE_DATA_DIR DIR_SEP;
+                legacy_citra_data_dir =
+                    GetHomeDirectory() + DIR_SEP LEGACY_CITRA_APPLE_DATA_DIR DIR_SEP;
+                legacy_lime3ds_data_dir =
+                    GetHomeDirectory() + DIR_SEP LEGACY_LIME3DS_APPLE_DATA_DIR DIR_SEP;
                 config_dir = data_dir + CONFIG_DIR DIR_SEP;
                 cache_dir = data_dir + CACHE_DIR DIR_SEP;
             }
 #endif
 
             user_path = data_dir;
+            legacy_citra_user_path = legacy_citra_data_dir;
+            legacy_lime3ds_user_path = legacy_lime3ds_data_dir;
             g_paths.emplace(UserPath::ConfigDir, config_dir);
             g_paths.emplace(UserPath::CacheDir, cache_dir);
         }
@@ -826,6 +873,8 @@ void SetUserPath(const std::string& path) {
     g_paths.emplace(UserPath::DumpDir, user_path + DUMP_DIR DIR_SEP);
     g_paths.emplace(UserPath::LoadDir, user_path + LOAD_DIR DIR_SEP);
     g_paths.emplace(UserPath::StatesDir, user_path + STATES_DIR DIR_SEP);
+    g_paths.emplace(UserPath::IconsDir, user_path + ICONS_DIR DIR_SEP);
+    g_paths.emplace(UserPath::PlayTimeDir, user_path + LOG_DIR DIR_SEP);
     g_default_paths = g_paths;
 }
 
@@ -851,8 +900,8 @@ bool StringReplace(std::string& haystack, const std::string& a, const std::strin
 
 std::string SerializePath(const std::string& input, bool is_saving) {
     auto result = input;
-    StringReplace(result, "%CYTRUS_ROM_FILE%", g_currentRomPath, is_saving);
-    StringReplace(result, "%CYTRUS_USER_DIR%", GetUserPath(UserPath::UserDir), is_saving);
+    StringReplace(result, "%CITRA_ROM_FILE%", g_currentRomPath, is_saving);
+    StringReplace(result, "%CITRA_USER_DIR%", GetUserPath(UserPath::UserDir), is_saving);
     return result;
 }
 
@@ -1131,14 +1180,14 @@ u64 IOFile::GetSize() const {
     return 0;
 }
 
-bool IOFile::Seek(s64 off, int origin) {
+bool IOFile::SeekImpl(s64 off, int origin) {
     if (!IsOpen() || 0 != fseeko(m_file, off, origin))
         m_good = false;
 
     return m_good;
 }
 
-u64 IOFile::Tell() const {
+u64 IOFile::TellImpl() const {
     if (IsOpen())
         return ftello(m_file);
 
@@ -1175,11 +1224,18 @@ static std::size_t pread(int fd, void* buf, std::size_t count, uint64_t offset) 
 
     overlapped.OffsetHigh = static_cast<uint32_t>(offset >> 32);
     overlapped.Offset = static_cast<uint32_t>(offset & 0xFFFF'FFFFLL);
+    LARGE_INTEGER orig, dummy;
+    // TODO(PabloMK7): This is not fully async, windows being messy again...
+    // The file pos pointer will be undefined if ReadAt is used in multiple
+    // threads. Normally not problematic, but worth remembering.
+    SetFilePointerEx(file, {}, &orig, FILE_CURRENT);
     SetLastError(0);
     bool ret = ReadFile(file, buf, static_cast<uint32_t>(count), &read_bytes, &overlapped);
+    DWORD last_error = GetLastError();
+    SetFilePointerEx(file, orig, &dummy, FILE_BEGIN);
 
-    if (!ret && GetLastError() != ERROR_HANDLE_EOF) {
-        errno = GetLastError();
+    if (!ret && last_error != ERROR_HANDLE_EOF) {
+        errno = last_error;
         return std::numeric_limits<std::size_t>::max();
     }
     return read_bytes;
@@ -1235,6 +1291,107 @@ bool IOFile::Resize(u64 size) {
     return m_good;
 }
 
+struct CryptoIOFileImpl {
+
+    std::vector<u8> key;
+    std::vector<u8> iv;
+
+    CryptoPP::CTR_Mode<CryptoPP::AES>::Decryption d;
+    CryptoPP::CTR_Mode<CryptoPP::AES>::Encryption e;
+
+    std::vector<u8> write_buffer;
+
+    std::size_t ReadImpl(CryptoIOFile& f, void* data, std::size_t length, std::size_t data_size) {
+        std::size_t res = f.IOFile::ReadImpl(data, length, data_size);
+        if (res != std::numeric_limits<std::size_t>::max() && res != 0) {
+            d.ProcessData(reinterpret_cast<CryptoPP::byte*>(data),
+                          reinterpret_cast<CryptoPP::byte*>(data), length * data_size);
+            e.Seek(f.IOFile::Tell());
+        }
+        return res;
+    }
+
+    std::size_t ReadAtImpl(CryptoIOFile& f, void* data, std::size_t length, std::size_t data_size,
+                           std::size_t offset) {
+        std::size_t res = f.IOFile::ReadAtImpl(data, length, data_size, offset);
+        if (res != std::numeric_limits<std::size_t>::max() && res != 0) {
+            d.Seek(offset);
+            d.ProcessData(reinterpret_cast<CryptoPP::byte*>(data),
+                          reinterpret_cast<CryptoPP::byte*>(data), length * data_size);
+            e.Seek(f.IOFile::Tell());
+        }
+        return res;
+    }
+
+    std::size_t WriteImpl(CryptoIOFile& f, const void* data, std::size_t length,
+                          std::size_t data_size) {
+        if (write_buffer.size() < length * data_size) {
+            write_buffer.resize(length * data_size);
+        }
+        e.ProcessData(write_buffer.data(), reinterpret_cast<const CryptoPP::byte*>(data),
+                      length * data_size);
+        std::size_t res = f.IOFile::WriteImpl(write_buffer.data(), length, data_size);
+        if (res != std::numeric_limits<std::size_t>::max() && res != 0) {
+            d.Seek(f.IOFile::Tell());
+        }
+        return res;
+    }
+
+    bool SeekImpl(CryptoIOFile& f, s64 off, int origin) {
+        bool res = f.IOFile::SeekImpl(off, origin);
+        if (res) {
+            u64 pos = f.IOFile::Tell();
+            d.Seek(pos);
+            e.Seek(pos);
+        }
+        return res;
+    }
+};
+
+CryptoIOFile::CryptoIOFile() : IOFile() {
+    impl = std::make_unique<CryptoIOFileImpl>();
+}
+
+CryptoIOFile::CryptoIOFile(const std::string& filename, const char openmode[],
+                           const std::vector<u8>& aes_key, const std::vector<u8>& aes_iv, int flags)
+    : IOFile(filename, openmode, flags) {
+    impl = std::make_unique<CryptoIOFileImpl>();
+    impl->key = aes_key;
+    impl->iv = aes_iv;
+    impl->d.SetKeyWithIV(aes_key.data(), aes_key.size(), aes_iv.data());
+    impl->e.SetKeyWithIV(aes_key.data(), aes_key.size(), aes_iv.data());
+}
+
+CryptoIOFile::~CryptoIOFile() {}
+
+std::size_t CryptoIOFile::ReadImpl(void* data, std::size_t length, std::size_t data_size) {
+    return impl->ReadImpl(*this, data, length, data_size);
+}
+
+std::size_t CryptoIOFile::ReadAtImpl(void* data, std::size_t length, std::size_t data_size,
+                                     std::size_t offset) {
+    return impl->ReadAtImpl(*this, data, length, data_size, offset);
+}
+
+std::size_t CryptoIOFile::WriteImpl(const void* data, std::size_t length, std::size_t data_size) {
+    return impl->WriteImpl(*this, data, length, data_size);
+}
+
+bool CryptoIOFile::SeekImpl(s64 off, int origin) {
+    return impl->SeekImpl(*this, off, origin);
+}
+
+template <class Archive>
+void CryptoIOFile::serialize(Archive& ar, const unsigned int) {
+    ar & impl->key;
+    ar & impl->iv;
+    if (Archive::is_loading::value) {
+        impl->e.SetKeyWithIV(impl->key.data(), impl->key.size(), impl->iv.data());
+        impl->d.SetKeyWithIV(impl->key.data(), impl->key.size(), impl->iv.data());
+    }
+    ar& boost::serialization::base_object<IOFile>(*this);
+}
+
 template <typename T>
 using boost_iostreams = boost::iostreams::stream<T>;
 
@@ -1266,3 +1423,6 @@ void OpenFStream<std::ios_base::out>(
     fstream.open(file_descriptor_sink);
 }
 } // namespace FileUtil
+
+SERIALIZE_EXPORT_IMPL(FileUtil::IOFile)
+SERIALIZE_EXPORT_IMPL(FileUtil::CryptoIOFile)

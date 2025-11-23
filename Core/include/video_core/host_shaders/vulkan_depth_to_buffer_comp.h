@@ -7,7 +7,7 @@
 #include <string_view>
 
 namespace HostShaders {
-// clang-format off
+
 constexpr std::string_view VULKAN_DEPTH_TO_BUFFER_COMP = {
 "// Copyright 2023 Citra Emulator Project\n"
 "// Licensed under GPLv2 or any later version\n"
@@ -41,7 +41,6 @@ constexpr std::string_view VULKAN_DEPTH_TO_BUFFER_COMP = {
 "}\n"
 "\n"
 
-    // clang-format on
 };
 
 } // namespace HostShaders

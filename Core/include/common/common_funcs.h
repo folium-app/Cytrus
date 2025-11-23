@@ -24,15 +24,15 @@
 #endif
 
 #ifdef _MSC_VER
-#define CYTRUS_NO_INLINE __declspec(noinline)
+#define CITRA_NO_INLINE __declspec(noinline)
 #else
-#define CYTRUS_NO_INLINE __attribute__((noinline))
+#define CITRA_NO_INLINE __attribute__((noinline))
 #endif
 
 #ifdef _MSC_VER
-#define CYTRUS_NO_RETURN __declspec(noreturn)
+#define CITRA_NO_RETURN __declspec(noreturn)
 #else
-#define CYTRUS_NO_RETURN __attribute__((noreturn))
+#define CITRA_NO_RETURN __attribute__((noreturn))
 #endif
 
 #ifdef _MSC_VER

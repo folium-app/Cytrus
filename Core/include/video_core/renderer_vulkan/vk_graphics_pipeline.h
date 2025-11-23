@@ -1,4 +1,4 @@
-// Copyright 2023 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -40,7 +40,7 @@ private:
 namespace Vulkan {
 
 class Instance;
-class RenderpassCache;
+class RenderManager;
 
 constexpr u32 MAX_SHADER_STAGES = 3;
 constexpr u32 MAX_VERTEX_ATTRIBUTES = 16;
@@ -54,6 +54,7 @@ union RasterizationState {
     u8 value = 0;
     BitField<0, 2, Pica::PipelineRegs::TriangleTopology> topology;
     BitField<4, 2, Pica::RasterizerRegs::CullMode> cull_mode;
+    BitField<6, 1, u8> flip_viewport;
 };
 
 union DepthStencilState {
@@ -126,7 +127,7 @@ struct AttachmentInfo {
 };
 
 /**
- * Information about a graphics/compute pipeline
+ * Information about a graphics pipeline
  */
 struct PipelineInfo {
     BlendingState blending;
@@ -165,7 +166,7 @@ struct Shader : public Common::AsyncHandle {
 
 class GraphicsPipeline : public Common::AsyncHandle {
 public:
-    explicit GraphicsPipeline(const Instance& instance, RenderpassCache& renderpass_cache,
+    explicit GraphicsPipeline(const Instance& instance, RenderManager& renderpass_cache,
                               const PipelineInfo& info, vk::PipelineCache pipeline_cache,
                               vk::PipelineLayout layout, std::array<Shader*, 3> stages,
                               Common::ThreadWorker* worker);
@@ -181,7 +182,7 @@ public:
 
 private:
     const Instance& instance;
-    RenderpassCache& renderpass_cache;
+    RenderManager& renderpass_cache;
     Common::ThreadWorker* worker;
 
     vk::UniquePipeline pipeline;

@@ -1,21 +1,31 @@
-// Copyright 2013 Dolphin Emulator Project / 2014 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
+// Licensed under GPLv2 or any later version
+// Refer to the license.txt file included.
+
+// Copyright Dolphin Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <cstdio>
 #include <functional>
 #include <ios>
 #include <limits>
+#include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <vector>
+#include <boost/serialization/base_object.hpp>
+#include <boost/serialization/export.hpp>
 #include <boost/serialization/split_member.hpp>
 #include <boost/serialization/string.hpp>
+#include <boost/serialization/vector.hpp>
 #include <boost/serialization/wrapper.hpp>
 #include "common/common_types.h"
 #ifdef _MSC_VER
@@ -31,9 +41,17 @@ enum class UserPath {
     ConfigDir,
     DLLDir,
     DumpDir,
+    IconsDir,
+    LegacyCitraCacheDir,  // LegacyXXXCacheDir and LegacyXXXConfigDir are only defined if migrating
+    LegacyCitraConfigDir, // these directories is necessary (aka not a child of LegacyXXXUserDir)
+    LegacyCitraUserDir,
+    LegacyLime3DSCacheDir,
+    LegacyLime3DSConfigDir,
+    LegacyLime3DSUserDir,
     LoadDir,
     LogDir,
     NANDDir,
+    PlayTimeDir,
     RootDir,
     SDMCDir,
     ShaderDir,
@@ -154,15 +172,16 @@ bool ForeachDirectoryEntry(u64* num_entries_out, const std::string& directory,
  * @param directory the parent directory to start scanning from
  * @param parent_entry FSTEntry where the filesystem tree results will be stored.
  * @param recursion Number of children directories to read before giving up.
+ * @param stop_flag Optional stop flag, the scan will stop if it becomes true
  * @return the total number of files/directories found
  */
 u64 ScanDirectoryTree(const std::string& directory, FSTEntry& parent_entry,
-                      unsigned int recursion = 0);
+                      unsigned int recursion = 0, std::atomic<bool>* stop_flag = nullptr);
 
 /**
  * Recursively searches through a FSTEntry for files, and stores them.
  * @param directory The FSTEntry to start scanning from
- * @param parent_entry FSTEntry vector where the results will be stored.
+ * @param output FSTEntry vector where the results will be stored.
  */
 void GetAllFilesFromNestedEntries(FSTEntry& directory, std::vector<FSTEntry>& output);
 
@@ -182,11 +201,11 @@ void SetUserPath(const std::string& path = "");
 
 void SetCurrentRomPath(const std::string& path);
 
-// Returns a pointer to a string with a Cytrus data dir in the user's home
+// Returns a pointer to a string with a Citra data dir in the user's home
 // directory. To be used in "multi-user" mode (that is, installed).
 [[nodiscard]] const std::string& GetUserPath(UserPath path);
 
-// Returns a pointer to a string with the default Cytrus data dir in the user's home
+// Returns a pointer to a string with the default Citra data dir in the user's home
 // directory.
 [[nodiscard]] const std::string& GetDefaultUserPath(UserPath path);
 
@@ -200,6 +219,9 @@ void UpdateUserPath(UserPath path, const std::string& filename);
 #ifdef _WIN32
 [[nodiscard]] const std::string& GetExeDirectory();
 [[nodiscard]] std::string AppDataRoamingDirectory();
+#else
+[[nodiscard]] const std::string GetHomeDirectory();
+[[nodiscard]] const std::string GetUserDirectory(const std::string& envvar);
 #endif
 
 std::size_t WriteStringToFile(bool text_file, const std::string& filename, std::string_view str);
@@ -258,6 +280,8 @@ enum class DirectorySeparator {
     std::string_view path,
     DirectorySeparator directory_separator = DirectorySeparator::ForwardSlash);
 
+struct CryptoIOFileImpl;
+
 // simple wrapper for cstdlib file functions to
 // hopefully will make error checking easier
 // and make forgetting an fclose() harder
@@ -266,18 +290,18 @@ public:
     IOFile();
 
     // flags is used for windows specific file open mode flags, which
-    // allows cytrus to open the logs in shared write mode, so that the file
-    // isn't considered "locked" while cytrus is open and people can open the log file and view it
+    // allows citra to open the logs in shared write mode, so that the file
+    // isn't considered "locked" while citra is open and people can open the log file and view it
     IOFile(const std::string& filename, const char openmode[], int flags = 0);
 
-    ~IOFile();
+    virtual ~IOFile();
 
     IOFile(IOFile&& other) noexcept;
     IOFile& operator=(IOFile&& other) noexcept;
 
     void Swap(IOFile& other) noexcept;
 
-    bool Close();
+    virtual bool Close();
 
     template <typename T>
     std::size_t ReadArray(T* data, std::size_t length) {
@@ -343,15 +367,60 @@ public:
         return WriteArray(str.data(), str.length());
     }
 
-    [[nodiscard]] bool IsOpen() const {
+    /**
+     * Reads a span of T data from a file sequentially.
+     * This function reads from the current position of the file pointer and
+     * advances it by the (count of T * sizeof(T)) bytes successfully read.
+     *
+     * Failures occur when:
+     * - The file is not open
+     * - The opened file lacks read permissions
+     * - Attempting to read beyond the end-of-file
+     *
+     * @tparam T Data type
+     *
+     * @param data Span of T data
+     *
+     * @returns Count of T data successfully read.
+     */
+    template <typename T>
+    [[nodiscard]] size_t ReadSpan(std::span<T> data) {
+        static_assert(std::is_trivially_copyable_v<T>, "Data type must be trivially copyable.");
+
+        return ReadImpl(data.data(), data.size(), sizeof(T));
+    }
+
+    /**
+     * Writes a span of T data to a file sequentially.
+     * This function writes from the current position of the file pointer and
+     * advances it by the (count of T * sizeof(T)) bytes successfully written.
+     *
+     * Failures occur when:
+     * - The file is not open
+     * - The opened file lacks write permissions
+     *
+     * @tparam T Data type
+     *
+     * @param data Span of T data
+     *
+     * @returns Count of T data successfully written.
+     */
+    template <typename T>
+    [[nodiscard]] size_t WriteSpan(std::span<const T> data) {
+        static_assert(std::is_trivially_copyable_v<T>, "Data type must be trivially copyable.");
+
+        return WriteImpl(data.data(), data.size(), sizeof(T));
+    }
+
+    [[nodiscard]] virtual bool IsOpen() const {
         return nullptr != m_file;
     }
 
     // m_good is set to false when a read, write or other function fails
-    [[nodiscard]] bool IsGood() const {
+    [[nodiscard]] virtual bool IsGood() const {
         return m_good;
     }
-    [[nodiscard]] int GetFd() const {
+    [[nodiscard]] virtual int GetFd() const {
 #ifdef ANDROID
         return m_fd;
 #else
@@ -364,33 +433,55 @@ public:
         return IsGood();
     }
 
-    bool Seek(s64 off, int origin);
-    [[nodiscard]] u64 Tell() const;
-    [[nodiscard]] u64 GetSize() const;
-    bool Resize(u64 size);
-    bool Flush();
+    bool Seek(s64 off, int origin) {
+        return SeekImpl(off, origin);
+    }
+    u64 Tell() const {
+        return TellImpl();
+    }
+    virtual u64 GetSize() const;
+    virtual bool Resize(u64 size);
+    virtual bool Flush();
 
     // clear error state
-    void Clear() {
+    virtual void Clear() {
         m_good = true;
         std::clearerr(m_file);
     }
 
+    virtual bool IsCrypto() {
+        return false;
+    }
+
+    virtual bool IsCompressed() {
+        return false;
+    }
+
+    virtual const std::string& Filename() const {
+        return filename;
+    }
+
+protected:
+    friend struct CryptoIOFileImpl;
+
+    virtual bool Open();
+
+    virtual std::size_t ReadImpl(void* data, std::size_t length, std::size_t data_size);
+    virtual std::size_t ReadAtImpl(void* data, std::size_t length, std::size_t data_size,
+                                   std::size_t offset);
+    virtual std::size_t WriteImpl(const void* data, std::size_t length, std::size_t data_size);
+
+    virtual bool SeekImpl(s64 off, int origin);
+    virtual u64 TellImpl() const;
+
 private:
-    std::size_t ReadImpl(void* data, std::size_t length, std::size_t data_size);
-    std::size_t ReadAtImpl(void* data, std::size_t length, std::size_t data_size,
-                           std::size_t offset);
-    std::size_t WriteImpl(const void* data, std::size_t length, std::size_t data_size);
-
-    bool Open();
-
     std::FILE* m_file = nullptr;
     int m_fd = -1;
     bool m_good = true;
 
     std::string filename;
     std::string openmode;
-    u32 flags;
+    u32 flags = 0;
 
     template <class Archive>
     void serialize(Archive& ar, const unsigned int) {
@@ -410,6 +501,37 @@ private:
     friend class boost::serialization::access;
 };
 
+class CryptoIOFile : public IOFile {
+public:
+    CryptoIOFile();
+
+    // flags is used for windows specific file open mode flags, which
+    // allows citra to open the logs in shared write mode, so that the file
+    // isn't considered "locked" while citra is open and people can open the log file and view it
+    CryptoIOFile(const std::string& filename, const char openmode[], const std::vector<u8>& aes_key,
+                 const std::vector<u8>& aes_iv, int flags = 0);
+
+    bool IsCrypto() override {
+        return true;
+    }
+
+    ~CryptoIOFile() override;
+
+private:
+    std::unique_ptr<CryptoIOFileImpl> impl;
+
+    std::size_t ReadImpl(void* data, std::size_t length, std::size_t data_size) override;
+    std::size_t ReadAtImpl(void* data, std::size_t length, std::size_t data_size,
+                           std::size_t offset) override;
+    std::size_t WriteImpl(const void* data, std::size_t length, std::size_t data_size) override;
+
+    bool SeekImpl(s64 off, int origin) override;
+
+    template <class Archive>
+    void serialize(Archive& ar, const unsigned int);
+    friend class boost::serialization::access;
+};
+
 template <std::ios_base::openmode o, typename T>
 void OpenFStream(T& fstream, const std::string& filename);
 } // namespace FileUtil
@@ -423,3 +545,6 @@ void OpenFStream(T& fstream, const std::string& filename, std::ios_base::openmod
     fstream.open(filename, openmode);
 #endif
 }
+
+BOOST_CLASS_EXPORT_KEY(FileUtil::IOFile)
+BOOST_CLASS_EXPORT_KEY(FileUtil::CryptoIOFile)

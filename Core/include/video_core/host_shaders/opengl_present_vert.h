@@ -7,7 +7,7 @@
 #include <string_view>
 
 namespace HostShaders {
-// clang-format off
+
 constexpr std::string_view OPENGL_PRESENT_VERT = {
 "// Copyright 2023 Citra Emulator Project\n"
 "// Licensed under GPLv2 or any later version\n"
@@ -34,7 +34,6 @@ constexpr std::string_view OPENGL_PRESENT_VERT = {
 "}\n"
 "\n"
 
-    // clang-format on
 };
 
 } // namespace HostShaders

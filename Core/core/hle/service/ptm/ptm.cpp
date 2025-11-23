@@ -1,4 +1,4 @@
-// Copyright 2015 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -34,7 +34,7 @@ void Module::Interface::GetAdapterState(Kernel::HLERequestContext& ctx) {
     rb.Push(ResultSuccess);
     rb.Push(ptm->battery_is_charging);
 
-    LOG_WARNING(Service_PTM, "(STUBBED) called");
+    LOG_DEBUG(Service_PTM, "(STUBBED) called");
 }
 
 void Module::Interface::GetShellState(Kernel::HLERequestContext& ctx) {
@@ -52,7 +52,7 @@ void Module::Interface::GetBatteryLevel(Kernel::HLERequestContext& ctx) {
     rb.Push(ResultSuccess);
     rb.Push(static_cast<u32>(ChargeLevels::CompletelyFull)); // Set to a completely full battery
 
-    LOG_WARNING(Service_PTM, "(STUBBED) called");
+    LOG_DEBUG(Service_PTM, "(STUBBED) called");
 }
 
 void Module::Interface::GetBatteryChargeState(Kernel::HLERequestContext& ctx) {
@@ -62,7 +62,7 @@ void Module::Interface::GetBatteryChargeState(Kernel::HLERequestContext& ctx) {
     rb.Push(ResultSuccess);
     rb.Push(ptm->battery_is_charging);
 
-    LOG_WARNING(Service_PTM, "(STUBBED) called");
+    LOG_DEBUG(Service_PTM, "(STUBBED) called");
 }
 
 void Module::Interface::GetPedometerState(Kernel::HLERequestContext& ctx) {
@@ -72,7 +72,7 @@ void Module::Interface::GetPedometerState(Kernel::HLERequestContext& ctx) {
     rb.Push(ResultSuccess);
     rb.Push(ptm->pedometer_is_counting);
 
-    LOG_WARNING(Service_PTM, "(STUBBED) called");
+    LOG_DEBUG(Service_PTM, "(STUBBED) called");
 }
 
 void Module::Interface::GetStepHistory(Kernel::HLERequestContext& ctx) {
@@ -84,9 +84,8 @@ void Module::Interface::GetStepHistory(Kernel::HLERequestContext& ctx) {
     ASSERT_MSG(sizeof(u16) * hours == buffer.GetSize(),
                "Buffer for steps count has incorrect size");
 
-    // Stub: set zero steps count for every hour
+    const u16_le steps_per_hour = Settings::values.steps_per_hour.GetValue();
     for (u32 i = 0; i < hours; ++i) {
-        const u16_le steps_per_hour = 0;
         buffer.Write(&steps_per_hour, i * sizeof(u16), sizeof(u16));
     }
 
@@ -158,7 +157,8 @@ static void WriteGameCoinData(GameCoin gamecoin_data) {
     // If the archive didn't exist, create the files inside
     if (archive_result.Code() == FileSys::ResultNotFormatted) {
         // Format the archive to create the directories
-        extdata_archive_factory.Format(archive_path, FileSys::ArchiveFormatInfo(), 0);
+        extdata_archive_factory.FormatAsExtData(archive_path, FileSys::ArchiveFormatInfo(), 0, 0, 0,
+                                                std::nullopt);
         // Open it again to get a valid archive now that the folder exists
         archive = extdata_archive_factory.Open(archive_path, 0).Unwrap();
         // Create the game coin file
@@ -174,7 +174,8 @@ static void WriteGameCoinData(GameCoin gamecoin_data) {
     auto gamecoin_result = archive->OpenFile(gamecoin_path, open_mode);
     if (gamecoin_result.Succeeded()) {
         auto gamecoin = std::move(gamecoin_result).Unwrap();
-        gamecoin->Write(0, sizeof(GameCoin), true, reinterpret_cast<const u8*>(&gamecoin_data));
+        gamecoin->Write(0, sizeof(GameCoin), true, false,
+                        reinterpret_cast<const u8*>(&gamecoin_data));
         gamecoin->Close();
     }
 }
@@ -224,6 +225,7 @@ Module::Module(Core::System& system_) : system(system_) {
 
 template <class Archive>
 void Module::serialize(Archive& ar, const unsigned int) {
+    DEBUG_SERIALIZATION_POINT;
     ar & shell_open;
     ar & battery_is_charging;
     ar & pedometer_is_counting;

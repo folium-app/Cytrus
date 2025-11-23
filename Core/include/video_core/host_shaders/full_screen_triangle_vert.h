@@ -7,7 +7,7 @@
 #include <string_view>
 
 namespace HostShaders {
-// clang-format off
+
 constexpr std::string_view FULL_SCREEN_TRIANGLE_VERT = {
 "// SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project\n"
 "// SPDX-License-Identifier: GPL-2.0-or-later\n"
@@ -44,7 +44,6 @@ constexpr std::string_view FULL_SCREEN_TRIANGLE_VERT = {
 "}\n"
 "\n"
 
-    // clang-format on
 };
 
 } // namespace HostShaders

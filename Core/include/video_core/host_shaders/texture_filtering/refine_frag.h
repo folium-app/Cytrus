@@ -7,7 +7,7 @@
 #include <string_view>
 
 namespace HostShaders {
-// clang-format off
+
 constexpr std::string_view REFINE_FRAG = {
 "// MIT License\n"
 "//\n"
@@ -147,7 +147,6 @@ constexpr std::string_view REFINE_FRAG = {
 "}\n"
 "\n"
 
-    // clang-format on
 };
 
 } // namespace HostShaders

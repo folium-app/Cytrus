@@ -1,4 +1,4 @@
-// Copyright 2014 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -40,7 +40,7 @@ std::string_view GetGraphicsAPIName(GraphicsAPI api) {
 
 std::string_view GetTextureFilterName(TextureFilter filter) {
     switch (filter) {
-    case TextureFilter::None:
+    case TextureFilter::NoFilter:
         return "None";
     case TextureFilter::Anime4K:
         return "Anime4K";
@@ -74,20 +74,24 @@ std::string_view GetTextureSamplingName(TextureSampling sampling) {
 
 Values values = {};
 static bool configuring_global = true;
+bool is_temporary_frame_limit;
+double temporary_frame_limit;
 
 void LogSettings() {
     const auto log_setting = [](std::string_view name, const auto& value) {
         LOG_INFO(Config, "{}: {}", name, value);
     };
 
-    LOG_INFO(Config, "Cytrus Configuration:");
+    LOG_INFO(Config, "Azahar Configuration:");
     log_setting("Core_UseCpuJit", values.use_cpu_jit.GetValue());
     log_setting("Core_CPUClockPercentage", values.cpu_clock_percentage.GetValue());
+    log_setting("Controller_UseArticController", values.use_artic_base_controller.GetValue());
     log_setting("Renderer_UseGLES", values.use_gles.GetValue());
     log_setting("Renderer_GraphicsAPI", GetGraphicsAPIName(values.graphics_api.GetValue()));
     log_setting("Renderer_AsyncShaders", values.async_shader_compilation.GetValue());
     log_setting("Renderer_AsyncPresentation", values.async_presentation.GetValue());
     log_setting("Renderer_SpirvShaderGen", values.spirv_shader_gen.GetValue());
+    log_setting("Renderer_DisableSpirvOptimizer", values.disable_spirv_optimizer.GetValue());
     log_setting("Renderer_Debug", values.renderer_debug.GetValue());
     log_setting("Renderer_UseHwShader", values.use_hw_shader.GetValue());
     log_setting("Renderer_ShadersAccurateMul", values.shaders_accurate_mul.GetValue());
@@ -100,6 +104,8 @@ void LogSettings() {
     log_setting("Renderer_TextureFilter", GetTextureFilterName(values.texture_filter.GetValue()));
     log_setting("Renderer_TextureSampling",
                 GetTextureSamplingName(values.texture_sampling.GetValue()));
+    log_setting("Renderer_DelayGameRenderThreasUs", values.delay_game_render_thread_us.GetValue());
+    log_setting("Renderer_DisableRightEyeRender", values.disable_right_eye_render.GetValue());
     log_setting("Stereoscopy_Render3d", values.render_3d.GetValue());
     log_setting("Stereoscopy_Factor3d", values.factor_3d.GetValue());
     log_setting("Stereoscopy_MonoRenderOption", values.mono_render_option.GetValue());
@@ -107,9 +113,13 @@ void LogSettings() {
         log_setting("Renderer_AnaglyphShader", values.anaglyph_shader_name.GetValue());
     }
     log_setting("Layout_LayoutOption", values.layout_option.GetValue());
+    log_setting("Layout_PortraitLayoutOption", values.portrait_layout_option.GetValue());
+    log_setting("Layout_SecondaryDisplayLayout", values.secondary_display_layout.GetValue());
     log_setting("Layout_SwapScreen", values.swap_screen.GetValue());
     log_setting("Layout_UprightScreen", values.upright_screen.GetValue());
+    log_setting("Layout_ScreenGap", values.screen_gap.GetValue());
     log_setting("Layout_LargeScreenProportion", values.large_screen_proportion.GetValue());
+    log_setting("Layout_SmallScreenPosition", values.small_screen_position.GetValue());
     log_setting("Utility_DumpTextures", values.dump_textures.GetValue());
     log_setting("Utility_CustomTextures", values.custom_textures.GetValue());
     log_setting("Utility_PreloadTextures", values.preload_textures.GetValue());
@@ -120,8 +130,8 @@ void LogSettings() {
     log_setting("Audio_OutputDevice", values.output_device.GetValue());
     log_setting("Audio_InputType", values.input_type.GetValue());
     log_setting("Audio_InputDevice", values.input_device.GetValue());
-    log_setting("Audio_EnableRealtime", values.enable_realtime_audio.GetValue());
     log_setting("Audio_EnableAudioStretching", values.enable_audio_stretching.GetValue());
+    log_setting("Audio_EnableRealtime", values.enable_realtime_audio.GetValue());
     using namespace Service::CAM;
     log_setting("Camera_OuterRightName", values.camera_name[OuterRightCamera]);
     log_setting("Camera_OuterRightConfig", values.camera_config[OuterRightCamera]);
@@ -146,6 +156,7 @@ void LogSettings() {
     log_setting("Debugging_DelayStartForLLEModules", values.delay_start_for_lle_modules.GetValue());
     log_setting("Debugging_UseGdbstub", values.use_gdbstub.GetValue());
     log_setting("Debugging_GdbstubPort", values.gdbstub_port.GetValue());
+    log_setting("Debugging_InstantDebugLog", values.instant_debug_log.GetValue());
 }
 
 bool IsConfiguringGlobal() {
@@ -194,10 +205,15 @@ void RestoreGlobalState(bool is_powered_on) {
     values.frame_limit.SetGlobal(true);
     values.texture_filter.SetGlobal(true);
     values.texture_sampling.SetGlobal(true);
+    values.delay_game_render_thread_us.SetGlobal(true);
     values.layout_option.SetGlobal(true);
+    values.portrait_layout_option.SetGlobal(true);
+    values.secondary_display_layout.SetGlobal(true);
     values.swap_screen.SetGlobal(true);
     values.upright_screen.SetGlobal(true);
     values.large_screen_proportion.SetGlobal(true);
+    values.screen_gap.SetGlobal(true);
+    values.small_screen_position.SetGlobal(true);
     values.bg_red.SetGlobal(true);
     values.bg_green.SetGlobal(true);
     values.bg_blue.SetGlobal(true);
@@ -209,6 +225,7 @@ void RestoreGlobalState(bool is_powered_on) {
     values.dump_textures.SetGlobal(true);
     values.custom_textures.SetGlobal(true);
     values.preload_textures.SetGlobal(true);
+    values.disable_right_eye_render.SetGlobal(true);
 }
 
 void LoadProfile(int index) {
@@ -237,5 +254,4 @@ void DeleteProfile(int index) {
 void RenameCurrentProfile(std::string new_name) {
     Settings::values.current_input_profile.name = std::move(new_name);
 }
-
 } // namespace Settings

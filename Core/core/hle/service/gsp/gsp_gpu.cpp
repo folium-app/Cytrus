@@ -1,4 +1,4 @@
-// Copyright 2014 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -9,6 +9,8 @@
 #include <boost/serialization/shared_ptr.hpp>
 #include "common/archives.h"
 #include "common/bit_field.h"
+#include "common/hacks/hack_manager.h"
+#include "common/settings.h"
 #include "core/core.h"
 #include "core/hle/ipc_helpers.h"
 #include "core/hle/kernel/shared_memory.h"
@@ -19,6 +21,8 @@
 #include "video_core/gpu.h"
 #include "video_core/gpu_debugger.h"
 #include "video_core/pica/regs_lcd.h"
+#include "video_core/renderer_base.h"
+#include "video_core/right_eye_disabler.h"
 
 SERIALIZE_EXPORT_IMPL(Service::GSP::SessionData)
 SERIALIZE_EXPORT_IMPL(Service::GSP::GSP_GPU)
@@ -408,21 +412,56 @@ void GSP_GPU::SetLcdForceBlack(Kernel::HLERequestContext& ctx) {
 void GSP_GPU::TriggerCmdReqQueue(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp(ctx);
 
-    // Iterate through each command.
     auto* command_buffer = GetCommandBuffer(active_thread_id);
     auto& gpu = system.GPU();
-    for (u32 i = 0; i < command_buffer->number_commands; i++) {
-        gpu.Debugger().GXCommandProcessed(command_buffer->commands[i]);
+
+    bool requires_delay = false;
+
+    while (command_buffer->number_commands) {
+        if (command_buffer->should_stop) {
+            command_buffer->status.Assign(CommandBuffer::STATUS_STOPPED);
+            break;
+        }
+        if (command_buffer->status == CommandBuffer::STATUS_STOPPED) {
+            break;
+        }
+
+        Command command = command_buffer->commands[command_buffer->index];
+        if (command.id == CommandId::SubmitCmdList && !requires_delay &&
+            Settings::values.delay_game_render_thread_us.GetValue() != 0) {
+            requires_delay = true;
+        }
+
+        // Decrease the number of commands remaining and increase the current index
+        command_buffer->number_commands.Assign(command_buffer->number_commands - 1);
+        command_buffer->index.Assign((command_buffer->index + 1) % 0xF);
+
+        gpu.Debugger().GXCommandProcessed(command);
 
         // Decode and execute command
-        gpu.Execute(command_buffer->commands[i]);
+        system.perf_stats->BeginGPUProcessing();
+        gpu.Execute(command);
+        system.perf_stats->EndGPUProcessing();
 
-        // Indicates that command has completed
-        command_buffer->number_commands.Assign(command_buffer->number_commands - 1);
+        if (command.stop) {
+            command_buffer->status.Assign(CommandBuffer::STATUS_STOPPED);
+        }
     }
 
-    IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
-    rb.Push(ResultSuccess);
+    if (requires_delay) {
+        ctx.RunAsync(
+            [](Kernel::HLERequestContext& ctx) {
+                return Settings::values.delay_game_render_thread_us.GetValue() * 1000;
+            },
+            [](Kernel::HLERequestContext& ctx) {
+                IPC::RequestBuilder rb(ctx, 1, 0);
+                rb.Push(ResultSuccess);
+            },
+            false);
+    } else {
+        IPC::RequestBuilder rb = rp.MakeBuilder(1, 0);
+        rb.Push(ResultSuccess);
+    }
 }
 
 void GSP_GPU::ImportDisplayCaptureInfo(Kernel::HLERequestContext& ctx) {
@@ -565,10 +604,19 @@ Result GSP_GPU::AcquireGpuRight(const Kernel::HLERequestContext& ctx,
     LOG_DEBUG(Service_GSP, "called flag={:08X} process={} thread_id={}", flag, process->process_id,
               session_data->thread_id);
 
+    bool right_eye_disable_allow =
+        Common::Hacks::hack_manager.GetHackAllowMode(Common::Hacks::HackType::RIGHT_EYE_DISABLE,
+                                                     process->codeset->program_id) !=
+        Common::Hacks::HackAllowMode::DISALLOW;
+    auto& gpu = system.GPU();
+    gpu.GetRightEyeDisabler().SetEnabled(right_eye_disable_allow);
+
     if (active_thread_id == session_data->thread_id) {
         return {ErrorDescription::AlreadyDone, ErrorModule::GX, ErrorSummary::Success,
                 ErrorLevel::Success};
     }
+
+    gpu.Renderer().Rasterizer()->SwitchDiskResources(process->codeset->program_id);
 
     if (blocking) {
         // TODO: The thread should be put to sleep until acquired.
@@ -580,6 +628,7 @@ Result GSP_GPU::AcquireGpuRight(const Kernel::HLERequestContext& ctx,
     }
 
     active_thread_id = session_data->thread_id;
+    active_client_thread_id = ctx.ClientThread()->thread_id;
     return ResultSuccess;
 }
 
@@ -608,6 +657,7 @@ void GSP_GPU::ReleaseRight(const SessionData* session_data) {
     ASSERT_MSG(active_thread_id == session_data->thread_id,
                "Wrong thread tried to release GPU right");
     active_thread_id = std::numeric_limits<u32>::max();
+    active_client_thread_id = std::numeric_limits<u32>::max();
 }
 
 void GSP_GPU::ReleaseRight(Kernel::HLERequestContext& ctx) {
@@ -673,9 +723,11 @@ SessionData* GSP_GPU::FindRegisteredThreadData(u32 thread_id) {
 
 template <class Archive>
 void GSP_GPU::serialize(Archive& ar, const unsigned int) {
+    DEBUG_SERIALIZATION_POINT;
     ar& boost::serialization::base_object<Kernel::SessionRequestHandler>(*this);
     ar & shared_memory;
     ar & active_thread_id;
+    ar & active_client_thread_id;
     ar & first_initialization;
     ar & used_thread_ids;
     ar & saved_vram;

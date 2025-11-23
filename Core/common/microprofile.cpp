@@ -3,5 +3,5 @@
 // Refer to the license.txt file included.
 
 // Includes the MicroProfile implementation in this file for compilation
-#define MICROPROFILE_IMPL 1
+#define MICROPROFILE_IMPL 0
 #include "common/microprofile.h"

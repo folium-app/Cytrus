@@ -8,7 +8,7 @@
 #else
 #include <dlfcn.h>
 #endif
-#include "common/dynamic_library/dynamic_library.h"
+#include "dynamic_library.h"
 
 namespace Common {
 

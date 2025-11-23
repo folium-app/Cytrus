@@ -5,7 +5,7 @@
 #pragma once
 
 #include "common/arch.h"
-#if CYTRUS_ARCH(arm64)
+#if CITRA_ARCH(arm64)
 
 #include <bitset>
 #include <initializer_list>
@@ -78,7 +78,8 @@ inline ABIFrameInfo ABI_CalculateFrameSize(std::bitset<64> regs, std::size_t fra
     return ABIFrameInfo{static_cast<u32>(total_size), static_cast<u32>(fprs_base_subtraction)};
 }
 
-inline void ABI_PushRegisters(oaknut::CodeGenerator& code, std::bitset<64> regs,
+template <typename Policy>
+inline void ABI_PushRegisters(oaknut::BasicCodeGenerator<Policy>& code, std::bitset<64> regs,
                               std::size_t frame_size = 0) {
     using namespace oaknut;
     using namespace oaknut::util;
@@ -137,7 +138,8 @@ inline void ABI_PushRegisters(oaknut::CodeGenerator& code, std::bitset<64> regs,
     }
 }
 
-inline void ABI_PopRegisters(oaknut::CodeGenerator& code, std::bitset<64> regs,
+template <typename Policy>
+inline void ABI_PopRegisters(oaknut::BasicCodeGenerator<Policy>& code, std::bitset<64> regs,
                              std::size_t frame_size = 0) {
     using namespace oaknut;
     using namespace oaknut::util;
@@ -198,4 +200,4 @@ inline void ABI_PopRegisters(oaknut::CodeGenerator& code, std::bitset<64> regs,
 
 } // namespace Common::A64
 
-#endif // CYTRUS_ARCH(arm64)
+#endif // CITRA_ARCH(arm64)

@@ -1,4 +1,4 @@
-// Copyright 2014 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -6,7 +6,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
-#include "bad_word_list.app.romfs.h"
+#include "romfs/bad_word_list.app.romfs.h"
 #include "common/archives.h"
 #include "common/common_types.h"
 #include "common/file_util.h"
@@ -15,6 +15,7 @@
 #include "common/string_util.h"
 #include "common/swap.h"
 #include "core/core.h"
+#include "core/file_sys/archive_artic.h"
 #include "core/file_sys/archive_ncch.h"
 #include "core/file_sys/errors.h"
 #include "core/file_sys/ivfc_archive.h"
@@ -22,9 +23,9 @@
 #include "core/hle/service/am/am.h"
 #include "core/hle/service/fs/archive.h"
 #include "core/loader/loader.h"
-#include "country_list.app.romfs.h"
-#include "mii.app.romfs.h"
-#include "shared_font.app.romfs.h"
+#include "romfs/country_list.app.romfs.h"
+#include "romfs/mii.app.romfs.h"
+#include "romfs/shared_font.app.romfs.h"
 
 SERIALIZE_EXPORT_IMPL(FileSys::NCCHArchive)
 SERIALIZE_EXPORT_IMPL(FileSys::NCCHFile)
@@ -69,8 +70,9 @@ Path MakeNCCHFilePath(NCCHFileOpenType open_type, u32 content_index, NCCHFilePat
     return FileSys::Path(std::move(file));
 }
 
-ResultVal<std::unique_ptr<FileBackend>> NCCHArchive::OpenFile(const Path& path,
-                                                              const Mode& mode) const {
+ResultVal<std::unique_ptr<FileBackend>> NCCHArchive::OpenFile(const Path& path, const Mode& mode,
+                                                              u32 attributes) {
+
     if (path.GetType() != LowPathType::Binary) {
         LOG_ERROR(Service_FS, "Path need to be Binary");
         return ResultInvalidPath;
@@ -131,6 +133,9 @@ ResultVal<std::unique_ptr<FileBackend>> NCCHArchive::OpenFile(const Path& path,
         constexpr u32 region_manifest = 0x00010402;
         constexpr u32 ng_word_list = 0x00010302;
         constexpr u32 shared_font = 0x00014002;
+        constexpr u32 shared_font_CHN = 0x00014102;
+        constexpr u32 shared_font_KOR = 0x00014202;
+        constexpr u32 shared_font_TWN = 0x00014302;
 
         u32 high = static_cast<u32>(title_id >> 32);
         u32 low = static_cast<u32>(title_id & 0xFFFFFFFF);
@@ -154,6 +159,11 @@ ResultVal<std::unique_ptr<FileBackend>> NCCHArchive::OpenFile(const Path& path,
                 LOG_WARNING(
                     Service_FS,
                     "Shared Font file missing. Loading open source replacement from memory");
+                archive_data =
+                    std::vector<u8>(std::begin(SHARED_FONT_DATA), std::end(SHARED_FONT_DATA));
+            } else if (low == shared_font_CHN || low == shared_font_KOR || low == shared_font_TWN) {
+                LOG_ERROR(Service_FS, "CHN/KOR/TWN shared font file missing. Loading open source "
+                                      "replacement, but text will not display properly");
                 archive_data =
                     std::vector<u8>(std::begin(SHARED_FONT_DATA), std::end(SHARED_FONT_DATA));
             }
@@ -207,14 +217,14 @@ Result NCCHArchive::DeleteDirectoryRecursively(const Path& path) const {
     return ResultUnknown;
 }
 
-Result NCCHArchive::CreateFile(const Path& path, u64 size) const {
+Result NCCHArchive::CreateFile(const Path& path, u64 size, u32 attributes) const {
     LOG_CRITICAL(Service_FS, "Attempted to create a file in an NCCH archive ({}).", GetName());
     // TODO: Verify error code
     return Result(ErrorDescription::NotAuthorized, ErrorModule::FS, ErrorSummary::NotSupported,
                   ErrorLevel::Permanent);
 }
 
-Result NCCHArchive::CreateDirectory(const Path& path) const {
+Result NCCHArchive::CreateDirectory(const Path& path, u32 attributes) const {
     LOG_CRITICAL(Service_FS, "Attempted to create a directory in an NCCH archive ({}).", GetName());
     // TODO(wwylele): Use correct error code
     return ResultUnknown;
@@ -226,7 +236,7 @@ Result NCCHArchive::RenameDirectory(const Path& src_path, const Path& dest_path)
     return ResultUnknown;
 }
 
-ResultVal<std::unique_ptr<DirectoryBackend>> NCCHArchive::OpenDirectory(const Path& path) const {
+ResultVal<std::unique_ptr<DirectoryBackend>> NCCHArchive::OpenDirectory(const Path& path) {
     LOG_CRITICAL(Service_FS, "Attempted to open a directory within an NCCH archive ({}).",
                  GetName().c_str());
     // TODO(shinyquagsire23): Use correct error code
@@ -255,7 +265,7 @@ ResultVal<std::size_t> NCCHFile::Read(const u64 offset, const std::size_t length
 }
 
 ResultVal<std::size_t> NCCHFile::Write(const u64 offset, const std::size_t length, const bool flush,
-                                       const u8* buffer) {
+                                       const bool update_timestamp, const u8* buffer) {
     LOG_ERROR(Service_FS, "Attempted to write to NCCH file");
     // TODO(shinyquagsire23): Find error code
     return 0ULL;
@@ -274,6 +284,13 @@ ArchiveFactory_NCCH::ArchiveFactory_NCCH() {}
 
 ResultVal<std::unique_ptr<ArchiveBackend>> ArchiveFactory_NCCH::Open(const Path& path,
                                                                      u64 program_id) {
+
+    if (IsUsingArtic()) {
+        EnsureCacheCreated();
+        return ArticArchive::Open(artic_client, Service::FS::ArchiveIdCode::NCCH, path,
+                                  Core::PerfStats::PerfArticEventBits::NONE, *this, false);
+    }
+
     if (path.GetType() != LowPathType::Binary) {
         LOG_ERROR(Service_FS, "Path need to be Binary");
         return ResultInvalidPath;
@@ -293,7 +310,7 @@ ResultVal<std::unique_ptr<ArchiveBackend>> ArchiveFactory_NCCH::Open(const Path&
 }
 
 Result ArchiveFactory_NCCH::Format(const Path& path, const FileSys::ArchiveFormatInfo& format_info,
-                                   u64 program_id) {
+                                   u64 program_id, u32 directory_buckets, u32 file_buckets) {
     LOG_ERROR(Service_FS, "Attempted to format a NCCH archive.");
     // TODO: Verify error code
     return Result(ErrorDescription::NotAuthorized, ErrorModule::FS, ErrorSummary::NotSupported,

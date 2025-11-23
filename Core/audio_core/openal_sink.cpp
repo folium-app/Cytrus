@@ -75,6 +75,7 @@ OpenALSink::OpenALSink(std::string device_name) : impl(std::make_unique<Impl>())
         reinterpret_cast<LPALBUFFERCALLBACKSOFT>(alGetProcAddress("alBufferCallbackSOFT"));
     alBufferCallbackSOFT(impl->buffer, AL_FORMAT_STEREO16, native_sample_rate,
                          reinterpret_cast<ALBUFFERCALLBACKTYPESOFT>(&Impl::Callback), impl.get());
+
     if (alGetError() != AL_NO_ERROR) {
         LOG_CRITICAL(Audio_Sink, "alBufferCallbackSOFT failed: {}", alGetError());
         Close();

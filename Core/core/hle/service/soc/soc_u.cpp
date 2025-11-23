@@ -1,4 +1,4 @@
-// Copyright 2014 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -19,6 +19,7 @@
 #include "core/hle/kernel/shared_memory.h"
 #include "core/hle/result.h"
 #include "core/hle/service/soc/soc_u.h"
+#include "network/socket_manager.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -1096,6 +1097,8 @@ void SOC_U::Close(Kernel::HLERequestContext& ctx) {
 
     if (ret != 0) {
         ret = TranslateError(GET_ERRNO);
+    } else {
+        created_sockets.erase(socket_handle);
     }
 
     LOG_DEBUG(Service_SOC, "pid={}, fd={}, ret={}", pid, socket_handle, static_cast<s32>(ret));
@@ -2221,17 +2224,12 @@ SOC_U::SOC_U() : ServiceFramework("soc:U", 18) {
 
     RegisterHandlers(functions);
 
-#ifdef _WIN32
-    WSADATA data;
-    WSAStartup(MAKEWORD(2, 2), &data);
-#endif
+    Network::SocketManager::EnableSockets();
 }
 
 SOC_U::~SOC_U() {
     CloseAndDeleteAllSockets();
-#ifdef _WIN32
-    WSACleanup();
-#endif
+    Network::SocketManager::DisableSockets();
 }
 
 std::optional<SOC_U::InterfaceInfo> SOC_U::GetDefaultInterfaceInfo() {
@@ -2240,18 +2238,15 @@ std::optional<SOC_U::InterfaceInfo> SOC_U::GetDefaultInterfaceInfo() {
     }
 
     InterfaceInfo ret;
-#ifdef _WIN32
-    SOCKET sock_fd = -1;
-#else
-    int sock_fd = -1;
-#endif
+
+    SocketHolder::SOCKET sock_fd = -1;
     bool interface_found = false;
     struct sockaddr_in s_in = {.sin_family = AF_INET, .sin_port = htons(53), .sin_addr = {}};
     s_in.sin_addr.s_addr = inet_addr("8.8.8.8");
     socklen_t s_info_len = sizeof(struct sockaddr_in);
     sockaddr_in s_info;
 
-    if (sock_fd = ::socket(AF_INET, SOCK_STREAM, 0); static_cast<int>(sock_fd) == -1) {
+    if ((sock_fd = ::socket(AF_INET, SOCK_STREAM, 0)) == static_cast<SocketHolder::SOCKET>(-1)) {
         return std::nullopt;
     }
 
@@ -2269,7 +2264,7 @@ std::optional<SOC_U::InterfaceInfo> SOC_U::GetDefaultInterfaceInfo() {
 
 #ifdef _WIN32
     sock_fd = WSASocket(AF_INET, SOCK_DGRAM, 0, 0, 0, 0);
-    if (static_cast<int>(sock_fd) == -1) {
+    if (sock_fd == static_cast<SocketHolder::SOCKET>(SOCKET_ERROR)) {
         return std::nullopt;
     }
 

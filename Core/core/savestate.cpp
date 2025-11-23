@@ -5,7 +5,7 @@
 #include <chrono>
 #include <sstream>
 #include <cryptopp/hex.h>
-#include <fmt/format.h>
+#include <fmt/ranges.h>
 #include "common/archives.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
@@ -13,6 +13,7 @@
 #include "common/swap.h"
 #include "common/zstd_compression.h"
 #include "core/core.h"
+#include "core/loader/loader.h"
 #include "core/movie.h"
 #include "core/savestate.h"
 #include "core/savestate_data.h"
@@ -82,14 +83,15 @@ static bool ValidateSaveState(const CSTHeader& header, SaveStateInfo& info, u64 
         }
 
         info.status = SaveStateInfo::ValidationStatus::RevisionDismatch;
+        return false;
     }
     return true;
 }
 
-std::vector<SaveStateInfo> ListSaveStates(u64 program_id, u64 movie_id) {
-    std::vector<SaveStateInfo> result;
+std::vector<std::pair<SaveStateInfo, std::optional<std::string>>> ListSaveStates(u64 program_id, u64 movie_id) {
+    std::vector<std::pair<SaveStateInfo, std::optional<std::string>>> result;
     result.reserve(SaveStateSlotCount);
-    for (u32 slot = 1; slot <= SaveStateSlotCount; ++slot) {
+    for (u32 slot = 0; slot <= SaveStateSlotCount; ++slot) {
         const auto path = GetSaveStatePath(program_id, movie_id, slot);
         if (!FileUtil::Exists(path)) {
             continue;
@@ -106,22 +108,31 @@ std::vector<SaveStateInfo> ListSaveStates(u64 program_id, u64 movie_id) {
         CSTHeader header;
         if (file.GetSize() < sizeof(header)) {
             LOG_ERROR(Core, "File too small {}", path);
+            result.emplace_back(std::make_pair(std::move(info), fmt::format("{} is too small", Common::Log::TrimSourcePath(file.Filename()))));
             continue;
         }
         if (file.ReadBytes(&header, sizeof(header)) != sizeof(header)) {
             LOG_ERROR(Core, "Could not read from file {}", path);
+            result.emplace_back(std::make_pair(std::move(info), fmt::format("{} does not have a valid header", Common::Log::TrimSourcePath(file.Filename()))));
             continue;
         }
         if (!ValidateSaveState(header, info, program_id, movie_id)) {
+            result.emplace_back(std::make_pair(std::move(info), fmt::format("{} was created with a different build. Validation failed but the save was still made available", Common::Log::TrimSourcePath(file.Filename()))));
             continue;
         }
 
-        result.emplace_back(std::move(info));
+        result.emplace_back(std::make_pair(std::move(info), std::nullopt));
     }
     return result;
 }
 
 void System::SaveState(u32 slot) const {
+    if (app_loader) {
+        if (!app_loader->SupportsSaveStates()) {
+            throw std::runtime_error("The current app loader doesn't support save states");
+        }
+    }
+
     std::ostringstream sstream{std::ios_base::binary};
     // Serialize
     oarchive oa{sstream};
@@ -164,6 +175,11 @@ void System::SaveState(u32 slot) const {
 }
 
 void System::LoadState(u32 slot) {
+    if (app_loader) {
+        if (!app_loader->SupportsSaveStates()) {
+            throw std::runtime_error("The current app loader doesn't support save states");
+        }
+    }
     if (Network::GetRoomMember().lock()->IsConnected()) {
         throw std::runtime_error("Unable to load while connected to multiplayer");
     }

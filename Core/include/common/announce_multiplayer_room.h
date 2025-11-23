@@ -51,10 +51,10 @@ public:
 
     /**
      * Sets the Information that gets used for the announce
-     * @param uid The Id of the room
      * @param name The name of the room
      * @param description The room description
      * @param port The port of the room
+     * @param max_player ...
      * @param net_version The version of the libNetwork that gets used
      * @param has_password True if the room is passowrd protected
      * @param preferred_game The preferred game of the room

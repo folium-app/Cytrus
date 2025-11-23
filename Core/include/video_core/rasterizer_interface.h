@@ -1,4 +1,4 @@
-// Copyright 2015 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -19,7 +19,7 @@ struct MemoryFillConfig;
 
 namespace VideoCore {
 
-enum class LoadCallbackStage : u8 {
+enum class LoadCallbackStage {
     Prepare,
     Preload,
     Decompile,
@@ -38,9 +38,6 @@ public:
 
     /// Draw the current batch of triangles
     virtual void DrawTriangles() = 0;
-
-    /// Notify rasterizer that the specified PICA register has been changed
-    virtual void NotifyPicaRegisterChanged(u32 id) = 0;
 
     /// Notify rasterizer that all caches should be flushed to 3DS memory
     virtual void FlushAll() = 0;
@@ -78,9 +75,25 @@ public:
         return false;
     }
 
-    virtual void LoadDiskResources([[maybe_unused]] const std::atomic_bool& stop_loading,
-                                   [[maybe_unused]] const DiskResourceLoadCallback& callback) {}
+    virtual void LoadDefaultDiskResources(
+        [[maybe_unused]] const std::atomic_bool& stop_loading,
+        [[maybe_unused]] const DiskResourceLoadCallback& callback) {}
 
-    virtual void SyncEntireState() {}
+    virtual void SwitchDiskResources([[maybe_unused]] u64 title_id) {}
+
+    static void SetSwitchDiskResourcesCallback(const DiskResourceLoadCallback& callback) {
+        switch_disk_resources_callback = callback;
+    }
+
+    void SetAccurateMul(bool accurate_mul_) {
+        accurate_mul = accurate_mul_;
+    }
+
+protected:
+    bool accurate_mul = false;
+
+    // Rasterizer gets destroyed on reboot, so make the callback
+    // static until a better solution is found.
+    static DiskResourceLoadCallback switch_disk_resources_callback;
 };
 } // namespace VideoCore

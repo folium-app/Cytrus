@@ -1,4 +1,4 @@
-// Copyright 2014 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -33,6 +33,7 @@ enum class InitTicks : u32 {
     Fixed = 1,
 };
 
+/** Defines the layout option for desktop and mobile landscape */
 enum class LayoutOption : u32 {
     Default,
     SingleScreen,
@@ -42,22 +43,40 @@ enum class LayoutOption : u32 {
     SeparateWindows,
 #endif
     HybridScreen,
-    // Similiar to default, but better for mobile devices in portrait mode. Top screen in clamped to
-    // the top of the frame, and the bottom screen is enlarged to match the top screen.
-    MobilePortrait,
+    CustomLayout,
+};
 
-    // Similiar to LargeScreen, but better for mobile devices in landscape mode. The screens are
-    // clamped to the top of the frame, and the bottom screen is a bit bigger.
-    MobileLandscape,
+/** Defines the layout option for mobile portrait */
+enum class PortraitLayoutOption : u32 {
+    // formerly mobile portrait
+    PortraitTopFullWidth,
+    PortraitCustomLayout,
+    PortraitOriginal
+};
+
+enum class SecondaryDisplayLayout : u32 { None, TopScreenOnly, BottomScreenOnly, SideBySide };
+/** Defines where the small screen will appear relative to the large screen
+ * when in Large Screen mode
+ */
+enum class SmallScreenPosition : u32 {
+    TopRight,
+    MiddleRight,
+    BottomRight,
+    TopLeft,
+    MiddleLeft,
+    BottomLeft,
+    AboveLarge,
+    BelowLarge
 };
 
 enum class StereoRenderOption : u32 {
     Off = 0,
     SideBySide = 1,
-    Anaglyph = 2,
-    Interlaced = 3,
-    ReverseInterlaced = 4,
-    CardboardVR = 5
+    ReverseSideBySide = 2,
+    Anaglyph = 3,
+    Interlaced = 4,
+    ReverseInterlaced = 5,
+    CardboardVR = 6
 };
 
 // Which eye to render when 3d is off. 800px wide mode could be added here in the future, when
@@ -74,7 +93,7 @@ enum class AudioEmulation : u32 {
 };
 
 enum class TextureFilter : u32 {
-    None = 0,
+    NoFilter = 0,
     Anime4K = 1,
     Bicubic = 2,
     ScaleForce = 3,
@@ -86,6 +105,15 @@ enum class TextureSampling : u32 {
     GameControlled = 0,
     NearestNeighbor = 1,
     Linear = 2,
+};
+
+enum class AspectRatio : u32 {
+    Default = 0,
+    R16_9 = 1,
+    R4_3 = 2,
+    R21_9 = 3,
+    R16_10 = 4,
+    Stretch = 5,
 };
 
 namespace NativeButton {
@@ -177,7 +205,7 @@ protected:
      * Only sets the setting to the given initializer, leaving the other members to their default
      * initializers.
      *
-     * @param global_val Initial value of the setting
+     * @param val Initial value of the setting
      */
     explicit Setting(const Type& val) : value{val} {}
 
@@ -332,8 +360,6 @@ public:
      * Returns either the global or custom setting depending on the values of this setting's global
      * state or if the global value was specifically requested.
      *
-     * @param need_global Request global value regardless of setting's state; defaults to false
-     *
      * @returns The required value of the setting
      */
     [[nodiscard]] virtual const Type& GetValue() const override {
@@ -415,7 +441,7 @@ struct TouchFromButtonMap {
     std::vector<std::string> buttons;
 };
 
-/// A special region value indicating that cytrus will automatically select a region
+/// A special region value indicating that citra will automatically select a region
 /// value to fit the region lockout info of the game
 static constexpr s32 REGION_VALUE_AUTO_SELECT = -1;
 
@@ -425,6 +451,7 @@ struct Values {
     int current_input_profile_index;          ///< The current input profile index
     std::vector<InputProfile> input_profiles; ///< The list of input profiles
     std::vector<TouchFromButtonMap> touch_from_button_maps;
+    Setting<bool> use_artic_base_controller{false, "use_artic_base_controller"};
 
     SwitchableSetting<bool> enable_gamemode{true, "enable_gamemode"};
 
@@ -432,11 +459,15 @@ struct Values {
     Setting<bool> use_cpu_jit{true, "use_cpu_jit"};
     SwitchableSetting<s32, true> cpu_clock_percentage{100, 5, 400, "cpu_clock_percentage"};
     SwitchableSetting<bool> is_new_3ds{true, "is_new_3ds"};
-    SwitchableSetting<bool> lle_applets{false, "lle_applets"};
+    SwitchableSetting<bool> lle_applets{true, "lle_applets"};
+    SwitchableSetting<bool> deterministic_async_operations{false, "deterministic_async_operations"};
+    SwitchableSetting<bool> enable_required_online_lle_modules{
+        false, "enable_required_online_lle_modules"};
 
     // Data Storage
     Setting<bool> use_virtual_sd{true, "use_virtual_sd"};
     Setting<bool> use_custom_storage{false, "use_custom_storage"};
+    Setting<bool> compress_cia_installs{false, "compress_cia_installs"};
 
     // System
     SwitchableSetting<s32> region_value{REGION_VALUE_AUTO_SELECT, "region_value"};
@@ -467,6 +498,7 @@ struct Values {
     Setting<bool> renderer_debug{false, "renderer_debug"};
     Setting<bool> dump_command_buffers{false, "dump_command_buffers"};
     SwitchableSetting<bool> spirv_shader_gen{true, "spirv_shader_gen"};
+    SwitchableSetting<bool> disable_spirv_optimizer{true, "disable_spirv_optimizer"};
     SwitchableSetting<bool> async_shader_compilation{false, "async_shader_compilation"};
     SwitchableSetting<bool> async_presentation{true, "async_presentation"};
     SwitchableSetting<bool> use_hw_shader{true, "use_hw_shader"};
@@ -475,26 +507,51 @@ struct Values {
     SwitchableSetting<bool> use_vsync_new{true, "use_vsync_new"};
     Setting<bool> use_shader_jit{true, "use_shader_jit"};
     SwitchableSetting<u32, true> resolution_factor{1, 0, 10, "resolution_factor"};
-    SwitchableSetting<u16, true> frame_limit{100, 0, 1000, "frame_limit"};
-    SwitchableSetting<TextureFilter> texture_filter{TextureFilter::None, "texture_filter"};
+    SwitchableSetting<double, true> frame_limit{100, 0, 1000, "frame_limit"};
+    SwitchableSetting<double, true> turbo_limit{200, 0, 1000, "turbo_limit"};
+    SwitchableSetting<TextureFilter> texture_filter{TextureFilter::NoFilter, "texture_filter"};
     SwitchableSetting<TextureSampling> texture_sampling{TextureSampling::GameControlled,
                                                         "texture_sampling"};
+    SwitchableSetting<u16, true> delay_game_render_thread_us{0, 0, 16000,
+                                                             "delay_game_render_thread_us"};
 
     SwitchableSetting<LayoutOption> layout_option{LayoutOption::Default, "layout_option"};
     SwitchableSetting<bool> swap_screen{false, "swap_screen"};
     SwitchableSetting<bool> upright_screen{false, "upright_screen"};
+    SwitchableSetting<SecondaryDisplayLayout> secondary_display_layout{SecondaryDisplayLayout::None,
+                                                                       "secondary_display_layout"};
     SwitchableSetting<float, true> large_screen_proportion{4.f, 1.f, 16.f,
                                                            "large_screen_proportion"};
-    Setting<bool> custom_layout{false, "custom_layout"};
-    Setting<u16> custom_top_left{0, "custom_top_left"};
-    Setting<u16> custom_top_top{0, "custom_top_top"};
-    Setting<u16> custom_top_right{400, "custom_top_right"};
-    Setting<u16> custom_top_bottom{240, "custom_top_bottom"};
-    Setting<u16> custom_bottom_left{40, "custom_bottom_left"};
-    Setting<u16> custom_bottom_top{240, "custom_bottom_top"};
-    Setting<u16> custom_bottom_right{360, "custom_bottom_right"};
-    Setting<u16> custom_bottom_bottom{480, "custom_bottom_bottom"};
+    SwitchableSetting<int> screen_gap{0, "screen_gap"};
+    SwitchableSetting<SmallScreenPosition> small_screen_position{SmallScreenPosition::BottomRight,
+                                                                 "small_screen_position"};
+    Setting<u16> custom_top_x{0, "custom_top_x"};
+    Setting<u16> custom_top_y{0, "custom_top_y"};
+    Setting<u16> custom_top_width{800, "custom_top_width"};
+    Setting<u16> custom_top_height{480, "custom_top_height"};
+    Setting<u16> custom_bottom_x{80, "custom_bottom_x"};
+    Setting<u16> custom_bottom_y{500, "custom_bottom_y"};
+    Setting<u16> custom_bottom_width{640, "custom_bottom_width"};
+    Setting<u16> custom_bottom_height{480, "custom_bottom_height"};
     Setting<u16> custom_second_layer_opacity{100, "custom_second_layer_opacity"};
+    SwitchableSetting<AspectRatio> aspect_ratio{AspectRatio::Default, "aspect_ratio"};
+    SwitchableSetting<bool> screen_top_stretch{false, "screen_top_stretch"};
+    Setting<u16> screen_top_leftright_padding{0, "screen_top_leftright_padding"};
+    Setting<u16> screen_top_topbottom_padding{0, "screen_top_topbottom_padding"};
+    SwitchableSetting<bool> screen_bottom_stretch{false, "screen_bottom_stretch"};
+    Setting<u16> screen_bottom_leftright_padding{0, "screen_bottom_leftright_padding"};
+    Setting<u16> screen_bottom_topbottom_padding{0, "screen_bottom_topbottom_padding"};
+
+    SwitchableSetting<PortraitLayoutOption> portrait_layout_option{
+        PortraitLayoutOption::PortraitTopFullWidth, "portrait_layout_option"};
+    Setting<u16> custom_portrait_top_x{0, "custom_portrait_top_x"};
+    Setting<u16> custom_portrait_top_y{0, "custom_portrait_top_y"};
+    Setting<u16> custom_portrait_top_width{800, "custom_portrait_top_width"};
+    Setting<u16> custom_portrait_top_height{480, "custom_portrait_top_height"};
+    Setting<u16> custom_portrait_bottom_x{80, "custom_portrait_bottom_x"};
+    Setting<u16> custom_portrait_bottom_y{500, "custom_portrait_bottom_y"};
+    Setting<u16> custom_portrait_bottom_width{640, "custom_portrait_bottom_width"};
+    Setting<u16> custom_portrait_bottom_height{480, "custom_portrait_bottom_height"};
 
     SwitchableSetting<float> bg_red{0.f, "bg_red"};
     SwitchableSetting<float> bg_green{0.f, "bg_green"};
@@ -510,13 +567,14 @@ struct Values {
     Setting<s32> cardboard_y_shift{0, "cardboard_y_shift"};
 
     SwitchableSetting<bool> filter_mode{true, "filter_mode"};
-    SwitchableSetting<std::string> pp_shader_name{"none (builtin)", "pp_shader_name"};
-    SwitchableSetting<std::string> anaglyph_shader_name{"dubois (builtin)", "anaglyph_shader_name"};
+    SwitchableSetting<std::string> pp_shader_name{"None (builtin)", "pp_shader_name"};
+    SwitchableSetting<std::string> anaglyph_shader_name{"Dubois (builtin)", "anaglyph_shader_name"};
 
     SwitchableSetting<bool> dump_textures{false, "dump_textures"};
     SwitchableSetting<bool> custom_textures{false, "custom_textures"};
     SwitchableSetting<bool> preload_textures{false, "preload_textures"};
     SwitchableSetting<bool> async_custom_loading{true, "async_custom_loading"};
+    SwitchableSetting<bool> disable_right_eye_render{false, "disable_right_eye_render"};
 
     // Audio
     bool audio_muted;
@@ -540,9 +598,12 @@ struct Values {
     Setting<bool> delay_start_for_lle_modules{true, "delay_start_for_lle_modules"};
     Setting<bool> use_gdbstub{false, "use_gdbstub"};
     Setting<u16> gdbstub_port{24689, "gdbstub_port"};
+    Setting<bool> instant_debug_log{false, "instant_debug_log"};
+    Setting<bool> enable_rpc_server{false, "enable_rpc_server"};
 
     // Miscellaneous
     Setting<std::string> log_filter{"*:Info", "log_filter"};
+    Setting<std::string> log_regex_filter{"", "log_regex_filter"};
 
     // Video Dumping
     std::string output_format;
@@ -575,5 +636,15 @@ void SaveProfile(int index);
 void CreateProfile(std::string name);
 void DeleteProfile(int index);
 void RenameCurrentProfile(std::string new_name);
+
+extern bool is_temporary_frame_limit;
+extern double temporary_frame_limit;
+static inline void ResetTemporaryFrameLimit() {
+    is_temporary_frame_limit = false;
+    temporary_frame_limit = 0;
+}
+static inline double GetFrameLimit() {
+    return is_temporary_frame_limit ? temporary_frame_limit : values.frame_limit.GetValue();
+}
 
 } // namespace Settings

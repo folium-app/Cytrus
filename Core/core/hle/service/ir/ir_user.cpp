@@ -1,4 +1,4 @@
-// Copyright 2015 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -8,7 +8,7 @@
 #include <boost/serialization/base_object.hpp>
 #include <boost/serialization/shared_ptr.hpp>
 #include <boost/serialization/unique_ptr.hpp>
-#include <fmt/format.h>
+#include <fmt/ranges.h>
 #include "common/archives.h"
 #include "common/swap.h"
 #include "core/core.h"
@@ -25,6 +25,7 @@ namespace Service::IR {
 
 template <class Archive>
 void IR_USER::serialize(Archive& ar, const unsigned int) {
+    DEBUG_SERIALIZATION_POINT;
     ar& boost::serialization::base_object<Kernel::SessionRequestHandler>(*this);
     ar & conn_status_event;
     ar & send_event;
@@ -64,7 +65,7 @@ static_assert(sizeof(SharedMemoryHeader) == 16, "SharedMemoryHeader has wrong si
  * A buffer consists of three parts:
  *     - BufferInfo: stores available count of packets, and their position in the PacketInfo
  *         circular queue.
- *     - PacketInfo circular queue: stores the position of each avaiable packets in the Packet data
+ *     - PacketInfo circular queue: stores the position of each available packets in the Packet data
  *         buffer. Each entry is a pair of {offset, size}.
  *     - Packet data circular buffer: stores the actual data of packets.
  *
@@ -478,6 +479,12 @@ IR_USER::~IR_USER() {
 
 void IR_USER::ReloadInputDevices() {
     extra_hid->RequestInputDevicesReload();
+}
+
+void IR_USER::UseArticController(const std::shared_ptr<Service::HID::ArticBaseController>& ac) {
+    if (extra_hid.get()) {
+        extra_hid->UseArticController(ac);
+    }
 }
 
 IRDevice::IRDevice(SendFunc send_func_) : send_func(send_func_) {}

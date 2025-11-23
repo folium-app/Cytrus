@@ -1,4 +1,4 @@
-// Copyright 2023 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -20,7 +20,7 @@
 #include "video_core/host_shaders/vulkan_present_interlaced_frag.h"
 #include "video_core/host_shaders/vulkan_present_vert.h"
 
-#include <vk_mem_alloc.h>
+#include <vma/vk_mem_alloc.h>
 
 MICROPROFILE_DEFINE(Vulkan_RenderFrame, "Vulkan", "Render Frame", MP_RGB(128, 128, 64));
 
@@ -50,36 +50,44 @@ constexpr static std::array<vk::DescriptorSetLayoutBinding, 1> PRESENT_BINDINGS 
     {0, vk::DescriptorType::eCombinedImageSampler, 3, vk::ShaderStageFlagBits::eFragment},
 }};
 
+namespace {
+static bool IsLowRefreshRate() {
+    return false;
+}
+} // Anonymous namespace
+
 RendererVulkan::RendererVulkan(Core::System& system, Pica::PicaCore& pica_,
                                Frontend::EmuWindow& window, Frontend::EmuWindow* secondary_window)
     : RendererBase{system, window, secondary_window}, memory{system.Memory()}, pica{pica_},
-      instance{system.TelemetrySession(), window, Settings::values.physical_device.GetValue()},
-      scheduler{instance}, renderpass_cache{instance, scheduler}, pool{instance},
-      main_window{window, instance, scheduler},
+      instance{window, Settings::values.physical_device.GetValue()}, scheduler{instance},
+      renderpass_cache{instance, scheduler},
+      main_present_window{window, instance, scheduler, IsLowRefreshRate()},
       vertex_buffer{instance, scheduler, vk::BufferUsageFlagBits::eVertexBuffer,
                     VERTEX_BUFFER_SIZE},
-      rasterizer{memory,
-                 pica,
-                 system.CustomTexManager(),
-                 *this,
-                 render_window,
-                 instance,
-                 scheduler,
-                 pool,
-                 renderpass_cache,
-                 main_window.ImageCount()},
-      present_set_provider{instance, pool, PRESENT_BINDINGS} {
+      update_queue{instance}, rasterizer{memory,
+                                         pica,
+                                         system.CustomTexManager(),
+                                         *this,
+                                         render_window,
+                                         instance,
+                                         scheduler,
+                                         renderpass_cache,
+                                         update_queue,
+                                         main_present_window.ImageCount()},
+      present_heap{instance, scheduler.GetMasterSemaphore(), PRESENT_BINDINGS, 32} {
     CompileShaders();
     BuildLayouts();
     BuildPipelines();
     if (secondary_window) {
-        second_window = std::make_unique<PresentWindow>(*secondary_window, instance, scheduler);
+        secondary_present_window_ptr = std::make_unique<PresentWindow>(
+            *secondary_window, instance, scheduler, IsLowRefreshRate());
     }
 }
 
 RendererVulkan::~RendererVulkan() {
     vk::Device device = instance.GetDevice();
     scheduler.Finish();
+    main_present_window.WaitPresent();
     device.waitIdle();
 
     device.destroyShaderModule(present_vertex_shader);
@@ -98,10 +106,6 @@ RendererVulkan::~RendererVulkan() {
     }
 }
 
-void RendererVulkan::Sync() {
-    rasterizer.SyncEntireState();
-}
-
 void RendererVulkan::PrepareRendertarget() {
     const auto& framebuffer_config = pica.regs.framebuffer_config;
     const auto& regs_lcd = pica.regs_lcd;
@@ -112,6 +116,7 @@ void RendererVulkan::PrepareRendertarget() {
 
         const auto color_fill = fb_id == 0 ? regs_lcd.color_fill_top : regs_lcd.color_fill_bottom;
         if (color_fill.is_enabled) {
+            screen_infos[i].image_view = texture.image_view;
             FillScreen(color_fill.AsVector(), texture);
             continue;
         }
@@ -127,16 +132,15 @@ void RendererVulkan::PrepareRendertarget() {
 
 void RendererVulkan::PrepareDraw(Frame* frame, const Layout::FramebufferLayout& layout) {
     const auto sampler = present_samplers[!Settings::values.filter_mode.GetValue()];
-    std::transform(screen_infos.begin(), screen_infos.end(), present_textures.begin(),
-                   [&](auto& info) {
-                       return DescriptorData{vk::DescriptorImageInfo{sampler, info.image_view,
-                                                                     vk::ImageLayout::eGeneral}};
-                   });
-
-    const auto descriptor_set = present_set_provider.Acquire(present_textures);
+    const auto present_set = present_heap.Commit();
+    for (u32 index = 0; index < screen_infos.size(); index++) {
+        update_queue.AddImageSampler(present_set, 0, index, screen_infos[index].image_view,
+                                     sampler);
+    }
 
     renderpass_cache.EndRendering();
-    scheduler.Record([this, layout, frame, descriptor_set, renderpass = main_window.Renderpass(),
+    scheduler.Record([this, layout, frame, present_set,
+                      renderpass = main_present_window.Renderpass(),
                       index = current_pipeline](vk::CommandBuffer cmdbuf) {
         const vk::Viewport viewport = {
             .x = 0.0f,
@@ -171,7 +175,7 @@ void RendererVulkan::PrepareDraw(Frame* frame, const Layout::FramebufferLayout& 
 
         cmdbuf.beginRenderPass(renderpass_begin_info, vk::SubpassContents::eInline);
         cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, present_pipelines[index]);
-        cmdbuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, 0, descriptor_set, {});
+        cmdbuf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, 0, present_set, {});
     });
 }
 
@@ -184,6 +188,11 @@ void RendererVulkan::RenderToWindow(PresentWindow& window, const Layout::Framebu
         scheduler.Finish();
         window.RecreateFrame(frame, layout.width, layout.height);
     }
+
+    clear_color.float32[0] = Settings::values.bg_red.GetValue();
+    clear_color.float32[1] = Settings::values.bg_green.GetValue();
+    clear_color.float32[2] = Settings::values.bg_blue.GetValue();
+    clear_color.float32[3] = 1.0f;
 
     DrawScreens(frame, layout, flipped);
     scheduler.Flush(frame->render_ready);
@@ -224,15 +233,17 @@ void RendererVulkan::LoadFBToScreenInfo(const Pica::FramebufferConfig& framebuff
 }
 
 void RendererVulkan::CompileShaders() {
-    vk::Device device = instance.GetDevice();
+    const vk::Device device = instance.GetDevice();
+    const std::string_view preamble =
+        instance.IsImageArrayDynamicIndexSupported() ? "#define ARRAY_DYNAMIC_INDEX" : "";
     present_vertex_shader =
         Compile(HostShaders::VULKAN_PRESENT_VERT, vk::ShaderStageFlagBits::eVertex, device);
-    present_shaders[0] =
-        Compile(HostShaders::VULKAN_PRESENT_FRAG, vk::ShaderStageFlagBits::eFragment, device);
+    present_shaders[0] = Compile(HostShaders::VULKAN_PRESENT_FRAG,
+                                 vk::ShaderStageFlagBits::eFragment, device, preamble);
     present_shaders[1] = Compile(HostShaders::VULKAN_PRESENT_ANAGLYPH_FRAG,
-                                 vk::ShaderStageFlagBits::eFragment, device);
+                                 vk::ShaderStageFlagBits::eFragment, device, preamble);
     present_shaders[2] = Compile(HostShaders::VULKAN_PRESENT_INTERLACED_FRAG,
-                                 vk::ShaderStageFlagBits::eFragment, device);
+                                 vk::ShaderStageFlagBits::eFragment, device, preamble);
 
     auto properties = instance.GetPhysicalDevice().getProperties();
     for (std::size_t i = 0; i < present_samplers.size(); i++) {
@@ -262,7 +273,7 @@ void RendererVulkan::BuildLayouts() {
         .size = sizeof(PresentUniformData),
     };
 
-    const auto descriptor_set_layout = present_set_provider.Layout();
+    const auto descriptor_set_layout = present_heap.Layout();
     const vk::PipelineLayoutCreateInfo layout_info = {
         .setLayoutCount = 1,
         .pSetLayouts = &descriptor_set_layout,
@@ -386,7 +397,7 @@ void RendererVulkan::BuildPipelines() {
             .pColorBlendState = &color_blending,
             .pDynamicState = &dynamic_info,
             .layout = *present_pipeline_layout,
-            .renderPass = main_window.Renderpass(),
+            .renderPass = main_present_window.Renderpass(),
         };
 
         const auto [result, pipeline] =
@@ -702,6 +713,14 @@ void RendererVulkan::DrawTopScreen(const Layout::FramebufferLayout& layout,
                          top_screen_top, top_screen_width / 2, top_screen_height, orientation);
         break;
     }
+    case Settings::StereoRenderOption::ReverseSideBySide: {
+        DrawSingleScreen(1, top_screen_left / 2, top_screen_top, top_screen_width / 2,
+                         top_screen_height, orientation);
+        draw_info.layer = 1;
+        DrawSingleScreen(0, static_cast<float>((top_screen_left / 2) + (layout.width / 2)),
+                         top_screen_top, top_screen_width / 2, top_screen_height, orientation);
+        break;
+    }
     case Settings::StereoRenderOption::CardboardVR: {
         DrawSingleScreen(0, top_screen_left, top_screen_top, top_screen_width, top_screen_height,
                          orientation);
@@ -735,19 +754,31 @@ void RendererVulkan::DrawBottomScreen(const Layout::FramebufferLayout& layout,
     const auto orientation = layout.is_rotated ? Layout::DisplayOrientation::Landscape
                                                : Layout::DisplayOrientation::Portrait;
 
+    bool separate_win = false;
+#ifndef ANDROID
+    separate_win =
+        (Settings::values.layout_option.GetValue() == Settings::LayoutOption::SeparateWindows);
+#endif
+
     switch (Settings::values.render_3d.GetValue()) {
     case Settings::StereoRenderOption::Off: {
         DrawSingleScreen(2, bottom_screen_left, bottom_screen_top, bottom_screen_width,
                          bottom_screen_height, orientation);
         break;
     }
-    case Settings::StereoRenderOption::SideBySide: {
-        DrawSingleScreen(2, bottom_screen_left / 2, bottom_screen_top, bottom_screen_width / 2,
-                         bottom_screen_height, orientation);
-        draw_info.layer = 1;
-        DrawSingleScreen(2, static_cast<float>((bottom_screen_left / 2) + (layout.width / 2)),
-                         bottom_screen_top, bottom_screen_width / 2, bottom_screen_height,
-                         orientation);
+    case Settings::StereoRenderOption::SideBySide: // Bottom screen is identical on both sides
+    case Settings::StereoRenderOption::ReverseSideBySide: {
+        if (separate_win) {
+            DrawSingleScreen(2, bottom_screen_left, bottom_screen_top, bottom_screen_width,
+                             bottom_screen_height, orientation);
+        } else {
+            DrawSingleScreen(2, bottom_screen_left / 2, bottom_screen_top, bottom_screen_width / 2,
+                             bottom_screen_height, orientation);
+            draw_info.layer = 1;
+            DrawSingleScreen(2, static_cast<float>((bottom_screen_left / 2) + (layout.width / 2)),
+                             bottom_screen_top, bottom_screen_width / 2, bottom_screen_height,
+                             orientation);
+        }
         break;
     }
     case Settings::StereoRenderOption::CardboardVR: {
@@ -762,8 +793,13 @@ void RendererVulkan::DrawBottomScreen(const Layout::FramebufferLayout& layout,
     case Settings::StereoRenderOption::Anaglyph:
     case Settings::StereoRenderOption::Interlaced:
     case Settings::StereoRenderOption::ReverseInterlaced: {
-        DrawSingleScreenStereo(2, 2, bottom_screen_left, bottom_screen_top, bottom_screen_width,
-                               bottom_screen_height, orientation);
+        if (separate_win) {
+            DrawSingleScreen(2, bottom_screen_left, bottom_screen_top, bottom_screen_width,
+                             bottom_screen_height, orientation);
+        } else {
+            DrawSingleScreenStereo(2, 2, bottom_screen_left, bottom_screen_top, bottom_screen_width,
+                                   bottom_screen_height, orientation);
+        }
         break;
     }
     }
@@ -806,47 +842,41 @@ void RendererVulkan::DrawScreens(Frame* frame, const Layout::FramebufferLayout& 
         }
     }
 
-    scheduler.Record([image = frame->image](vk::CommandBuffer cmdbuf) {
-        const vk::ImageMemoryBarrier render_barrier = {
-            .srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
-            .dstAccessMask = vk::AccessFlagBits::eTransferRead,
-            .oldLayout = vk::ImageLayout::eTransferSrcOptimal,
-            .newLayout = vk::ImageLayout::eTransferSrcOptimal,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = image,
-            .subresourceRange{
-                .aspectMask = vk::ImageAspectFlagBits::eColor,
-                .baseMipLevel = 0,
-                .levelCount = 1,
-                .baseArrayLayer = 0,
-                .layerCount = VK_REMAINING_ARRAY_LAYERS,
-            },
-        };
-
-        cmdbuf.endRenderPass();
-        cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput,
-                               vk::PipelineStageFlagBits::eTransfer,
-                               vk::DependencyFlagBits::eByRegion, {}, {}, render_barrier);
-    });
+    scheduler.Record([](vk::CommandBuffer cmdbuf) { cmdbuf.endRenderPass(); });
 }
 
 void RendererVulkan::SwapBuffers() {
+    system.perf_stats->StartSwap();
     const Layout::FramebufferLayout& layout = render_window.GetFramebufferLayout();
     PrepareRendertarget();
     RenderScreenshot();
-    RenderToWindow(main_window, layout, false);
+    RenderToWindow(main_present_window, layout, false);
 #ifndef ANDROID
     if (Settings::values.layout_option.GetValue() == Settings::LayoutOption::SeparateWindows) {
         ASSERT(secondary_window);
         const auto& secondary_layout = secondary_window->GetFramebufferLayout();
-        if (!second_window) {
-            second_window = std::make_unique<PresentWindow>(*secondary_window, instance, scheduler);
+        if (!secondary_present_window_ptr) {
+            secondary_present_window_ptr = std::make_unique<PresentWindow>(
+                *secondary_window, instance, scheduler, IsLowRefreshRate());
         }
-        RenderToWindow(*second_window, secondary_layout, false);
+        RenderToWindow(*secondary_present_window_ptr, secondary_layout, false);
         secondary_window->PollEvents();
     }
 #endif
+
+#ifdef ANDROID
+    if (secondary_window) {
+        const auto& secondary_layout = secondary_window->GetFramebufferLayout();
+        if (!secondary_present_window_ptr) {
+            secondary_present_window_ptr = std::make_unique<PresentWindow>(
+                *secondary_window, instance, scheduler, IsLowRefreshRate());
+        }
+        RenderToWindow(*secondary_present_window_ptr, secondary_layout, false);
+        secondary_window->PollEvents();
+    }
+#endif
+
+    system.perf_stats->EndSwap();
     rasterizer.TickFrame();
     EndFrame();
 }
@@ -900,7 +930,7 @@ void RendererVulkan::RenderScreenshotWithStagingCopy() {
     vk::Buffer staging_buffer{unsafe_buffer};
 
     Frame frame{};
-    main_window.RecreateFrame(&frame, width, height);
+    main_present_window.RecreateFrame(&frame, width, height);
 
     DrawScreens(&frame, layout, false);
 
@@ -1073,7 +1103,7 @@ bool RendererVulkan::TryRenderScreenshotWithHostMemory() {
     device.bindBufferMemory(imported_buffer.get(), imported_memory.get(), 0);
 
     Frame frame{};
-    main_window.RecreateFrame(&frame, width, height);
+    main_present_window.RecreateFrame(&frame, width, height);
 
     DrawScreens(&frame, layout, false);
 
@@ -1134,6 +1164,16 @@ bool RendererVulkan::TryRenderScreenshotWithHostMemory() {
     device.destroyImageView(frame.image_view);
 
     return true;
+}
+
+void RendererVulkan::NotifySurfaceChanged(bool is_second_window) {
+    if (is_second_window) {
+        if (secondary_present_window_ptr) {
+            secondary_present_window_ptr->NotifySurfaceChanged();
+        }
+    } else {
+        main_present_window.NotifySurfaceChanged();
+    }
 }
 
 } // namespace Vulkan

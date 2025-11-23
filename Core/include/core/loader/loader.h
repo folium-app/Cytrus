@@ -1,4 +1,4 @@
-// Copyright 2014 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -31,6 +31,7 @@ enum class FileType {
     CIA,
     ELF,
     THREEDSX, // 3DSX
+    ARTIC,
 };
 
 /**
@@ -59,7 +60,7 @@ FileType GuessFromExtension(const std::string& extension);
 /**
  * Convert a FileType into a string which can be displayed to the user.
  */
-const char* GetFileTypeString(FileType type);
+const char* GetFileTypeString(FileType type, bool is_compressed = false);
 
 /// Return type for functions in Loader namespace
 enum class ResultStatus {
@@ -73,6 +74,8 @@ enum class ResultStatus {
     ErrorMemoryAllocationFailed,
     ErrorEncrypted,
     ErrorGbaTitle,
+    ErrorArtic,
+    ErrorNotFound,
 };
 
 constexpr u32 MakeMagic(char a, char b, char c, char d) {
@@ -82,8 +85,17 @@ constexpr u32 MakeMagic(char a, char b, char c, char d) {
 /// Interface for loading an application
 class AppLoader : NonCopyable {
 public:
+    struct CompressFileInfo {
+        bool is_supported{};
+        bool is_compressed{};
+        std::array<u8, 4> underlying_magic{};
+        std::string recommended_compressed_extension;
+        std::string recommended_uncompressed_extension;
+        std::unordered_map<std::string, std::vector<u8>> default_metadata;
+    };
+
     explicit AppLoader(Core::System& system_, FileUtil::IOFile&& file)
-        : system(system_), file(std::move(file)) {}
+        : system(system_), file(std::make_unique<FileUtil::IOFile>(std::move(file))) {}
     virtual ~AppLoader() {}
 
     /**
@@ -118,12 +130,23 @@ public:
     }
 
     /**
+     * Forces the application memory mode to the specified value,
+     * overriding the memory mode specified in the metadata.
+     */
+    void SetKernelMemoryModeOverride(Kernel::MemoryMode mem_override) {
+        memory_mode_override = mem_override;
+    }
+
+    /**
      * Loads the memory mode that this application needs.
      * This function defaults to Dev1 (96MB allocated to the application) if it can't read the
      * information.
      * @returns A pair with the optional memory mode, and the status.
      */
     virtual std::pair<std::optional<Kernel::MemoryMode>, ResultStatus> LoadKernelMemoryMode() {
+        if (memory_mode_override.has_value()) {
+            return std::make_pair(*memory_mode_override, ResultStatus::Success);
+        }
         // 96MB allocated to the application.
         return std::make_pair(Kernel::MemoryMode::Dev1, ResultStatus::Success);
     }
@@ -253,10 +276,33 @@ public:
         return ResultStatus::ErrorNotImplemented;
     }
 
+    virtual bool SupportsSaveStates() {
+        return true;
+    }
+
+    virtual bool SupportsMultipleInstancesForSameFile() {
+        return true;
+    }
+
+    virtual bool DoingInitialSetup() {
+        return false;
+    }
+
+    virtual CompressFileInfo GetCompressFileInfo() {
+        CompressFileInfo info{};
+        info.is_supported = false;
+        return info;
+    }
+
+    virtual bool IsFileCompressed() {
+        return false;
+    }
+
 protected:
     Core::System& system;
-    FileUtil::IOFile file;
+    std::unique_ptr<FileUtil::IOFile> file;
     bool is_loaded = false;
+    std::optional<Kernel::MemoryMode> memory_mode_override = std::nullopt;
 };
 
 /**

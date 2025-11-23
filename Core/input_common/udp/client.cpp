@@ -1,4 +1,4 @@
-// Copyright 2018 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -29,8 +29,8 @@ public:
 
     explicit Socket(const std::string& host, u16 port, u8 pad_index, u32 client_id,
                     SocketCallback callback)
-        : callback(std::move(callback)), timer(io_service),
-          socket(io_service, udp::endpoint(udp::v4(), 0)), client_id(client_id),
+        : callback(std::move(callback)), timer(io_context),
+          socket(io_context, udp::endpoint(udp::v4(), 0)), client_id(client_id),
           pad_index(pad_index) {
         boost::system::error_code ec{};
         auto ipv4 = boost::asio::ip::make_address_v4(host, ec);
@@ -43,11 +43,11 @@ public:
     }
 
     void Stop() {
-        io_service.stop();
+        io_context.stop();
     }
 
     void Loop() {
-        io_service.run();
+        io_context.run();
     }
 
     void StartSend(const clock::time_point& from) {
@@ -108,7 +108,7 @@ private:
     }
 
     SocketCallback callback;
-    boost::asio::io_service io_service;
+    boost::asio::io_context io_context;
     boost::asio::basic_waitable_timer<clock> timer;
     udp::socket socket;
 
@@ -168,7 +168,7 @@ void Client::OnPadData(Response::PadData data) {
     packet_sequence = data.packet_counter;
     // Due to differences between the 3ds and cemuhookudp motion directions, we need to invert
     // accel.x and accel.z and also invert pitch and yaw. See
-    // https://github.com/cytrus-emu/cytrus/pull/4049 for more details on gyro/accel
+    // https://github.com/citra-emu/citra/pull/4049 for more details on gyro/accel
     Common::Vec3f accel = Common::MakeVec<float>(-data.accel.x, data.accel.y, -data.accel.z);
     Common::Vec3f gyro = Common::MakeVec<float>(-data.gyro.pitch, -data.gyro.yaw, data.gyro.roll);
     {

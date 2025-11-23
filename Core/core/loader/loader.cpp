@@ -1,4 +1,4 @@
-// Copyright 2014 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -9,6 +9,7 @@
 #include "core/core.h"
 #include "core/hle/kernel/process.h"
 #include "core/loader/3dsx.h"
+#include "core/loader/artic.h"
 #include "core/loader/elf.h"
 #include "core/loader/ncch.h"
 
@@ -18,7 +19,7 @@ FileType IdentifyFile(FileUtil::IOFile& file) {
     FileType type;
 
 #define CHECK_TYPE(loader)                                                                         \
-    type = AppLoader_##loader::IdentifyType(file);                                                 \
+    type = AppLoader_##loader::IdentifyType(&file);                                                \
     if (FileType::Error != type)                                                                   \
         return type;
 
@@ -47,33 +48,35 @@ FileType GuessFromExtension(const std::string& extension_) {
     if (extension == ".elf" || extension == ".axf")
         return FileType::ELF;
 
-    if (extension == ".cci" || extension == ".3ds")
+    if (extension == ".cci" || extension == ".zcci")
         return FileType::CCI;
 
-    if (extension == ".cxi" || extension == ".app")
+    if (extension == ".cxi" || extension == ".app" || extension == ".zcxi")
         return FileType::CXI;
 
-    if (extension == ".3dsx")
+    if (extension == ".3dsx" || extension == ".z3dsx")
         return FileType::THREEDSX;
 
-    if (extension == ".cia")
+    if (extension == ".cia" || extension == ".zcia")
         return FileType::CIA;
 
     return FileType::Unknown;
 }
 
-const char* GetFileTypeString(FileType type) {
+const char* GetFileTypeString(FileType type, bool is_compressed) {
     switch (type) {
     case FileType::CCI:
-        return "NCSD";
+        return is_compressed ? "NCSD (Z)" : "NCSD";
     case FileType::CXI:
-        return "NCCH";
+        return is_compressed ? "NCCH (Z)" : "NCCH";
     case FileType::CIA:
-        return "CIA";
+        return is_compressed ? "CIA (Z)" : "CIA";
     case FileType::ELF:
         return "ELF";
     case FileType::THREEDSX:
-        return "3DSX";
+        return is_compressed ? "3DSX (Z)" : "3DSX";
+    case FileType::ARTIC:
+        return "ARTIC";
     case FileType::Error:
     case FileType::Unknown:
         break;
@@ -108,12 +111,46 @@ static std::unique_ptr<AppLoader> GetFileLoader(Core::System& system, FileUtil::
     case FileType::CCI:
         return std::make_unique<AppLoader_NCCH>(system, std::move(file), filepath);
 
+    case FileType::ARTIC: {
+        Apploader_Artic::ArticInitMode mode = Apploader_Artic::ArticInitMode::NONE;
+        if (filename.starts_with("articinio://")) {
+            mode = Apploader_Artic::ArticInitMode::O3DS;
+        } else if (filename.starts_with("articinin://")) {
+            mode = Apploader_Artic::ArticInitMode::N3DS;
+        }
+        auto strToUInt = [](const std::string& str) -> int {
+            char* pEnd = NULL;
+            unsigned long ul = ::strtoul(str.c_str(), &pEnd, 10);
+            if (*pEnd)
+                return -1;
+            return static_cast<int>(ul);
+        };
+
+        u16 port = 5543;
+        std::string server_addr = filename.substr(12);
+        auto pos = server_addr.find(":");
+        if (pos != server_addr.npos) {
+            int newVal = strToUInt(server_addr.substr(pos + 1));
+            if (newVal >= 0 && newVal <= 0xFFFF) {
+                port = static_cast<u16>(newVal);
+                server_addr = server_addr.substr(0, pos);
+            }
+        }
+        return std::make_unique<Apploader_Artic>(system, server_addr, port, mode);
+    }
+
     default:
         return nullptr;
     }
 }
 
 std::unique_ptr<AppLoader> GetLoader(const std::string& filename) {
+    if (filename.starts_with("articbase://") || filename.starts_with("articinio://") ||
+        filename.starts_with("articinin://")) {
+        return GetFileLoader(Core::System::GetInstance(), FileUtil::IOFile(), FileType::ARTIC,
+                             filename, "");
+    }
+
     FileUtil::IOFile file(filename, "rb");
     if (!file.IsOpen()) {
         LOG_ERROR(Loader, "Failed to load file {}", filename);

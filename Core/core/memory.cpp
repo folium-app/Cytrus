@@ -1,4 +1,4 @@
-// Copyright 2015 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -54,24 +54,24 @@ public:
 private:
     bool* At(VAddr addr) {
         if (addr >= VRAM_VADDR && addr < VRAM_VADDR_END) {
-            return &vram[(addr - VRAM_VADDR) / CYTRUS_PAGE_SIZE];
+            return &vram[(addr - VRAM_VADDR) / CITRA_PAGE_SIZE];
         }
         if (addr >= LINEAR_HEAP_VADDR && addr < LINEAR_HEAP_VADDR_END) {
-            return &linear_heap[(addr - LINEAR_HEAP_VADDR) / CYTRUS_PAGE_SIZE];
+            return &linear_heap[(addr - LINEAR_HEAP_VADDR) / CITRA_PAGE_SIZE];
         }
         if (addr >= NEW_LINEAR_HEAP_VADDR && addr < NEW_LINEAR_HEAP_VADDR_END) {
-            return &new_linear_heap[(addr - NEW_LINEAR_HEAP_VADDR) / CYTRUS_PAGE_SIZE];
+            return &new_linear_heap[(addr - NEW_LINEAR_HEAP_VADDR) / CITRA_PAGE_SIZE];
         }
         if (addr >= PLUGIN_3GX_FB_VADDR && addr < PLUGIN_3GX_FB_VADDR_END) {
-            return &plugin_fb[(addr - PLUGIN_3GX_FB_VADDR) / CYTRUS_PAGE_SIZE];
+            return &plugin_fb[(addr - PLUGIN_3GX_FB_VADDR) / CITRA_PAGE_SIZE];
         }
         return nullptr;
     }
 
-    std::array<bool, VRAM_SIZE / CYTRUS_PAGE_SIZE> vram{};
-    std::array<bool, LINEAR_HEAP_SIZE / CYTRUS_PAGE_SIZE> linear_heap{};
-    std::array<bool, NEW_LINEAR_HEAP_SIZE / CYTRUS_PAGE_SIZE> new_linear_heap{};
-    std::array<bool, PLUGIN_3GX_FB_SIZE / CYTRUS_PAGE_SIZE> plugin_fb{};
+    std::array<bool, VRAM_SIZE / CITRA_PAGE_SIZE> vram{};
+    std::array<bool, LINEAR_HEAP_SIZE / CITRA_PAGE_SIZE> linear_heap{};
+    std::array<bool, NEW_LINEAR_HEAP_SIZE / CITRA_PAGE_SIZE> new_linear_heap{};
+    std::array<bool, PLUGIN_3GX_FB_SIZE / CITRA_PAGE_SIZE> plugin_fb{};
 
     static_assert(sizeof(bool) == 1);
     friend class boost::serialization::access;
@@ -161,14 +161,13 @@ public:
         auto& page_table = *process.vm_manager.page_table;
 
         std::size_t remaining_size = size;
-        std::size_t page_index = src_addr >> CYTRUS_PAGE_BITS;
-        std::size_t page_offset = src_addr & CYTRUS_PAGE_MASK;
+        std::size_t page_index = src_addr >> CITRA_PAGE_BITS;
+        std::size_t page_offset = src_addr & CITRA_PAGE_MASK;
 
         while (remaining_size > 0) {
-            const std::size_t copy_amount =
-                std::min(CYTRUS_PAGE_SIZE - page_offset, remaining_size);
+            const std::size_t copy_amount = std::min(CITRA_PAGE_SIZE - page_offset, remaining_size);
             const VAddr current_vaddr =
-                static_cast<VAddr>((page_index << CYTRUS_PAGE_BITS) + page_offset);
+                static_cast<VAddr>((page_index << CITRA_PAGE_BITS) + page_offset);
 
             switch (page_table.attributes[page_index]) {
             case PageType::Unmapped: {
@@ -211,14 +210,13 @@ public:
                         const void* src_buffer, const std::size_t size) {
         auto& page_table = *process.vm_manager.page_table;
         std::size_t remaining_size = size;
-        std::size_t page_index = dest_addr >> CYTRUS_PAGE_BITS;
-        std::size_t page_offset = dest_addr & CYTRUS_PAGE_MASK;
+        std::size_t page_index = dest_addr >> CITRA_PAGE_BITS;
+        std::size_t page_offset = dest_addr & CITRA_PAGE_MASK;
 
         while (remaining_size > 0) {
-            const std::size_t copy_amount =
-                std::min(CYTRUS_PAGE_SIZE - page_offset, remaining_size);
+            const std::size_t copy_amount = std::min(CITRA_PAGE_SIZE - page_offset, remaining_size);
             const VAddr current_vaddr =
-                static_cast<VAddr>((page_index << CYTRUS_PAGE_BITS) + page_offset);
+                static_cast<VAddr>((page_index << CITRA_PAGE_BITS) + page_offset);
 
             switch (page_table.attributes[page_index]) {
             case PageType::Unmapped: {
@@ -395,10 +393,10 @@ void MemorySystem::RasterizerFlushVirtualRegion(VAddr start, u32 size, FlushMode
 void MemorySystem::MapPages(PageTable& page_table, u32 base, u32 size, MemoryRef memory,
                             PageType type) {
     LOG_DEBUG(HW_Memory, "Mapping {} onto {:08X}-{:08X}", (void*)memory.GetPtr(),
-              base * CYTRUS_PAGE_SIZE, (base + size) * CYTRUS_PAGE_SIZE);
+              base * CITRA_PAGE_SIZE, (base + size) * CITRA_PAGE_SIZE);
 
     if (impl->system.IsPoweredOn()) {
-        RasterizerFlushVirtualRegion(base << CYTRUS_PAGE_BITS, size * CYTRUS_PAGE_SIZE,
+        RasterizerFlushVirtualRegion(base << CITRA_PAGE_BITS, size * CITRA_PAGE_SIZE,
                                      FlushMode::FlushAndInvalidate);
     }
 
@@ -410,28 +408,27 @@ void MemorySystem::MapPages(PageTable& page_table, u32 base, u32 size, MemoryRef
         page_table.pointers[base] = memory;
 
         // If the memory to map is already rasterizer-cached, mark the page
-        if (type == PageType::Memory && impl->cache_marker.IsCached(base * CYTRUS_PAGE_SIZE)) {
+        if (type == PageType::Memory && impl->cache_marker.IsCached(base * CITRA_PAGE_SIZE)) {
             page_table.attributes[base] = PageType::RasterizerCachedMemory;
             page_table.pointers[base] = nullptr;
         }
 
         base += 1;
-        if (memory != nullptr && memory.GetSize() > CYTRUS_PAGE_SIZE)
-            memory += CYTRUS_PAGE_SIZE;
+        if (memory != nullptr && memory.GetSize() > CITRA_PAGE_SIZE)
+            memory += CITRA_PAGE_SIZE;
     }
 }
 
 void MemorySystem::MapMemoryRegion(PageTable& page_table, VAddr base, u32 size, MemoryRef target) {
-    ASSERT_MSG((size & CYTRUS_PAGE_MASK) == 0, "non-page aligned size: {:08X}", size);
-    ASSERT_MSG((base & CYTRUS_PAGE_MASK) == 0, "non-page aligned base: {:08X}", base);
-    MapPages(page_table, base / CYTRUS_PAGE_SIZE, size / CYTRUS_PAGE_SIZE, target,
-             PageType::Memory);
+    ASSERT_MSG((size & CITRA_PAGE_MASK) == 0, "non-page aligned size: {:08X}", size);
+    ASSERT_MSG((base & CITRA_PAGE_MASK) == 0, "non-page aligned base: {:08X}", base);
+    MapPages(page_table, base / CITRA_PAGE_SIZE, size / CITRA_PAGE_SIZE, target, PageType::Memory);
 }
 
 void MemorySystem::UnmapRegion(PageTable& page_table, VAddr base, u32 size) {
-    ASSERT_MSG((size & CYTRUS_PAGE_MASK) == 0, "non-page aligned size: {:08X}", size);
-    ASSERT_MSG((base & CYTRUS_PAGE_MASK) == 0, "non-page aligned base: {:08X}", base);
-    MapPages(page_table, base / CYTRUS_PAGE_SIZE, size / CYTRUS_PAGE_SIZE, nullptr,
+    ASSERT_MSG((size & CITRA_PAGE_MASK) == 0, "non-page aligned size: {:08X}", size);
+    ASSERT_MSG((base & CITRA_PAGE_MASK) == 0, "non-page aligned base: {:08X}", base);
+    MapPages(page_table, base / CITRA_PAGE_SIZE, size / CITRA_PAGE_SIZE, nullptr,
              PageType::Unmapped);
 }
 
@@ -451,12 +448,12 @@ void MemorySystem::UnregisterPageTable(std::shared_ptr<PageTable> page_table) {
 }
 
 template <typename T>
-T MemorySystem::Read(const VAddr vaddr) {
-    const u8* page_pointer = impl->current_page_table->pointers[vaddr >> CYTRUS_PAGE_BITS];
+T MemorySystem::Read(const std::shared_ptr<PageTable>& page_table, const VAddr vaddr) {
+    const u8* page_pointer = page_table->pointers[vaddr >> CITRA_PAGE_BITS];
     if (page_pointer) {
         // NOTE: Avoid adding any extra logic to this fast-path block
         T value;
-        std::memcpy(&value, &page_pointer[vaddr & CYTRUS_PAGE_MASK], sizeof(T));
+        std::memcpy(&value, &page_pointer[vaddr & CITRA_PAGE_MASK], sizeof(T));
         return value;
     }
 
@@ -475,7 +472,7 @@ T MemorySystem::Read(const VAddr vaddr) {
         }
     }
 
-    PageType type = impl->current_page_table->attributes[vaddr >> CYTRUS_PAGE_BITS];
+    PageType type = page_table->attributes[vaddr >> CITRA_PAGE_BITS];
     switch (type) {
     case PageType::Unmapped:
         LOG_ERROR(HW_Memory, "unmapped Read{} @ 0x{:08X} at PC 0x{:08X}", sizeof(T) * 8, vaddr,
@@ -499,11 +496,12 @@ T MemorySystem::Read(const VAddr vaddr) {
 }
 
 template <typename T>
-void MemorySystem::Write(const VAddr vaddr, const T data) {
-    u8* page_pointer = impl->current_page_table->pointers[vaddr >> CYTRUS_PAGE_BITS];
+void MemorySystem::Write(const std::shared_ptr<PageTable>& page_table, const VAddr vaddr,
+                         const T data) {
+    u8* page_pointer = page_table->pointers[vaddr >> CITRA_PAGE_BITS];
     if (page_pointer) {
         // NOTE: Avoid adding any extra logic to this fast-path block
-        std::memcpy(&page_pointer[vaddr & CYTRUS_PAGE_MASK], &data, sizeof(T));
+        std::memcpy(&page_pointer[vaddr & CITRA_PAGE_MASK], &data, sizeof(T));
         return;
     }
 
@@ -524,7 +522,7 @@ void MemorySystem::Write(const VAddr vaddr, const T data) {
         }
     }
 
-    PageType type = impl->current_page_table->attributes[vaddr >> CYTRUS_PAGE_BITS];
+    PageType type = page_table->attributes[vaddr >> CITRA_PAGE_BITS];
     switch (type) {
     case PageType::Unmapped:
         LOG_ERROR(HW_Memory, "unmapped Write{} 0x{:08X} @ 0x{:08X} at PC 0x{:08X}",
@@ -545,15 +543,15 @@ void MemorySystem::Write(const VAddr vaddr, const T data) {
 
 template <typename T>
 bool MemorySystem::WriteExclusive(const VAddr vaddr, const T data, const T expected) {
-    u8* page_pointer = impl->current_page_table->pointers[vaddr >> CYTRUS_PAGE_BITS];
+    u8* page_pointer = impl->current_page_table->pointers[vaddr >> CITRA_PAGE_BITS];
 
     if (page_pointer) {
         const auto volatile_pointer =
-            reinterpret_cast<volatile T*>(&page_pointer[vaddr & CYTRUS_PAGE_MASK]);
+            reinterpret_cast<volatile T*>(&page_pointer[vaddr & CITRA_PAGE_MASK]);
         return Common::AtomicCompareAndSwap(volatile_pointer, data, expected);
     }
 
-    PageType type = impl->current_page_table->attributes[vaddr >> CYTRUS_PAGE_BITS];
+    PageType type = impl->current_page_table->attributes[vaddr >> CITRA_PAGE_BITS];
     switch (type) {
     case PageType::Unmapped:
         LOG_ERROR(HW_Memory, "unmapped Write{} 0x{:08X} @ 0x{:08X} at PC 0x{:08X}",
@@ -577,29 +575,29 @@ bool MemorySystem::WriteExclusive(const VAddr vaddr, const T data, const T expec
 bool MemorySystem::IsValidVirtualAddress(const Kernel::Process& process, const VAddr vaddr) {
     auto& page_table = *process.vm_manager.page_table;
 
-    auto page_pointer = page_table.pointers[vaddr >> CYTRUS_PAGE_BITS];
+    auto page_pointer = page_table.pointers[vaddr >> CITRA_PAGE_BITS];
     if (page_pointer) {
         return true;
     }
 
-    if (page_table.attributes[vaddr >> CYTRUS_PAGE_BITS] == PageType::RasterizerCachedMemory) {
+    if (page_table.attributes[vaddr >> CITRA_PAGE_BITS] == PageType::RasterizerCachedMemory) {
         return true;
     }
 
     return false;
 }
 
-bool MemorySystem::IsValidPhysicalAddress(const PAddr paddr) const {
+bool MemorySystem::IsValidPhysicalAddress(const PAddr paddr) {
     return GetPhysicalRef(paddr);
 }
 
 u8* MemorySystem::GetPointer(const VAddr vaddr) {
-    u8* page_pointer = impl->current_page_table->pointers[vaddr >> CYTRUS_PAGE_BITS];
+    u8* page_pointer = impl->current_page_table->pointers[vaddr >> CITRA_PAGE_BITS];
     if (page_pointer) {
-        return page_pointer + (vaddr & CYTRUS_PAGE_MASK);
+        return page_pointer + (vaddr & CITRA_PAGE_MASK);
     }
 
-    if (impl->current_page_table->attributes[vaddr >> CYTRUS_PAGE_BITS] ==
+    if (impl->current_page_table->attributes[vaddr >> CITRA_PAGE_BITS] ==
         PageType::RasterizerCachedMemory) {
         return GetPointerForRasterizerCache(vaddr);
     }
@@ -609,12 +607,12 @@ u8* MemorySystem::GetPointer(const VAddr vaddr) {
 }
 
 const u8* MemorySystem::GetPointer(const VAddr vaddr) const {
-    const u8* page_pointer = impl->current_page_table->pointers[vaddr >> CYTRUS_PAGE_BITS];
+    const u8* page_pointer = impl->current_page_table->pointers[vaddr >> CITRA_PAGE_BITS];
     if (page_pointer) {
-        return page_pointer + (vaddr & CYTRUS_PAGE_MASK);
+        return page_pointer + (vaddr & CITRA_PAGE_MASK);
     }
 
-    if (impl->current_page_table->attributes[vaddr >> CYTRUS_PAGE_BITS] ==
+    if (impl->current_page_table->attributes[vaddr >> CITRA_PAGE_BITS] ==
         PageType::RasterizerCachedMemory) {
         return GetPointerForRasterizerCache(vaddr);
     }
@@ -640,11 +638,15 @@ std::string MemorySystem::ReadCString(VAddr vaddr, std::size_t max_length) {
     return string;
 }
 
-u8* MemorySystem::GetPhysicalPointer(PAddr address) const {
+u8* MemorySystem::GetPhysicalPointer(PAddr address) {
     return GetPhysicalRef(address);
 }
 
-MemoryRef MemorySystem::GetPhysicalRef(PAddr address) const {
+MemoryRef MemorySystem::GetPhysicalRef(PAddr address) {
+    if (address == physical_ptr_cache.first) {
+        return physical_ptr_cache.second;
+    }
+
     constexpr std::array memory_areas = {
         std::make_pair(VRAM_PADDR, VRAM_SIZE),
         std::make_pair(DSP_RAM_PADDR, DSP_RAM_SIZE),
@@ -658,10 +660,11 @@ MemoryRef MemorySystem::GetPhysicalRef(PAddr address) const {
         return address >= area.first && address <= area.first + area.second;
     });
 
-    if (area == memory_areas.end()) {
+    if (area == memory_areas.end()) [[unlikely]] {
         LOG_ERROR(HW_Memory, "Unknown GetPhysicalPointer @ {:#08X} at PC {:#08X}", address,
                   impl->GetPC());
-        return nullptr;
+        physical_ptr_cache = {address, {nullptr}};
+        return physical_ptr_cache.second;
     }
 
     u32 offset_into_region = address - area->first;
@@ -683,11 +686,13 @@ MemoryRef MemorySystem::GetPhysicalRef(PAddr address) const {
     default:
         UNREACHABLE();
     }
-    if (offset_into_region > target_mem->GetSize()) {
-        return {nullptr};
+    if (offset_into_region > target_mem->GetSize()) [[unlikely]] {
+        physical_ptr_cache = {address, {nullptr}};
+        return physical_ptr_cache.second;
     }
 
-    return {target_mem, offset_into_region};
+    physical_ptr_cache = {address, {target_mem, offset_into_region}};
+    return physical_ptr_cache.second;
 }
 
 std::vector<VAddr> MemorySystem::PhysicalToVirtualAddressForRasterizer(PAddr addr) {
@@ -723,14 +728,14 @@ void MemorySystem::RasterizerMarkRegionCached(PAddr start, u32 size, bool cached
         return;
     }
 
-    u32 num_pages = ((start + size - 1) >> CYTRUS_PAGE_BITS) - (start >> CYTRUS_PAGE_BITS) + 1;
+    u32 num_pages = ((start + size - 1) >> CITRA_PAGE_BITS) - (start >> CITRA_PAGE_BITS) + 1;
     PAddr paddr = start;
 
-    for (unsigned i = 0; i < num_pages; ++i, paddr += CYTRUS_PAGE_SIZE) {
+    for (unsigned i = 0; i < num_pages; ++i, paddr += CITRA_PAGE_SIZE) {
         for (VAddr vaddr : PhysicalToVirtualAddressForRasterizer(paddr)) {
             impl->cache_marker.Mark(vaddr, cached);
             for (auto& page_table : impl->page_table_list) {
-                PageType& page_type = page_table->attributes[vaddr >> CYTRUS_PAGE_BITS];
+                PageType& page_type = page_table->attributes[vaddr >> CITRA_PAGE_BITS];
 
                 if (cached) {
                     // Switch page type to cached if now cached
@@ -741,7 +746,7 @@ void MemorySystem::RasterizerMarkRegionCached(PAddr start, u32 size, bool cached
                         break;
                     case PageType::Memory:
                         page_type = PageType::RasterizerCachedMemory;
-                        page_table->pointers[vaddr >> CYTRUS_PAGE_BITS] = nullptr;
+                        page_table->pointers[vaddr >> CITRA_PAGE_BITS] = nullptr;
                         break;
                     default:
                         UNREACHABLE();
@@ -755,8 +760,8 @@ void MemorySystem::RasterizerMarkRegionCached(PAddr start, u32 size, bool cached
                         break;
                     case PageType::RasterizerCachedMemory: {
                         page_type = PageType::Memory;
-                        page_table->pointers[vaddr >> CYTRUS_PAGE_BITS] =
-                            GetPointerForRasterizerCache(vaddr & ~CYTRUS_PAGE_MASK);
+                        page_table->pointers[vaddr >> CITRA_PAGE_BITS] =
+                            GetPointerForRasterizerCache(vaddr & ~CITRA_PAGE_MASK);
                         break;
                     }
                     default:
@@ -769,19 +774,35 @@ void MemorySystem::RasterizerMarkRegionCached(PAddr start, u32 size, bool cached
 }
 
 u8 MemorySystem::Read8(const VAddr addr) {
-    return Read<u8>(addr);
+    return Read<u8>(impl->current_page_table, addr);
+}
+
+u8 MemorySystem::Read8(const Kernel::Process& process, VAddr addr) {
+    return Read<u8>(process.vm_manager.page_table, addr);
 }
 
 u16 MemorySystem::Read16(const VAddr addr) {
-    return Read<u16_le>(addr);
+    return Read<u16_le>(impl->current_page_table, addr);
+}
+
+u16 MemorySystem::Read16(const Kernel::Process& process, VAddr addr) {
+    return Read<u16_le>(process.vm_manager.page_table, addr);
 }
 
 u32 MemorySystem::Read32(const VAddr addr) {
-    return Read<u32_le>(addr);
+    return Read<u32_le>(impl->current_page_table, addr);
+}
+
+u32 MemorySystem::Read32(const Kernel::Process& process, VAddr addr) {
+    return Read<u32_le>(process.vm_manager.page_table, addr);
 }
 
 u64 MemorySystem::Read64(const VAddr addr) {
-    return Read<u64_le>(addr);
+    return Read<u64_le>(impl->current_page_table, addr);
+}
+
+u64 MemorySystem::Read64(const Kernel::Process& process, VAddr addr) {
+    return Read<u64_le>(process.vm_manager.page_table, addr);
 }
 
 void MemorySystem::ReadBlock(const Kernel::Process& process, const VAddr src_addr,
@@ -795,19 +816,35 @@ void MemorySystem::ReadBlock(VAddr src_addr, void* dest_buffer, std::size_t size
 }
 
 void MemorySystem::Write8(const VAddr addr, const u8 data) {
-    Write<u8>(addr, data);
+    Write<u8>(impl->current_page_table, addr, data);
+}
+
+void MemorySystem::Write8(const Kernel::Process& process, const VAddr addr, const u8 data) {
+    Write<u8>(process.vm_manager.page_table, addr, data);
 }
 
 void MemorySystem::Write16(const VAddr addr, const u16 data) {
-    Write<u16_le>(addr, data);
+    Write<u16_le>(impl->current_page_table, addr, data);
+}
+
+void MemorySystem::Write16(const Kernel::Process& process, const VAddr addr, const u16 data) {
+    Write<u16_le>(process.vm_manager.page_table, addr, data);
 }
 
 void MemorySystem::Write32(const VAddr addr, const u32 data) {
-    Write<u32_le>(addr, data);
+    Write<u32_le>(impl->current_page_table, addr, data);
+}
+
+void MemorySystem::Write32(const Kernel::Process& process, const VAddr addr, const u32 data) {
+    Write<u32_le>(process.vm_manager.page_table, addr, data);
 }
 
 void MemorySystem::Write64(const VAddr addr, const u64 data) {
-    Write<u64_le>(addr, data);
+    Write<u64_le>(impl->current_page_table, addr, data);
+}
+
+void MemorySystem::Write64(const Kernel::Process& process, const VAddr addr, const u64 data) {
+    Write<u64_le>(process.vm_manager.page_table, addr, data);
 }
 
 bool MemorySystem::WriteExclusive8(const VAddr addr, const u8 data, const u8 expected) {
@@ -841,13 +878,13 @@ void MemorySystem::ZeroBlock(const Kernel::Process& process, const VAddr dest_ad
                              const std::size_t size) {
     auto& page_table = *process.vm_manager.page_table;
     std::size_t remaining_size = size;
-    std::size_t page_index = dest_addr >> CYTRUS_PAGE_BITS;
-    std::size_t page_offset = dest_addr & CYTRUS_PAGE_MASK;
+    std::size_t page_index = dest_addr >> CITRA_PAGE_BITS;
+    std::size_t page_offset = dest_addr & CITRA_PAGE_MASK;
 
     while (remaining_size > 0) {
-        const std::size_t copy_amount = std::min(CYTRUS_PAGE_SIZE - page_offset, remaining_size);
+        const std::size_t copy_amount = std::min(CITRA_PAGE_SIZE - page_offset, remaining_size);
         const VAddr current_vaddr =
-            static_cast<VAddr>((page_index << CYTRUS_PAGE_BITS) + page_offset);
+            static_cast<VAddr>((page_index << CITRA_PAGE_BITS) + page_offset);
 
         switch (page_table.attributes[page_index]) {
         case PageType::Unmapped: {
@@ -890,13 +927,13 @@ void MemorySystem::CopyBlock(const Kernel::Process& dest_process,
                              std::size_t size) {
     auto& page_table = *src_process.vm_manager.page_table;
     std::size_t remaining_size = size;
-    std::size_t page_index = src_addr >> CYTRUS_PAGE_BITS;
-    std::size_t page_offset = src_addr & CYTRUS_PAGE_MASK;
+    std::size_t page_index = src_addr >> CITRA_PAGE_BITS;
+    std::size_t page_offset = src_addr & CITRA_PAGE_MASK;
 
     while (remaining_size > 0) {
-        const std::size_t copy_amount = std::min(CYTRUS_PAGE_SIZE - page_offset, remaining_size);
+        const std::size_t copy_amount = std::min(CITRA_PAGE_SIZE - page_offset, remaining_size);
         const VAddr current_vaddr =
-            static_cast<VAddr>((page_index << CYTRUS_PAGE_BITS) + page_offset);
+            static_cast<VAddr>((page_index << CITRA_PAGE_BITS) + page_offset);
 
         switch (page_table.attributes[page_index]) {
         case PageType::Unmapped: {

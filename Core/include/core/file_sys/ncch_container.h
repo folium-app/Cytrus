@@ -1,4 +1,4 @@
-// Copyright 2017 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -91,6 +91,10 @@ struct NCCH_Header {
     u8 reserved_4[4];
     u8 exefs_super_block_hash[0x20];
     u8 romfs_super_block_hash[0x20];
+
+    u32 GetContentUnitSize() {
+        return 0x200u * (1u << content_unit_size);
+    }
 };
 
 static_assert(sizeof(NCCH_Header) == 0x200, "NCCH header structure size is wrong");
@@ -333,35 +337,40 @@ public:
      */
     bool HasExHeader();
 
+    bool IsNCSD() {
+        return is_ncsd;
+    }
+
+    bool IsFileCompressed() {
+        return file->IsCompressed();
+    }
+
     NCCH_Header ncch_header;
     ExeFs_Header exefs_header;
     ExHeader_Header exheader_header;
 
 private:
+    std::unique_ptr<FileUtil::IOFile> Reopen(const std::unique_ptr<FileUtil::IOFile>& orig_file,
+                                             const std::string& new_filename = "");
+
     bool has_header = false;
     bool has_exheader = false;
     bool has_exefs = false;
     bool has_romfs = false;
 
+    bool is_ncsd = false;
+    bool is_proto = false;
     bool is_tainted = false; // Are there parts of this container being overridden?
     bool is_loaded = false;
     bool is_compressed = false;
-
-    bool is_encrypted = false;
-    // for decrypting exheader, exefs header and icon/banner section
-    std::array<u8, 16> primary_key{};
-    std::array<u8, 16> secondary_key{}; // for decrypting romfs and .code section
-    std::array<u8, 16> exheader_ctr{};
-    std::array<u8, 16> exefs_ctr{};
-    std::array<u8, 16> romfs_ctr{};
 
     u32 ncch_offset = 0; // Offset to NCCH header, can be 0 for NCCHs or non-zero for CIAs/NCSDs
     u32 exefs_offset = 0;
     u32 partition = 0;
 
     std::string filepath;
-    FileUtil::IOFile file;
-    FileUtil::IOFile exefs_file;
+    std::unique_ptr<FileUtil::IOFile> file;
+    std::unique_ptr<FileUtil::IOFile> exefs_file;
 };
 
 } // namespace FileSys

@@ -1,4 +1,4 @@
-// Copyright 2014 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -12,6 +12,7 @@
 #include "common/settings.h"
 #include "common/string_util.h"
 #include "common/swap.h"
+#include "common/zstd_compression.h"
 #include "core/core.h"
 #include "core/file_sys/ncch_container.h"
 #include "core/file_sys/title_metadata.h"
@@ -22,22 +23,22 @@
 #include "core/hle/service/cfg/cfg.h"
 #include "core/hle/service/fs/archive.h"
 #include "core/hle/service/fs/fs_user.h"
+#include "core/hw/unique_data.h"
 #include "core/loader/ncch.h"
 #include "core/loader/smdh.h"
 #include "core/memory.h"
 #include "core/system_titles.h"
-#include "core/telemetry_session.h"
 #include "network/network.h"
 
 namespace Loader {
 
 using namespace Common::Literals;
-static const u64 UPDATE_MASK = 0x0000000e00000000;
+static constexpr u64 UPDATE_TID_HIGH = 0x0004000e00000000;
 
-FileType AppLoader_NCCH::IdentifyType(FileUtil::IOFile& file) {
+FileType AppLoader_NCCH::IdentifyType(FileUtil::IOFile* file) {
     u32 magic;
-    file.Seek(0x100, SEEK_SET);
-    if (1 != file.ReadArray<u32>(&magic, 1))
+    file->Seek(0x100, SEEK_SET);
+    if (1 != file->ReadArray<u32>(&magic, 1))
         return FileType::Error;
 
     if (MakeMagic('N', 'C', 'S', 'D') == magic)
@@ -45,6 +46,32 @@ FileType AppLoader_NCCH::IdentifyType(FileUtil::IOFile& file) {
 
     if (MakeMagic('N', 'C', 'C', 'H') == magic)
         return FileType::CXI;
+
+    std::unique_ptr<FileUtil::IOFile> file_crypto = HW::UniqueData::OpenUniqueCryptoFile(
+        file->Filename(), "rb", HW::UniqueData::UniqueCryptoFileID::NCCH);
+
+    file_crypto->Seek(0x100, SEEK_SET);
+    if (1 != file_crypto->ReadArray<u32>(&magic, 1))
+        return FileType::Error;
+
+    if (MakeMagic('N', 'C', 'S', 'D') == magic)
+        return FileType::CCI;
+
+    if (MakeMagic('N', 'C', 'C', 'H') == magic)
+        return FileType::CXI;
+
+    std::optional<u32> magic_zstd = FileUtil::Z3DSReadIOFile::GetUnderlyingFileMagic(file);
+    if (!magic_zstd.has_value()) {
+        magic_zstd = FileUtil::Z3DSReadIOFile::GetUnderlyingFileMagic(file_crypto.get());
+    }
+
+    if (magic_zstd.has_value()) {
+        if (MakeMagic('N', 'C', 'S', 'D') == magic_zstd)
+            return FileType::CCI;
+
+        if (MakeMagic('N', 'C', 'C', 'H') == magic_zstd)
+            return FileType::CXI;
+    }
 
     return FileType::Error;
 }
@@ -68,6 +95,9 @@ std::pair<std::optional<Kernel::MemoryMode>, ResultStatus> AppLoader_NCCH::LoadK
         if (res != ResultStatus::Success) {
             return std::make_pair(std::nullopt, res);
         }
+    }
+    if (memory_mode_override.has_value()) {
+        return std::make_pair(memory_mode_override, ResultStatus::Success);
     }
 
     // Provide the memory mode from the exheader.
@@ -118,14 +148,13 @@ ResultStatus AppLoader_NCCH::LoadExec(std::shared_ptr<Kernel::Process>& process)
         codeset->CodeSegment().offset = 0;
         codeset->CodeSegment().addr = overlay_ncch->exheader_header.codeset_info.text.address;
         codeset->CodeSegment().size =
-            overlay_ncch->exheader_header.codeset_info.text.num_max_pages *
-            Memory::CYTRUS_PAGE_SIZE;
+            overlay_ncch->exheader_header.codeset_info.text.num_max_pages * Memory::CITRA_PAGE_SIZE;
 
         codeset->RODataSegment().offset =
             codeset->CodeSegment().offset + codeset->CodeSegment().size;
         codeset->RODataSegment().addr = overlay_ncch->exheader_header.codeset_info.ro.address;
         codeset->RODataSegment().size =
-            overlay_ncch->exheader_header.codeset_info.ro.num_max_pages * Memory::CYTRUS_PAGE_SIZE;
+            overlay_ncch->exheader_header.codeset_info.ro.num_max_pages * Memory::CITRA_PAGE_SIZE;
 
         // TODO(yuriks): Not sure if the bss size is added to the page-aligned .data size or just
         //               to the regular size. Playing it safe for now.
@@ -137,7 +166,7 @@ ResultStatus AppLoader_NCCH::LoadExec(std::shared_ptr<Kernel::Process>& process)
         codeset->DataSegment().addr = overlay_ncch->exheader_header.codeset_info.data.address;
         codeset->DataSegment().size =
             overlay_ncch->exheader_header.codeset_info.data.num_max_pages *
-                Memory::CYTRUS_PAGE_SIZE +
+                Memory::CITRA_PAGE_SIZE +
             bss_page_size;
 
         // Apply patches now that the entire codeset (including .bss) has been allocated
@@ -160,7 +189,7 @@ ResultStatus AppLoader_NCCH::LoadExec(std::shared_ptr<Kernel::Process>& process)
         // APPLICATION. See:
         // https://github.com/LumaTeam/Luma3DS/blob/e2778a45/sysmodules/pm/source/launch.c#L237
         auto& ncch_caps = overlay_ncch->exheader_header.arm11_system_local_caps;
-        const auto o3ds_mode = static_cast<Kernel::MemoryMode>(ncch_caps.system_mode.Value());
+        const auto o3ds_mode = *LoadKernelMemoryMode().first;
         const auto n3ds_mode = static_cast<Kernel::New3dsMemoryMode>(ncch_caps.n3ds_mode);
         const bool is_new_3ds = Settings::values.is_new_3ds.GetValue();
         if (is_new_3ds && n3ds_mode == Kernel::New3dsMemoryMode::Legacy &&
@@ -268,15 +297,13 @@ ResultStatus AppLoader_NCCH::Load(std::shared_ptr<Kernel::Process>& process) {
 
     LOG_INFO(Loader, "Program ID: {}", program_id);
 
-    update_ncch.OpenFile(Service::AM::GetTitleContentPath(Service::FS::MediaType::SDMC,
-                                                          ncch_program_id | UPDATE_MASK));
+    u64 update_tid = (ncch_program_id & 0xFFFFFFFFULL) | UPDATE_TID_HIGH;
+    update_ncch.OpenFile(
+        Service::AM::GetTitleContentPath(Service::FS::MediaType::SDMC, update_tid));
     result = update_ncch.Load();
     if (result == ResultStatus::Success) {
         overlay_ncch = &update_ncch;
     }
-
-    system.TelemetrySession().AddField(Common::Telemetry::FieldType::Session, "ProgramId",
-                                       program_id);
 
     if (auto room_member = Network::GetRoomMember().lock()) {
         Network::GameInfo game_info;
@@ -359,8 +386,9 @@ ResultStatus AppLoader_NCCH::DumpRomFS(const std::string& target_path) {
 ResultStatus AppLoader_NCCH::DumpUpdateRomFS(const std::string& target_path) {
     u64 program_id;
     ReadProgramId(program_id);
+    u64 update_tid = (program_id & 0xFFFFFFFFULL) | UPDATE_TID_HIGH;
     update_ncch.OpenFile(
-        Service::AM::GetTitleContentPath(Service::FS::MediaType::SDMC, program_id | UPDATE_MASK));
+        Service::AM::GetTitleContentPath(Service::FS::MediaType::SDMC, update_tid));
     return update_ncch.DumpRomFS(target_path);
 }
 
@@ -380,6 +408,43 @@ ResultStatus AppLoader_NCCH::ReadTitle(std::string& title) {
     title = Common::UTF16ToUTF8(std::u16string{short_title.begin(), title_end});
 
     return ResultStatus::Success;
+}
+
+AppLoader::CompressFileInfo AppLoader_NCCH::GetCompressFileInfo() {
+    CompressFileInfo info{};
+    if (base_ncch.LoadHeader() != ResultStatus::Success) {
+        info.is_supported = false;
+        return info;
+    }
+    info.is_supported = true;
+    info.is_compressed = base_ncch.IsFileCompressed();
+    if (base_ncch.IsNCSD()) {
+        info.underlying_magic = std::array<u8, 4>({'N', 'C', 'S', 'D'});
+        info.recommended_compressed_extension = "zcci";
+        info.recommended_uncompressed_extension = "cci";
+    } else {
+        info.underlying_magic = std::array<u8, 4>({'N', 'C', 'C', 'H'});
+        info.recommended_compressed_extension = "zcxi";
+        info.recommended_uncompressed_extension = "cxi";
+    }
+    std::vector<u8> title_info_vec(sizeof(Service::AM::TitleInfo));
+    Service::AM::TitleInfo* title_info =
+        reinterpret_cast<Service::AM::TitleInfo*>(title_info_vec.data());
+    title_info->tid = base_ncch.ncch_header.program_id;
+    title_info->version = base_ncch.ncch_header.version;
+    title_info->size =
+        base_ncch.ncch_header.content_size * base_ncch.ncch_header.GetContentUnitSize();
+    title_info->unused = title_info->type = 0;
+    info.default_metadata.emplace("titleinfo", title_info_vec);
+
+    return info;
+}
+
+bool AppLoader_NCCH::IsFileCompressed() {
+    if (base_ncch.LoadHeader() != ResultStatus::Success) {
+        return false;
+    }
+    return base_ncch.IsFileCompressed();
 }
 
 } // namespace Loader

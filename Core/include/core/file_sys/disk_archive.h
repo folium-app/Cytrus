@@ -1,4 +1,4 @@
-// Copyright 2014 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -30,11 +30,11 @@ public:
     }
 
     ResultVal<std::size_t> Read(u64 offset, std::size_t length, u8* buffer) const override;
-    ResultVal<std::size_t> Write(u64 offset, std::size_t length, bool flush,
+    ResultVal<std::size_t> Write(u64 offset, std::size_t length, bool flush, bool update_timestamp,
                                  const u8* buffer) override;
     u64 GetSize() const override;
     bool SetSize(u64 size) const override;
-    bool Close() const override;
+    bool Close() override;
 
     void Flush() const override {
         file->Flush();
@@ -44,9 +44,9 @@ protected:
     Mode mode;
     std::unique_ptr<FileUtil::IOFile> file;
 
-private:
     DiskFile() = default;
 
+private:
     template <class Archive>
     void serialize(Archive& ar, const unsigned int) {
         ar& boost::serialization::base_object<FileBackend>(*this);
@@ -66,7 +66,7 @@ public:
 
     u32 Read(u32 count, Entry* entries) override;
 
-    bool Close() const override {
+    bool Close() override {
         return true;
     }
 

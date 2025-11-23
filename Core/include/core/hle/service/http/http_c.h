@@ -1,4 +1,4 @@
-// Copyright 2014 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -48,12 +48,29 @@ enum class RequestMethod : u8 {
 constexpr u32 TotalRequestMethods = 8;
 
 enum class RequestState : u8 {
-    NotStarted = 0x1,             // Request has not started yet.
-    ConnectingToServer = 0x5,     // Request in progress, connecting to server.
-    SendingRequest = 0x6,         // Request in progress, sending HTTP request.
-    ReceivingResponse = 0x7,      // Request in progress, receiving HTTP response.
-    ReadyToDownloadContent = 0x8, // Ready to download the content.
-    TimedOut = 0xA,               // Request timed out?
+    /// Request has not started yet.
+    NotStarted = 0x1,
+
+    /// Request in progress, connecting to server.
+    ConnectingToServer = 0x5,
+
+    /// Request in progress, sending HTTP request.
+    SendingRequest = 0x6,
+
+    // Request in progress, receiving HTTP response and headers.
+    ReceivingResponse = 0x7,
+
+    /// Request in progress, receiving HTTP body. The HTTP module may
+    /// get stuck in this state if the internal receive buffer gets full.
+    /// Once the user calls ReceiveData it will get unstuck.
+    ReceivingBody = 0x8,
+
+    /// Request is finished and all data has been received. HTTP transitions
+    /// to the Completed state shortly afterwards after some cleanup.
+    Received = 0x9,
+
+    /// Request is completed.
+    Completed = 0xA,
 };
 
 enum class PostDataEncoding : u8 {
@@ -257,6 +274,8 @@ public:
     u32 socket_buffer_size;
     std::vector<RequestHeader> headers;
     const ClCertAData* clcert_data;
+    bool post_data_added = false;
+    bool post_pending_request = false;
     Params post_data;
     std::string post_data_raw;
     PostDataEncoding post_data_encoding = PostDataEncoding::Auto;
@@ -682,6 +701,12 @@ private:
      */
     void GetResponseHeaderTimeout(Kernel::HLERequestContext& ctx);
 
+    void GetResponseData(Kernel::HLERequestContext& ctx);
+
+    void GetResponseDataTimeout(Kernel::HLERequestContext& ctx);
+
+    void GetResponseDataImpl(Kernel::HLERequestContext& ctx, bool timeout);
+
     /**
      * GetResponseHeaderImpl:
      *  Implements GetResponseHeader and GetResponseHeaderTimeout service functions
@@ -879,6 +904,7 @@ private:
         // NOTE: Serialization of the HTTP service is on a 'best effort' basis.
         // There is a very good chance that saving/loading during a network connection will break,
         // regardless!
+        DEBUG_SERIALIZATION_POINT;
         ar& boost::serialization::base_object<Kernel::SessionRequestHandler>(*this);
         ar & ClCertA.certificate;
         ar & ClCertA.private_key;

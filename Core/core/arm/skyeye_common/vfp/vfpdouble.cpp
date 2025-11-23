@@ -380,10 +380,10 @@ static u32 vfp_double_fsqrt(ARMul_State* state, int dd, int unused, int dm, u32 
 }
 
 /*
- * Equal := ZC
- * Less than := N
- * Greater than := C
- * Unordered := CV
+ * Equal	:= ZC
+ * Less than	:= N
+ * Greater than	:= C
+ * Unordered	:= CV
  */
 static u32 vfp_compare(ARMul_State* state, int dd, int signal_on_qnan, s64 m, u32 fpscr) {
     s64 d;

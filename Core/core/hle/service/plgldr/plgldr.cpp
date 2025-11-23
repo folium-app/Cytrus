@@ -1,4 +1,4 @@
-// Copyright 2022 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -38,7 +38,7 @@ SERVICE_CONSTRUCT_IMPL(Service::PLGLDR::PLG_LDR)
 
 namespace Service::PLGLDR {
 
-static const Kernel::CoreVersion plgldr_version = Kernel::CoreVersion(1, 0, 0);
+static const Kernel::CoreVersion plgldr_version = Kernel::CoreVersion(1, 0, 2);
 
 PLG_LDR::PLG_LDR(Core::System& system_) : ServiceFramework{"plg:ldr", 1}, system(system_) {
     static const FunctionInfo functions[] = {
@@ -85,13 +85,18 @@ SERIALIZE_IMPL(PLG_LDR::PluginLoaderContext)
 
 template <class Archive>
 void PLG_LDR::serialize(Archive& ar, const unsigned int) {
+    DEBUG_SERIALIZATION_POINT;
     ar& boost::serialization::base_object<Kernel::SessionRequestHandler>(*this);
     ar & plgldr_context;
 }
 SERIALIZE_IMPL(PLG_LDR)
 
 void PLG_LDR::OnProcessRun(Kernel::Process& process, Kernel::KernelSystem& kernel) {
-    if (!plgldr_context.is_enabled || plgldr_context.plugin_loaded) {
+    constexpr u32 TITLE_ID_APP_MASK = 0xFFFFFFED;
+    constexpr u32 TITLE_ID_APP_VALUE = 0x00040000;
+    if (!plgldr_context.is_enabled || plgldr_context.plugin_loaded ||
+        (static_cast<u32>(process.codeset->program_id >> 32) & TITLE_ID_APP_MASK) !=
+            TITLE_ID_APP_VALUE) {
         return;
     }
     {
@@ -204,7 +209,10 @@ void PLG_LDR::SetLoadSettings(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp(ctx);
 
     plgldr_context.use_user_load_parameters = true;
-    plgldr_context.user_load_parameters.no_flash = rp.Pop<u32>() == 1;
+    u32_le flags = rp.Pop<u32>();
+    plgldr_context.user_load_parameters.no_flash = (flags & 1) == 1;
+    plgldr_context.user_load_parameters.plugin_memory_strategy =
+        static_cast<PluginMemoryStrategy>((flags >> 8) & 0xF);
     plgldr_context.user_load_parameters.low_title_Id = rp.Pop<u32>();
 
     auto path = rp.PopMappedBuffer();

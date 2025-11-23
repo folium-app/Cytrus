@@ -4,7 +4,10 @@
 
 #include <string>
 #include <vector>
+#define SDL_MAIN_HANDLED
+#define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
 #include "audio_core/audio_types.h"
 #include "audio_core/sdl3_sink.h"
 #include "common/assert.h"
@@ -24,6 +27,7 @@ struct SDL3Sink::Impl {
 };
 
 SDL3Sink::SDL3Sink(std::string device_name) : impl(std::make_unique<Impl>()) {
+    SDL_SetMainReady();
     if (SDL_Init(SDL_INIT_AUDIO) == false) {
         LOG_CRITICAL(Audio_Sink, "SDL_Init(SDL_INIT_AUDIO) failed with: {}", SDL_GetError());
         impl->stream = nullptr;
@@ -39,17 +43,20 @@ SDL3Sink::SDL3Sink(std::string device_name) : impl(std::make_unique<Impl>()) {
     // desired_audiospec.userdata = impl.get();
     // desired_audiospec.callback = &Impl::Callback;
 
-    SDL_AudioSpec obtained_audiospec;
-    SDL_zero(obtained_audiospec);
+    SDL_AudioDeviceID deviceID;
+    deviceID = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired_audiospec);
+    
+    // SDL_AudioSpec obtained_audiospec;
+    // SDL_zero(obtained_audiospec);
 
-    impl->stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired_audiospec,
+    impl->stream = SDL_OpenAudioDeviceStream(deviceID, &desired_audiospec,
                                              &Impl::Callback, impl.get());
     if (!impl->stream) {
         LOG_CRITICAL(Audio_Sink, "SDL_OpenAudioDeviceStream failed");
         return;
     }
 
-    impl->sample_rate = obtained_audiospec.freq;
+    // impl->sample_rate = obtained_audiospec.freq;
 
     // SDL3 audio devices start out paused, unpause it:
     SDL_ResumeAudioStreamDevice(impl->stream);

@@ -1,4 +1,4 @@
-// Copyright 2023 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -54,6 +54,10 @@ PicaCore::PicaCore(Memory::MemorySystem& memory_, std::shared_ptr<DebugContext> 
 PicaCore::~PicaCore() = default;
 
 void PicaCore::InitializeRegs() {
+    // Values initialized by GSP
+    regs.internal.irq_autostop = 1;
+    regs.internal.irq_mask = 0xFFFFFFF0;
+
     auto& framebuffer_top = regs.framebuffer_config[0];
     auto& framebuffer_sub = regs.framebuffer_config[1];
 
@@ -91,12 +95,20 @@ void PicaCore::SetInterruptHandler(Service::GSP::InterruptHandler& signal_interr
     this->signal_interrupt = signal_interrupt;
 }
 
-void PicaCore::ProcessCmdList(PAddr list, u32 size) {
+void PicaCore::ProcessCmdList(PAddr list, u32 size, bool ignore_list) {
+    if (ignore_list) {
+        signal_interrupt(Service::GSP::InterruptId::P3D);
+        return;
+    }
     // Initialize command list tracking.
     const u8* head = memory.GetPhysicalPointer(list);
     cmd_list.Reset(list, head, size);
 
+    bool stop_requested = false;
     while (cmd_list.current_index < cmd_list.length) {
+        if (stop_requested) [[unlikely]] {
+            break;
+        }
         // Align read pointer to 8 bytes
         if (cmd_list.current_index % 2 != 0) {
             cmd_list.current_index++;
@@ -107,18 +119,26 @@ void PicaCore::ProcessCmdList(PAddr list, u32 size) {
         const CommandHeader header{cmd_list.head[cmd_list.current_index++]};
 
         // Write to the requested PICA register.
-        WriteInternalReg(header.cmd_id, value, header.parameter_mask);
+        WriteInternalReg(header.cmd_id, value, header.parameter_mask, stop_requested);
 
         // Write any extra paramters as well.
         for (u32 i = 0; i < header.extra_data_length; ++i) {
+            if (stop_requested) [[unlikely]] {
+                break;
+            }
             const u32 cmd = header.cmd_id + (header.group_commands ? i + 1 : 0);
             const u32 extra_value = cmd_list.head[cmd_list.current_index++];
-            WriteInternalReg(cmd, extra_value, header.parameter_mask);
+            WriteInternalReg(cmd, extra_value, header.parameter_mask, stop_requested);
         }
     }
 }
 
-void PicaCore::WriteInternalReg(u32 id, u32 value, u32 mask) {
+static bool any_byte_match(u32 a, u32 b) {
+    return ((a & 0xFF) == (b & 0xFF)) || (((a >> 8) & 0xFF) == ((b >> 8) & 0xFF)) ||
+           (((a >> 16) & 0xFF) == ((b >> 16) & 0xFF)) || (((a >> 24) & 0xFF) == ((b >> 24) & 0xFF));
+}
+
+void PicaCore::WriteInternalReg(u32 id, u32 value, u32 mask, bool& stop_requested) {
     if (id >= RegsInternal::NUM_REGS) {
         LOG_ERROR(
             HW_GPU,
@@ -145,13 +165,19 @@ void PicaCore::WriteInternalReg(u32 id, u32 value, u32 mask) {
     // Track events.
     if (debug_context) {
         debug_context->OnEvent(DebugContext::Event::PicaCommandLoaded, &id);
-        SCOPE_EXIT({ debug_context->OnEvent(DebugContext::Event::PicaCommandProcessed, &id); });
     }
 
     switch (id) {
     // Trigger IRQ
-    case PICA_REG_INDEX(trigger_irq):
-        signal_interrupt(Service::GSP::InterruptId::P3D);
+    case PICA_REG_INDEX(irq_request):
+        // TODO(PabloMK7): This logic is not fully accurate, but close enough:
+        // https://problemkaputt.de/gbatek-3ds-gpu-internal-registers-finalize-interrupt-registers.htm
+        if (any_byte_match(regs.internal.reg_array[id], regs.internal.irq_compare)) [[likely]] {
+            signal_interrupt(Service::GSP::InterruptId::P3D);
+            if (regs.internal.irq_autostop) [[likely]] {
+                stop_requested = true;
+            }
+        }
         break;
 
     case PICA_REG_INDEX(pipeline.triangle_topology):
@@ -359,7 +385,8 @@ void PicaCore::WriteInternalReg(u32 id, u32 value, u32 mask) {
         auto& lut_config = regs.internal.lighting.lut_config;
         ASSERT_MSG(lut_config.index < 256, "lut_config.index exceeded maximum value of 255!");
 
-        lighting.luts[lut_config.type][lut_config.index].raw = value;
+        const u32 prev = std::exchange(lighting.luts[lut_config.type][lut_config.index].raw, value);
+        lighting.lut_dirty |= (prev != value) << lut_config.type;
         lut_config.index.Assign(lut_config.index + 1);
         break;
     }
@@ -372,7 +399,9 @@ void PicaCore::WriteInternalReg(u32 id, u32 value, u32 mask) {
     case PICA_REG_INDEX(texturing.fog_lut_data[5]):
     case PICA_REG_INDEX(texturing.fog_lut_data[6]):
     case PICA_REG_INDEX(texturing.fog_lut_data[7]): {
-        fog.lut[regs.internal.texturing.fog_lut_offset % 128].raw = value;
+        const u32 prev =
+            std::exchange(fog.lut[regs.internal.texturing.fog_lut_offset % 128].raw, value);
+        fog.lut_dirty |= prev != value;
         regs.internal.texturing.fog_lut_offset.Assign(regs.internal.texturing.fog_lut_offset + 1);
         break;
     }
@@ -386,22 +415,28 @@ void PicaCore::WriteInternalReg(u32 id, u32 value, u32 mask) {
     case PICA_REG_INDEX(texturing.proctex_lut_data[6]):
     case PICA_REG_INDEX(texturing.proctex_lut_data[7]): {
         auto& index = regs.internal.texturing.proctex_lut_config.index;
+        const auto lut_table = regs.internal.texturing.proctex_lut_config.ref_table.Value();
 
-        switch (regs.internal.texturing.proctex_lut_config.ref_table.Value()) {
+        const auto sync_lut = [&](auto& proctex_table) {
+            const u32 prev = std::exchange(proctex_table[index % proctex_table.size()].raw, value);
+            proctex.table_dirty |= (prev != value) << u32(lut_table);
+        };
+
+        switch (lut_table) {
         case TexturingRegs::ProcTexLutTable::Noise:
-            proctex.noise_table[index % proctex.noise_table.size()].raw = value;
+            sync_lut(proctex.noise_table);
             break;
         case TexturingRegs::ProcTexLutTable::ColorMap:
-            proctex.color_map_table[index % proctex.color_map_table.size()].raw = value;
+            sync_lut(proctex.color_map_table);
             break;
         case TexturingRegs::ProcTexLutTable::AlphaMap:
-            proctex.alpha_map_table[index % proctex.alpha_map_table.size()].raw = value;
+            sync_lut(proctex.alpha_map_table);
             break;
         case TexturingRegs::ProcTexLutTable::Color:
-            proctex.color_table[index % proctex.color_table.size()].raw = value;
+            sync_lut(proctex.color_table);
             break;
         case TexturingRegs::ProcTexLutTable::ColorDiff:
-            proctex.color_diff_table[index % proctex.color_diff_table.size()].raw = value;
+            sync_lut(proctex.color_diff_table);
             break;
         }
         index.Assign(index + 1);
@@ -411,8 +446,11 @@ void PicaCore::WriteInternalReg(u32 id, u32 value, u32 mask) {
         break;
     }
 
-    // Notify the rasterizer an internal register was updated.
-    rasterizer->NotifyPicaRegisterChanged(id);
+    dirty_regs.Set(id);
+
+    if (debug_context) {
+        debug_context->OnEvent(DebugContext::Event::PicaCommandProcessed, &id);
+    }
 }
 
 void PicaCore::SubmitImmediate(u32 value) {
@@ -456,8 +494,6 @@ void PicaCore::DrawImmediate() {
     if (debug_context) {
         debug_context->OnEvent(DebugContext::Event::VertexShaderInvocation,
                                std::addressof(immediate.input_vertex));
-        SCOPE_EXIT(
-            { debug_context->OnEvent(DebugContext::Event::FinishedPrimitiveBatch, nullptr); });
     }
 
     ShaderUnit shader_unit;
@@ -482,6 +518,10 @@ void PicaCore::DrawImmediate() {
     // Flush the immediate triangle.
     rasterizer->DrawTriangles();
     immediate.current_attribute = 0;
+
+    if (debug_context) {
+        debug_context->OnEvent(DebugContext::Event::FinishedPrimitiveBatch, nullptr);
+    }
 }
 
 void PicaCore::DrawArrays(bool is_indexed) {
@@ -490,8 +530,6 @@ void PicaCore::DrawArrays(bool is_indexed) {
     // Track vertex in the debug recorder.
     if (debug_context) {
         debug_context->OnEvent(DebugContext::Event::IncomingPrimitiveBatch, nullptr);
-        SCOPE_EXIT(
-            { debug_context->OnEvent(DebugContext::Event::FinishedPrimitiveBatch, nullptr); });
     }
 
     const bool accelerate_draw = [this] {
@@ -526,6 +564,10 @@ void PicaCore::DrawArrays(bool is_indexed) {
 
     // Draw emitted triangles.
     rasterizer->DrawTriangles();
+
+    if (debug_context) {
+        debug_context->OnEvent(DebugContext::Event::FinishedPrimitiveBatch, nullptr);
+    }
 }
 
 void PicaCore::LoadVertices(bool is_indexed) {
@@ -608,6 +650,73 @@ void PicaCore::LoadVertices(bool is_indexed) {
         // Send to geometry pipeline
         geometry_pipeline.SubmitVertex(vs_output);
     }
+}
+
+PicaCore::RenderPropertiesGuess PicaCore::GuessCmdRenderProperties(PAddr list, u32 size) {
+    // Initialize command list tracking.
+    const u8* head = memory.GetPhysicalPointer(list);
+    cmd_list.Reset(list, head, size);
+
+    constexpr size_t max_iterations = 0x100;
+
+    RenderPropertiesGuess find_info{};
+
+    find_info.vp_height = regs.internal.rasterizer.viewport_size_y.Value();
+    find_info.paddr = regs.internal.framebuffer.framebuffer.color_buffer_address.Value() * 8;
+
+    auto process_write = [this, &find_info](u32 cmd_id, u32 value) {
+        switch (cmd_id) {
+        case PICA_REG_INDEX(rasterizer.viewport_size_y):
+            find_info.vp_height = value;
+            find_info.vp_heigh_found = true;
+            break;
+        case PICA_REG_INDEX(framebuffer.framebuffer.color_buffer_address):
+            find_info.paddr = value * 8;
+            find_info.paddr_found = true;
+            break;
+        [[unlikely]] case PICA_REG_INDEX(pipeline.command_buffer.trigger[0]):
+        [[unlikely]] case PICA_REG_INDEX(pipeline.command_buffer.trigger[1]): {
+            const u32 index =
+                static_cast<u32>(cmd_id - PICA_REG_INDEX(pipeline.command_buffer.trigger[0]));
+            const PAddr addr = regs.internal.pipeline.command_buffer.GetPhysicalAddress(index);
+            const u32 size = regs.internal.pipeline.command_buffer.GetSize(index);
+            const u8* head = memory.GetPhysicalPointer(addr);
+            cmd_list.Reset(addr, head, size);
+            break;
+        }
+        default:
+            break;
+        }
+        return find_info.vp_heigh_found && find_info.paddr_found;
+    };
+
+    size_t iterations = 0;
+    while (cmd_list.current_index < cmd_list.length && iterations < max_iterations) {
+        // Align read pointer to 8 bytes
+        if (cmd_list.current_index % 2 != 0) {
+            cmd_list.current_index++;
+        }
+
+        // Read the header and the value to write.
+        const u32 value = cmd_list.head[cmd_list.current_index++];
+        const CommandHeader header{cmd_list.head[cmd_list.current_index++]};
+
+        // Write to the requested PICA register.
+        if (process_write(header.cmd_id, value))
+            break;
+
+        // Write any extra paramters as well.
+        for (u32 i = 0; i < header.extra_data_length; ++i) {
+            const u32 cmd = header.cmd_id + (header.group_commands ? i + 1 : 0);
+            const u32 extra_value = cmd_list.head[cmd_list.current_index++];
+            if (process_write(cmd, extra_value))
+                break;
+        }
+
+        iterations++;
+    }
+
+    return find_info;
 }
 
 template <class Archive>

@@ -26,9 +26,9 @@ std::string FormatLogMessage(const Entry& entry) {
     const char* class_name = GetLogClassName(entry.log_class);
     const char* level_name = GetLevelName(entry.log_level);
 
-    return fmt::format("[{:4d}.{:06d}] {} <{}> {}:{}:{}: {}", time_seconds, time_fractional,
+    return fmt::format("[{:01d}.{:06d}] {} <{}> {}:{}:{}: {}", time_seconds, time_fractional,
                        class_name, level_name, entry.filename, entry.function, entry.line_num,
-                       entry.message);
+                       TrimSourcePath(entry.message));
 }
 
 void PrintMessage(const Entry& entry) {
@@ -137,7 +137,7 @@ void PrintMessageToLogcat([[maybe_unused]] const Entry& entry) {
     case Level::Count:
         UNREACHABLE();
     }
-    __android_log_print(android_log_priority, "CytrusNative", "%s", str.c_str());
+    __android_log_print(android_log_priority, "CitraNative", "%s", str.c_str());
 #endif
 }
 } // namespace Common::Log
