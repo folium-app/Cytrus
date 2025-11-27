@@ -28,7 +28,7 @@ std::weak_ptr<Network::AnnounceMultiplayerSession> w_session;
 @implementation CytrusMultiplayerManager
 -(CytrusMultiplayerManager *) init {
     if (self = [super init]) {
-        if (NSString *webAPIURL = [[NSUserDefaults standardUserDefaults] stringForKey:@"cytrus.v1.30.webAPIURL"])
+        if (NSString *webAPIURL = [[NSUserDefaults standardUserDefaults] stringForKey:@"cytrus.v1.35.webAPIURL"])
             NetSettings::values.web_api_url = std::string{[webAPIURL UTF8String]};
         Network::Init();
         
@@ -153,7 +153,7 @@ std::weak_ptr<Network::AnnounceMultiplayerSession> w_session;
 
 -(void) updateWebAPIURL {
     Network::Shutdown();
-    if (NSString *webAPIURL = [[NSUserDefaults standardUserDefaults] stringForKey:@"cytrus.v1.30.webAPIURL"])
+    if (NSString *webAPIURL = [[NSUserDefaults standardUserDefaults] stringForKey:@"cytrus.v1.35.webAPIURL"])
         NetSettings::values.web_api_url = std::string{[webAPIURL UTF8String]};
     Network::Init();
 }

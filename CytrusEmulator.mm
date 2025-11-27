@@ -412,74 +412,74 @@ static void TryShutdown() {
     if (@available(iOS 26, *)) {
         Settings::values.use_cpu_jit.SetValue(false);
     } else {
-        Settings::values.use_cpu_jit.SetValue(boolean(@"cytrus.v1.30.cpuJIT"));
+        Settings::values.use_cpu_jit.SetValue(boolean(@"cytrus.v1.35.cpuJIT"));
     }
-    Settings::values.cpu_clock_percentage.SetValue(signed32(@"cytrus.v1.30.cpuClockPercentage"));
-    Settings::values.is_new_3ds.SetValue(boolean(@"cytrus.v1.30.new3DS"));
-    Settings::values.lle_applets.SetValue(boolean(@"cytrus.v1.30.lleApplets"));
-    Settings::values.deterministic_async_operations.SetValue(boolean(@"cytrus.v1.30.deterministicAsyncOperations"));
-    Settings::values.enable_required_online_lle_modules.SetValue(boolean(@"cytrus.v1.30.enableRequiredOnlineLLEModules"));
+    Settings::values.cpu_clock_percentage.SetValue(signed32(@"cytrus.v1.35.cpuClockPercentage"));
+    Settings::values.is_new_3ds.SetValue(boolean(@"cytrus.v1.35.new3DS"));
+    Settings::values.lle_applets.SetValue(boolean(@"cytrus.v1.35.lleApplets"));
+    Settings::values.deterministic_async_operations.SetValue(boolean(@"cytrus.v1.35.deterministicAsyncOperations"));
+    Settings::values.enable_required_online_lle_modules.SetValue(boolean(@"cytrus.v1.35.enableRequiredOnlineLLEModules"));
     // Data Storage
-    Settings::values.compress_cia_installs.SetValue(boolean(@"cytrus.v1.30.compressCIAInstalls"));
+    Settings::values.compress_cia_installs.SetValue(boolean(@"cytrus.v1.35.compressCIAInstalls"));
     // System
-    Settings::values.region_value.SetValue(signed32(@"cytrus.v1.30.regionValue"));
-    Settings::values.plugin_loader_enabled.SetValue(boolean(@"cytrus.v1.30.pluginLoader"));
-    Settings::values.allow_plugin_loader.SetValue(boolean(@"cytrus.v1.30.allowPluginLoader"));
-    Settings::values.steps_per_hour.SetValue(unsigned16(@"cytrus.v1.30.stepsPerHour"));
+    Settings::values.region_value.SetValue(signed32(@"cytrus.v1.35.regionValue"));
+    Settings::values.plugin_loader_enabled.SetValue(boolean(@"cytrus.v1.35.pluginLoader"));
+    Settings::values.allow_plugin_loader.SetValue(boolean(@"cytrus.v1.35.allowPluginLoader"));
+    Settings::values.steps_per_hour.SetValue(unsigned16(@"cytrus.v1.35.stepsPerHour"));
     // Renderer
-    Settings::values.spirv_shader_gen.SetValue(boolean(@"cytrus.v1.30.spirvShaderGeneration"));
-    Settings::values.disable_spirv_optimizer.SetValue(boolean(@"cytrus.v1.30.disableSpirvOptimizer"));
-    Settings::values.async_shader_compilation.SetValue(boolean(@"cytrus.v1.30.useAsyncShaderCompilation"));
-    Settings::values.async_presentation.SetValue(boolean(@"cytrus.v1.30.useAsyncPresentation"));
-    Settings::values.use_hw_shader.SetValue(boolean(@"cytrus.v1.30.useHardwareShaders"));
-    Settings::values.use_disk_shader_cache.SetValue(boolean(@"cytrus.v1.30.useDiskShaderCache"));
-    Settings::values.shaders_accurate_mul.SetValue(boolean(@"cytrus.v1.30.useShadersAccurateMul"));
-    Settings::values.use_vsync_new.SetValue(boolean(@"cytrus.v1.30.useNewVSync"));
+    Settings::values.spirv_shader_gen.SetValue(boolean(@"cytrus.v1.35.spirvShaderGeneration"));
+    Settings::values.disable_spirv_optimizer.SetValue(boolean(@"cytrus.v1.35.disableSpirvOptimizer"));
+    Settings::values.async_shader_compilation.SetValue(boolean(@"cytrus.v1.35.useAsyncShaderCompilation"));
+    Settings::values.async_presentation.SetValue(boolean(@"cytrus.v1.35.useAsyncPresentation"));
+    Settings::values.use_hw_shader.SetValue(boolean(@"cytrus.v1.35.useHardwareShaders"));
+    Settings::values.use_disk_shader_cache.SetValue(boolean(@"cytrus.v1.35.useDiskShaderCache"));
+    Settings::values.shaders_accurate_mul.SetValue(boolean(@"cytrus.v1.35.useShadersAccurateMul"));
+    Settings::values.use_vsync_new.SetValue(boolean(@"cytrus.v1.35.useNewVSync"));
     if (@available(iOS 26, *)) {
         Settings::values.use_shader_jit.SetValue(false);
     } else {
-        Settings::values.use_shader_jit.SetValue(boolean(@"cytrus.v1.30.useShaderJIT"));
+        Settings::values.use_shader_jit.SetValue(boolean(@"cytrus.v1.35.useShaderJIT"));
     }
-    Settings::values.resolution_factor.SetValue(unsigned32(@"cytrus.v1.30.resolutionFactor"));
-    Settings::values.texture_filter.SetValue(static_cast<Settings::TextureFilter>(unsigned32(@"cytrus.v1.30.textureFilter")));
-    Settings::values.texture_sampling.SetValue(static_cast<Settings::TextureSampling>(unsigned32(@"cytrus.v1.30.textureSampling")));
-    Settings::values.delay_game_render_thread_us.SetValue(unsigned16(@"cytrus.v1.30.delayGameRenderThreadUS"));
+    Settings::values.resolution_factor.SetValue(unsigned32(@"cytrus.v1.35.resolutionFactor"));
+    Settings::values.texture_filter.SetValue(static_cast<Settings::TextureFilter>(unsigned32(@"cytrus.v1.35.textureFilter")));
+    Settings::values.texture_sampling.SetValue(static_cast<Settings::TextureSampling>(unsigned32(@"cytrus.v1.35.textureSampling")));
+    Settings::values.delay_game_render_thread_us.SetValue(unsigned16(@"cytrus.v1.35.delayGameRenderThreadUS"));
     if (bottom_layer)
         Settings::values.layout_option.SetValue(Settings::LayoutOption::SeparateWindows);
     else
-        Settings::values.layout_option.SetValue(static_cast<Settings::LayoutOption>(unsigned32(@"cytrus.v1.30.layoutOption")));
-    Settings::values.custom_top_x.SetValue(unsigned16(@"cytrus.v1.30.customTopX"));
-    Settings::values.custom_top_y.SetValue(unsigned16(@"cytrus.v1.30.customTopY"));
-    Settings::values.custom_top_width.SetValue(unsigned16(@"cytrus.v1.30.customTopWidth"));
-    Settings::values.custom_top_height.SetValue(unsigned16(@"cytrus.v1.30.customTopHeight"));
-    Settings::values.custom_bottom_x.SetValue(unsigned16(@"cytrus.v1.30.customBottomX"));
-    Settings::values.custom_bottom_y.SetValue(unsigned16(@"cytrus.v1.30.customBottomY"));
-    Settings::values.custom_bottom_width.SetValue(unsigned16(@"cytrus.v1.30.customBottomWidth"));
-    Settings::values.custom_bottom_height.SetValue(unsigned16(@"cytrus.v1.30.customBottomHeight"));
-    Settings::values.custom_second_layer_opacity.SetValue(unsigned16(@"cytrus.v1.30.customSecondLayerOpacity"));
-    Settings::values.aspect_ratio.SetValue(static_cast<Settings::AspectRatio>(unsigned32(@"cytrus.v1.30.aspectRatio")));
-    Settings::values.render_3d.SetValue(static_cast<Settings::StereoRenderOption>(unsigned32(@"cytrus.v1.30.render3D")));
-    Settings::values.factor_3d.SetValue(unsigned32(@"cytrus.v1.30.factor3D"));
-    Settings::values.mono_render_option.SetValue(static_cast<Settings::MonoRenderOption>(unsigned32(@"cytrus.v1.30.monoRender")));
-    Settings::values.filter_mode.SetValue(boolean(@"cytrus.v1.30.filterMode"));
-    Settings::values.pp_shader_name.SetValue(string(@"cytrus.v1.30.ppShaderName"));
-    Settings::values.anaglyph_shader_name.SetValue(string(@"cytrus.v1.30.anaglyphShaderName"));
-    Settings::values.dump_textures.SetValue(boolean(@"cytrus.v1.30.dumpTextures"));
-    Settings::values.custom_textures.SetValue(boolean(@"cytrus.v1.30.customTextures"));
-    Settings::values.preload_textures.SetValue(boolean(@"cytrus.v1.30.preloadTextures"));
-    Settings::values.async_custom_loading.SetValue(boolean(@"cytrus.v1.30.asyncCustomLoading"));
-    Settings::values.disable_right_eye_render.SetValue(boolean(@"cytrus.v1.30.disableRightEyeRender"));
+        Settings::values.layout_option.SetValue(static_cast<Settings::LayoutOption>(unsigned32(@"cytrus.v1.35.layoutOption")));
+    Settings::values.custom_top_x.SetValue(unsigned16(@"cytrus.v1.35.customTopX"));
+    Settings::values.custom_top_y.SetValue(unsigned16(@"cytrus.v1.35.customTopY"));
+    Settings::values.custom_top_width.SetValue(unsigned16(@"cytrus.v1.35.customTopWidth"));
+    Settings::values.custom_top_height.SetValue(unsigned16(@"cytrus.v1.35.customTopHeight"));
+    Settings::values.custom_bottom_x.SetValue(unsigned16(@"cytrus.v1.35.customBottomX"));
+    Settings::values.custom_bottom_y.SetValue(unsigned16(@"cytrus.v1.35.customBottomY"));
+    Settings::values.custom_bottom_width.SetValue(unsigned16(@"cytrus.v1.35.customBottomWidth"));
+    Settings::values.custom_bottom_height.SetValue(unsigned16(@"cytrus.v1.35.customBottomHeight"));
+    Settings::values.custom_second_layer_opacity.SetValue(unsigned16(@"cytrus.v1.35.customSecondLayerOpacity"));
+    Settings::values.aspect_ratio.SetValue(static_cast<Settings::AspectRatio>(unsigned32(@"cytrus.v1.35.aspectRatio")));
+    Settings::values.render_3d.SetValue(static_cast<Settings::StereoRenderOption>(unsigned32(@"cytrus.v1.35.render3D")));
+    Settings::values.factor_3d.SetValue(unsigned32(@"cytrus.v1.35.factor3D"));
+    Settings::values.mono_render_option.SetValue(static_cast<Settings::MonoRenderOption>(unsigned32(@"cytrus.v1.35.monoRender")));
+    Settings::values.filter_mode.SetValue(boolean(@"cytrus.v1.35.filterMode"));
+    Settings::values.pp_shader_name.SetValue(string(@"cytrus.v1.35.ppShaderName"));
+    Settings::values.anaglyph_shader_name.SetValue(string(@"cytrus.v1.35.anaglyphShaderName"));
+    Settings::values.dump_textures.SetValue(boolean(@"cytrus.v1.35.dumpTextures"));
+    Settings::values.custom_textures.SetValue(boolean(@"cytrus.v1.35.customTextures"));
+    Settings::values.preload_textures.SetValue(boolean(@"cytrus.v1.35.preloadTextures"));
+    Settings::values.async_custom_loading.SetValue(boolean(@"cytrus.v1.35.asyncCustomLoading"));
+    Settings::values.disable_right_eye_render.SetValue(boolean(@"cytrus.v1.35.disableRightEyeRender"));
     // Audio
-    Settings::values.audio_muted = boolean(@"cytrus.v1.30.audioMuted");
-    Settings::values.audio_emulation.SetValue(static_cast<Settings::AudioEmulation>(unsigned32(@"cytrus.v1.30.audioEmulation")));
-    Settings::values.enable_audio_stretching.SetValue(boolean(@"cytrus.v1.30.audioStretching"));
-    Settings::values.enable_realtime_audio.SetValue(boolean(@"cytrus.v1.30.realtimeAudio"));
-    Settings::values.volume.SetValue(_float(@"cytrus.v1.30.volume"));
-    Settings::values.output_type.SetValue(static_cast<AudioCore::SinkType>(unsigned32(@"cytrus.v1.30.outputType")));
-    Settings::values.input_type.SetValue(static_cast<AudioCore::InputType>(unsigned32(@"cytrus.v1.30.inputType")));
+    Settings::values.audio_muted = boolean(@"cytrus.v1.35.audioMuted");
+    Settings::values.audio_emulation.SetValue(static_cast<Settings::AudioEmulation>(unsigned32(@"cytrus.v1.35.audioEmulation")));
+    Settings::values.enable_audio_stretching.SetValue(boolean(@"cytrus.v1.35.audioStretching"));
+    Settings::values.enable_realtime_audio.SetValue(boolean(@"cytrus.v1.35.realtimeAudio"));
+    Settings::values.volume.SetValue(_float(@"cytrus.v1.35.volume"));
+    Settings::values.output_type.SetValue(static_cast<AudioCore::SinkType>(unsigned32(@"cytrus.v1.35.outputType")));
+    Settings::values.input_type.SetValue(static_cast<AudioCore::InputType>(unsigned32(@"cytrus.v1.35.inputType")));
     // Miscellaneous
     std::string log_filter{"*:Info"};
-    switch ([defaults integerForKey:@"cytrus.v1.30.logLevel"]) {
+    switch ([defaults integerForKey:@"cytrus.v1.35.logLevel"]) {
         case 0:
             log_filter = std::string{"*:Trace"};
             break;
@@ -502,15 +502,15 @@ static void TryShutdown() {
             break;
     }
     Settings::values.log_filter.SetValue(log_filter);
-    NetSettings::values.web_api_url = string(@"cytrus.v1.30.webAPIURL");
+    NetSettings::values.web_api_url = string(@"cytrus.v1.35.webAPIURL");
     
     Common::Log::Filter filter;
     filter.ParseFilterString(Settings::values.log_filter.GetValue());
     Common::Log::SetGlobalFilter(filter);
     
     /*
-     case systemLanguage = "cytrus.v1.30.systemLanguage"
-     case username = "cytrus.v1.30.username"
+     case systemLanguage = "cytrus.v1.35.systemLanguage"
+     case username = "cytrus.v1.35.username"
      */
 }
 
