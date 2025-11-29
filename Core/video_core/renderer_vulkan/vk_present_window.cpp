@@ -238,41 +238,46 @@ void PresentWindow::RecreateFrame(Frame* frame, u32 width, u32 height) {
 }
 
 Frame* PresentWindow::GetRenderFrame() {
-    MICROPROFILE_SCOPE(Vulkan_WaitPresent);
+    try {
+        MICROPROFILE_SCOPE(Vulkan_WaitPresent);
 
-    // Wait for free presentation frames
-    std::unique_lock lock{free_mutex};
-    free_cv.wait(lock, [this] { return !free_queue.empty(); });
+        // Wait for free presentation frames
+        std::unique_lock lock{free_mutex};
+        free_cv.wait(lock, [this] { return !free_queue.empty(); });
 
-    // Take the frame from the queue
-    Frame* frame = free_queue.front();
-    free_queue.pop();
+        // Take the frame from the queue
+        Frame* frame = free_queue.front();
+        free_queue.pop();
 
-    vk::Device device = instance.GetDevice();
-    vk::Result result{};
+        vk::Device device = instance.GetDevice();
+        vk::Result result{};
 
-    const auto wait = [&]() {
-        result = device.waitForFences(frame->present_done, false, std::numeric_limits<u64>::max());
-        return result;
-    };
+        const auto wait = [&]() {
+            result = device.waitForFences(frame->present_done, false, std::numeric_limits<u64>::max());
+            return result;
+        };
 
-    // Wait for the presentation to be finished so all frame resources are free
-    while (wait() != vk::Result::eSuccess) {
-        // Retry if the waiting times out
-        if (result == vk::Result::eTimeout) {
-            continue;
+        // Wait for the presentation to be finished so all frame resources are free
+        while (wait() != vk::Result::eSuccess) {
+            // Retry if the waiting times out
+            if (result == vk::Result::eTimeout) {
+                continue;
+            }
+
+            // eErrorInitializationFailed occurs on Mali GPU drivers due to them
+            // using the ppoll() syscall which isn't correctly restarted after a signal,
+            // we need to manually retry waiting in that case
+            if (result == vk::Result::eErrorInitializationFailed) {
+                continue;
+            }
         }
 
-        // eErrorInitializationFailed occurs on Mali GPU drivers due to them
-        // using the ppoll() syscall which isn't correctly restarted after a signal,
-        // we need to manually retry waiting in that case
-        if (result == vk::Result::eErrorInitializationFailed) {
-            continue;
-        }
+        device.resetFences(frame->present_done);
+        return frame;
+    } catch(std::exception exc) {
+        LOG_ERROR(Render_Vulkan, "{}", exc.what());
+        return nullptr;
     }
-
-    device.resetFences(frame->present_done);
-    return frame;
 }
 
 void PresentWindow::Present(Frame* frame) {
