@@ -306,6 +306,10 @@ extension Cytrus {
         emulator.touchMoved(at: point)
     }
     
+    public func button(button: CytrusButtonType, player: Int, pressed: Bool) {
+        emulator.input(Int32(player), button: button.rawValue, pressed: pressed)
+    }
+    
     public func input(_ slot: Int, _ button: CytrusButtonType, _ pressed: Bool) {
         emulator.input(.init(slot), button: button.rawValue, pressed: pressed)
     }
