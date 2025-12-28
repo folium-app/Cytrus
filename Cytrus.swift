@@ -375,7 +375,7 @@ extension Cytrus {
     public func removeAmiibo() { emulator.removeAbiibo() }
     
     public func savesStates(for identifier: UInt64) -> [Any] { emulator.saveStates(identifier) }
-    public func saveStatePath(for identifier: UInt64) -> String { emulator.saveStatePath(identifier) }
+    public func saveStatePath(_ identifier: UInt64, _ slot: Int) -> String { emulator.saveStatePath(identifier, slot) }
     
     public struct Multiplayer : @unchecked Sendable {
         public static let shared = Multiplayer()

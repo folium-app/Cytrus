@@ -73,17 +73,19 @@ static bool ValidateSaveState(const CSTHeader& header, SaveStateInfo& info, u64 
         } else if (hash_to_version.find(revision) != hash_to_version.end()) {
             info.build_name = hash_to_version.at(revision);
         }
+        
         if (info.build_name.empty()) {
             LOG_WARNING(Core, "Save state file {} created from a different revision {}", path,
                         revision);
+            info.status = SaveStateInfo::ValidationStatus::OK;
+            return true;
         } else {
             LOG_WARNING(Core,
                         "Save state file {} created from a different build {} with revision {}",
                         path, info.build_name, revision);
+            info.status = SaveStateInfo::ValidationStatus::OK;
+            return true;
         }
-
-        info.status = SaveStateInfo::ValidationStatus::RevisionDismatch;
-        return false;
     }
     return true;
 }

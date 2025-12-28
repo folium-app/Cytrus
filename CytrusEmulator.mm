@@ -627,7 +627,7 @@ static void TryShutdown() {
     return saves;
 }
 
--(NSString *) saveStatePath:(uint64_t)identifier {
-    return [NSString stringWithCString:Core::GetSaveStatePath(identifier, 0, 0).c_str() encoding:NSUTF8StringEncoding];
+-(NSString *) saveStatePath:(uint64_t)identifier slot:(NSInteger)slot {
+    return [NSString stringWithCString:Core::GetSaveStatePath(identifier, 0, [[NSNumber numberWithInteger:slot] intValue]).c_str() encoding:NSUTF8StringEncoding];
 }
 @end

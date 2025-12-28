@@ -123,7 +123,7 @@ NS_ASSUME_NONNULL_BEGIN
 -(void) setUsername:(NSString *)username NS_SWIFT_NAME(set(username:));
 
 -(NSArray *) saveStates:(uint64_t)identifier;
--(NSString *) saveStatePath:(uint64_t)identifier;
+-(NSString *) saveStatePath:(uint64_t)identifier slot:(NSInteger)slot NS_SWIFT_NAME(saveStatePath(_:_:));
 @end
 
 NS_ASSUME_NONNULL_END
