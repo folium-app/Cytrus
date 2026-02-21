@@ -26,9 +26,9 @@ std::string FormatLogMessage(const Entry& entry) {
     const char* class_name = GetLogClassName(entry.log_class);
     const char* level_name = GetLevelName(entry.log_level);
 
-    return fmt::format("[{:01d}.{:06d}] {} <{}> {}:{}:{}: {}", time_seconds, time_fractional,
+    return fmt::format("[{:4d}.{:06d}] {} <{}> {}:{}:{}: {}", time_seconds, time_fractional,
                        class_name, level_name, entry.filename, entry.function, entry.line_num,
-                       TrimSourcePath(entry.message));
+                       entry.message);
 }
 
 void PrintMessage(const Entry& entry) {

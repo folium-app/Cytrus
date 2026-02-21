@@ -102,8 +102,6 @@ void EmulationWindow_Vulkan::TryPresenting() {};
 
 
 void EmulationWindow_Vulkan::OnFramebufferSizeChanged() {
-    printf("%i, %i\n", is_portrait, is_secondary);
-    
     auto bigger{window_width > window_height ? window_width : window_height};
     auto smaller{window_width < window_height ? window_width : window_height};
     

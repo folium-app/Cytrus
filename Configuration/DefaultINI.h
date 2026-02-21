@@ -70,7 +70,7 @@ motion_device=
 #  - "emu_window" (default) for emulating touch input from mouse input to the emulation window. No parameters required
 #  - "cemuhookudp" reads touch input from a udp server that uses cemuhook's udp protocol
 #      - "min_x", "min_y", "max_x", "max_y": defines the udp device's touch screen coordinate system
-touch_device= engine:emu_window
+touch_device=
 
 # Most desktop operating systems do not expose a way to poll the motion state of the controllers
 # so as a way around it, cemuhook created a udp client/server protocol to broadcast the data directly
@@ -86,9 +86,6 @@ udp_input_port=
 # The pad to request data on. Should be between 0 (Pad 1) and 3 (Pad 4). (Default 0)
 udp_pad_index=
 
-# Use Artic Controller when connected to Artic Base Server. (Default 0)
-use_artic_base_controller=
-
 [Core]
 # Whether to use the Just-In-Time (JIT) compiler for CPU emulation
 # 0: Interpreter (slow), 1 (default): JIT (fast)
@@ -101,39 +98,30 @@ use_cpu_jit =
 cpu_clock_percentage =
 
 [Renderer]
-# Whether to render using OpenGL
-# 1: OpenGL ES (default), 2: Vulkan
+# Whether to render using OpenGL or Software
+# 0: Software, 1: OpenGL (default), 2: Vulkan
 graphics_api =
 
-# Whether to compile shaders on multiple worker threads (Vulkan only)
-# 0: Off, 1: On (default)
-async_shader_compilation =
-
-# Whether to emit PICA fragment shader using SPIRV or GLSL (Vulkan only)
-# 0: GLSL, 1: SPIR-V (default)
-spirv_shader_gen =
+# Whether to render using GLES or OpenGL
+# 0 (default): OpenGL, 1: GLES
+use_gles =
 
 # Whether to use hardware shaders to emulate 3DS shaders
 # 0: Software, 1 (default): Hardware
 use_hw_shader =
 
 # Whether to use accurate multiplication in hardware shaders
-# 0: Off (Default. Faster, but causes issues in some games) 1: On (Slower, but correct)
+# 0: Off (Faster, but causes issues in some games) 1: On (Default. Slower, but correct)
 shaders_accurate_mul =
 
 # Whether to use the Just-In-Time (JIT) compiler for shader emulation
 # 0: Interpreter (slow), 1 (default): JIT (fast)
 use_shader_jit =
 
-# Overrides the sampling filter used by games. This can be useful in certain
-# cases with poorly behaved games when upscaling.
-# 0 (default): Game Controlled, 1: Nearest Neighbor, 2: Linear
-texture_sampling =
-
 # Forces VSync on the display thread. Usually doesn't impact performance, but on some drivers it can
 # so only turn this off if you notice a speed difference.
 # 0: Off, 1 (default): On
-use_vsync_new =
+use_vsync =
 
 # Reduce stuttering by storing and loading generated shaders to disk
 # 0: Off, 1 (default. On)
@@ -144,17 +132,22 @@ use_disk_shader_cache =
 # factor for the 3DS resolution
 resolution_factor =
 
-# Whether to enable V-Sync (caps the framerate at 60FPS) or not.
-# 0 (default): Off, 1: On
-vsync_enabled =
+# Texture filter
+# 0: None, 1: Anime4K, 2: Bicubic, 3: Nearest Neighbor, 4: ScaleForce, 5: xBRZ
+texture_filter =
 
-# Turns on the frame limiter, which will limit frames output to the target game speed
-# 0: Off, 1: On (default)
-use_frame_limit =
-
-# Limits the speed of the game to run no faster than this value as a percentage of target speed
-# 1 - 9999: Speed limit as a percentage of target game speed. 100 (default)
+# Limits the speed of the game to run no faster than this value as a percentage of target speed.
+# Will not have an effect if unthrottled is enabled.
+# 5 - 995: Speed limit as a percentage of target game speed. 0 for unthrottled. 100 (default)
 frame_limit =
+
+# Overrides the frame limiter to use frame_limit_alternate instead of frame_limit.
+# 0: Off (default), 1: On
+use_frame_limit_alternate =
+
+# Alternate speed limit to be used instead of frame_limit if use_frame_limit_alternate is enabled
+# 5 - 995: Speed limit as a percentage of target game speed. 0 for unthrottled. 200 (default)
+frame_limit_alternate =
 
 # The clear color for the renderer. What shows up on the sides of the bottom screen.
 # Must be in range of 0.0-1.0. Defaults to 0.0 for all.
@@ -163,12 +156,20 @@ bg_blue =
 bg_green =
 
 # Whether and how Stereoscopic 3D should be rendered
-# 0 (default): Off, 1: Side by Side, 2: Reverse Side by Side, 3: Anaglyph, 4: Interlaced, 5: Reverse Interlaced, 6: Cardboard VR
+# 0 (default): Off, 1: Side by Side, 2: Reverse Side by Side, 3: Anaglyph, 4: Interlaced, 5: Reverse Interlaced
 render_3d =
 
 # Change 3D Intensity
-# 0 - 255: Intensity. 0 (default)
+# 0 - 100: Intensity. 0 (default)
 factor_3d =
+
+# Swap Eyes in 3D
+# true or false (default)
+swap_eyes_3d =
+
+# Change Default Eye to Render When in Monoscopic Mode
+# 0 (default): Left, 1: Right
+mono_render_option =
 
 # The name of the post processing shader to apply.
 # Loaded from shaders if render_3d is off or side by side.
@@ -183,47 +184,19 @@ anaglyph_shader_name =
 # 0: Nearest, 1 (default): Linear
 filter_mode =
 
-# Delays the game render thread by the specified amount of microseconds
-# Set to 0 for no delay, only useful in dynamic-fps games to simulate GPU delay.
-delay_game_render_thread_us =
-
-# Disables rendering the right eye image.
-# Greatly improves performance in some games, but can cause flickering in others.
-# 0 (default): Enable right eye rendering, 1: Disable right eye rendering
-disable_right_eye_render =
-
 [Layout]
-# Layout for the screen inside the render window, landscape mode
-# 0: Original (screens vertically aligned)
-# 1: Single Screen Only,
-# 2: Large Screen (Default on android)
+# Layout for the screen inside the render window.
+# 0 (default): Default Above/Below Screen
+# 1: Single Screen Only
+# 2: Large Screen Small Screen
 # 3: Side by Side
-# 4: Hybrid
-# 5: Custom Layout
+# 4: Separate Windows
+# 5: Hybrid Screen
+# 6: Custom Layout
 layout_option =
-
-# Screen Gap - adds a gap between screens in all two-screen modes
-# Measured in pixels relative to the 240px default height of the screens
-# Scales with the larger screen (so 24 is 10% of the larger screen height)
-# Default value is 0.0
-screen_gap =
-
-# Large Screen Proportion - Relative size of large:small in large screen mode
-# Default value is 2.25
-large_screen_proportion =
-
-# Small Screen Position - where is the small screen relative to the large
-# Default value is 0
-# 0: Top Right    1: Middle Right    2: Bottom Right
-# 3: Top Left     4: Middle left     5: Bottom Left
-# 6: Above the large screen          7: Below the large screen
-small_screen_position =
-
 
 # Screen placement when using Custom layout option
 # 0x, 0y is the top left corner of the render window.
-# suggested aspect ratio for top screen is 5:3
-# suggested aspect ratio for bottom screen is 4:3
 custom_top_x =
 custom_top_y =
 custom_top_width =
@@ -233,48 +206,22 @@ custom_bottom_y =
 custom_bottom_width =
 custom_bottom_height =
 
-# Orientation option for the emulator
-# 2 (default): Automatic
-# 0: Landscape
-# 8: Landscape (Flipped)
-# 1: Portrait
-# 9: Portrait (Flipped)
-screen_orientation =
-
-# Layout for the portrait mode
-# 0 (default): Top and bottom screens at top, full width
-# 1: Custom Layout
-portrait_layout_option =
-
-# Screen placement when using Portrait Custom layout option
-# 0x, 0y is the top left corner of the render window.
-custom_portrait_top_x =
-custom_portrait_top_y =
-custom_portrait_top_width =
-custom_portrait_top_height =
-custom_portrait_bottom_x =
-custom_portrait_bottom_y =
-custom_portrait_bottom_width =
-custom_portrait_bottom_height =
+# Opacity of second layer when using custom layout option (bottom screen unless swapped)
+custom_second_layer_opacity =
 
 # Swaps the prominent screen with the other screen.
 # For example, if Single Screen is chosen, setting this to 1 will display the bottom screen instead of the top screen.
 # 0 (default): Top Screen is prominent, 1: Bottom Screen is prominent
 swap_screen =
 
-# Expands the display area to include the cutout (or notch) area
+# Toggle upright orientation, for book style games.
 # 0 (default): Off, 1: On
-expand_to_cutout_area =
+upright_screen =
 
-# Screen placement settings when using Cardboard VR (render3d = 4)
-# 30 - 100: Screen size as a percentage of the viewport. 85 (default)
-cardboard_screen_size =
-# -100 - 100: Screen X-Coordinate shift as a percentage of empty space. 0 (default)
-cardboard_x_shift =
-# -100 - 100: Screen Y-Coordinate shift as a percentage of empty space. 0 (default)
-cardboard_y_shift =
+# The proportion between the large and small screens when playing in Large Screen Small Screen layout.
+# Must be a real value between 1.0 and 16.0. Default is 4
+large_screen_proportion =
 
-[Utility]
 # Dumps textures as PNG to dump/textures/[Title ID]/.
 # 0 (default): Off, 1: On
 dump_textures =
@@ -315,7 +262,7 @@ enable_realtime_audio =
 volume =
 
 # Which audio output type to use.
-# 0 (default): Auto-select, 1: No audio output, 2: Cubeb (if available), 3: OpenAL (if available), 4: SDL2 (if available)
+# 0 (default): Auto-select, 1: No audio output, 2: Cubeb (if available), 3: OpenAL (if available), 4: SDL3 (if available)
 output_type =
 
 # Which audio output device to use.
@@ -335,27 +282,30 @@ input_device =
 # 1 (default): Yes, 0: No
 use_virtual_sd =
 
+# Whether to use custom storage locations
+# 1: Yes, 0 (default): No
+use_custom_storage =
+
+# The path of the virtual SD card directory.
+# empty (default) will use the user_path
+sdmc_directory =
+
+# The path of NAND directory.
+# empty (default) will use the user_path
+nand_directory =
+
 [System]
 # The system model that Citra will try to emulate
-# 0: Old 3DS (default), 1: New 3DS
+# 0: Old 3DS, 1: New 3DS (default)
 is_new_3ds =
 
 # Whether to use LLE system applets, if installed
-# 0: No, 1 (default): Yes
-lle_applets =
-
-# Whether to enable LLE modules for online play
 # 0 (default): No, 1: Yes
-enable_required_online_lle_modules =
+lle_applets =
 
 # The system region that Citra will use during emulation
 # -1: Auto-select (default), 0: Japan, 1: USA, 2: Europe, 3: Australia, 4: China, 5: Korea, 6: Taiwan
 region_value =
-
-# The system language that Citra will use during emulation
-# 0: Japanese, 1: English (default), 2: French, 3: German, 4: Italian, 5: Spanish,
-# 6: Simplified Chinese, 7: Korean, 8: Dutch, 9: Portuguese, 10: Russian, 11: Traditional Chinese
-language =
 
 # The clock to use when citra starts
 # 0: System clock (default), 1: fixed time
@@ -378,20 +328,9 @@ init_ticks_override =
 # Defaults to 0.
 steps_per_hour =
 
-# Plugin loader state, if enabled plugins will be loaded from the SD card.
-# You can also set if homebrew apps are allowed to enable the plugin loader
-plugin_loader =
-allow_plugin_loader =
-
 [Camera]
 # Which camera engine to use for the right outer camera
-# blank: a dummy camera that always returns black image
-# image: loads a still image from the storage. When the camera is started, you will be prompted
-#        to select an image.
-# ndk (Default): uses the device camera. You can specify the camera ID to use in the config field.
-#                If you don't specify an ID, the default setting will be used. For outer cameras,
-#                the back-facing camera will be used. For the inner camera, the front-facing
-#                camera will be used. Please note that 'Legacy' cameras are not supported.
+# blank (default): a dummy camera that always returns black image
 camera_outer_right_name =
 
 # A config string for the right outer camera. Its meaning is defined by the camera engine
@@ -420,35 +359,47 @@ log_filter = *:Info
 # Record frame time data, can be found in the log directory. Boolean value
 record_frame_times =
 
-# Whether to enable additional debugging information during emulation
-# 0 (default): Off, 1: On
-renderer_debug =
-
 # Port for listening to GDB connections.
 use_gdbstub=false
 gdbstub_port=24689
 
-# Flush log output on every message
-# Immediately commits the debug log to file. Use this if Azahar crashes and the log output is being cut.
-instant_debug_log =
-
-# Delay the start of apps when LLE modules are enabled
-# 0: Off, 1 (default): On
-delay_start_for_lle_modules =
-
-# Force deterministic async operations
-# Only needed for debugging, makes performance worse if enabled
-# 0: Off (default), 1: On
-deterministic_async_operations =
+# Whether to enable additional debugging information during emulation
+# 0 (default): Off, 1: On
+renderer_debug =
 
 # To LLE a service module add "LLE\<module name>=true"
 
 [WebService]
 # URL for Web API
-web_api_url = https://api.citra-emu.org
+web_api_url =
 # Username and token for Citra Web Service
-# See https://profile.citra-emu.org/ for more info
 citra_username =
 citra_token =
+
+[Video Dumping]
+# Format of the video to output, default: webm
+output_format =
+
+# Options passed to the muxer (optional)
+# This is a param package, format: [key1]:[value1],[key2]:[value2],...
+format_options =
+
+# Video encoder used, default: libvpx-vp9
+video_encoder =
+
+# Options passed to the video codec (optional)
+video_encoder_options =
+
+# Video bitrate, default: 2500000
+video_bitrate =
+
+# Audio encoder used, default: libvorbis
+audio_encoder =
+
+# Options passed to the audio codec (optional)
+audio_encoder_options =
+
+# Audio bitrate, default: 64000
+audio_bitrate =
 )";
 }

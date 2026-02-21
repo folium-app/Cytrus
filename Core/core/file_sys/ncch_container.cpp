@@ -168,8 +168,6 @@ Loader::ResultStatus NCCHContainer::LoadHeader() {
             ASSERT(Loader::MakeMagic('N', 'C', 'S', 'D') == ncsd_header.magic);
             ASSERT(partition < 8);
             ncch_offset = ncsd_header.partitions[partition].offset * kBlockSize;
-            // not really important
-            // LOG_WARNING(Service_FS, "{}", ncch_offset);
             file->Seek(ncch_offset, SEEK_SET);
             file->ReadBytes(&ncch_header, sizeof(NCCH_Header));
         }
@@ -216,7 +214,7 @@ Loader::ResultStatus NCCHContainer::Load() {
             file = std::make_unique<FileUtil::Z3DSReadIOFile>(std::move(file));
         }
 
-        size_t file_size{0};
+        size_t file_size;
         for (int i = 0; i < 2; i++) {
             if (!file->IsOpen()) {
                 return Loader::ResultStatus::Error;

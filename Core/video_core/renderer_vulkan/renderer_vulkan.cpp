@@ -332,7 +332,13 @@ void RendererVulkan::BuildPipelines() {
     };
 
     const vk::PipelineColorBlendAttachmentState colorblend_attachment = {
-        .blendEnable = false,
+        .blendEnable = true,
+        .srcColorBlendFactor = vk::BlendFactor::eConstantAlpha,
+        .dstColorBlendFactor = vk::BlendFactor::eOneMinusConstantAlpha,
+        .colorBlendOp = vk::BlendOp::eAdd,
+        .srcAlphaBlendFactor = vk::BlendFactor::eConstantAlpha,
+        .dstAlphaBlendFactor = vk::BlendFactor::eOneMinusConstantAlpha,
+        .alphaBlendOp = vk::BlendOp::eAdd,
         .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
                           vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
     };
@@ -341,7 +347,6 @@ void RendererVulkan::BuildPipelines() {
         .logicOpEnable = false,
         .attachmentCount = 1,
         .pAttachments = &colorblend_attachment,
-        .blendConstants = std::array{1.0f, 1.0f, 1.0f, 1.0f},
     };
 
     const vk::Viewport placeholder_viewport = vk::Viewport{0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
@@ -354,6 +359,7 @@ void RendererVulkan::BuildPipelines() {
     };
 
     const std::array dynamic_states = {
+        vk::DynamicState::eBlendConstants,
         vk::DynamicState::eViewport,
         vk::DynamicState::eScissor,
     };
@@ -524,8 +530,7 @@ void RendererVulkan::FillScreen(Common::Vec3<u8> color, const TextureInfo& textu
     });
 }
 
-void RendererVulkan::ReloadPipeline() {
-    const Settings::StereoRenderOption render_3d = Settings::values.render_3d.GetValue();
+void RendererVulkan::ReloadPipeline(Settings::StereoRenderOption render_3d) {
     switch (render_3d) {
     case Settings::StereoRenderOption::Anaglyph:
         current_pipeline = 1;
@@ -685,12 +690,21 @@ void RendererVulkan::DrawSingleScreenStereo(u32 screen_id_l, u32 screen_id_r, fl
     });
 }
 
+void RendererVulkan::ApplySecondLayerOpacity(float alpha) {
+    scheduler.Record([alpha](vk::CommandBuffer cmdbuf) {
+        const std::array<float, 4> blend_constants = {0.0f, 0.0f, 0.0f, alpha};
+        cmdbuf.setBlendConstants(blend_constants.data());
+    });
+}
+
 void RendererVulkan::DrawTopScreen(const Layout::FramebufferLayout& layout,
                                    const Common::Rectangle<u32>& top_screen) {
     if (!layout.top_screen_enabled) {
         return;
     }
-
+    int leftside, rightside;
+    leftside = Settings::values.swap_eyes_3d.GetValue() ? 1 : 0;
+    rightside = Settings::values.swap_eyes_3d.GetValue() ? 0 : 1;
     const float top_screen_left = static_cast<float>(top_screen.left);
     const float top_screen_top = static_cast<float>(top_screen.top);
     const float top_screen_width = static_cast<float>(top_screen.GetWidth());
@@ -698,7 +712,7 @@ void RendererVulkan::DrawTopScreen(const Layout::FramebufferLayout& layout,
 
     const auto orientation = layout.is_rotated ? Layout::DisplayOrientation::Landscape
                                                : Layout::DisplayOrientation::Portrait;
-    switch (Settings::values.render_3d.GetValue()) {
+    switch (layout.render_3d_mode) {
     case Settings::StereoRenderOption::Off: {
         const int eye = static_cast<int>(Settings::values.mono_render_option.GetValue());
         DrawSingleScreen(eye, top_screen_left, top_screen_top, top_screen_width, top_screen_height,
@@ -706,35 +720,36 @@ void RendererVulkan::DrawTopScreen(const Layout::FramebufferLayout& layout,
         break;
     }
     case Settings::StereoRenderOption::SideBySide: {
-        DrawSingleScreen(0, top_screen_left / 2, top_screen_top, top_screen_width / 2,
+        DrawSingleScreen(leftside, top_screen_left / 2, top_screen_top, top_screen_width / 2,
                          top_screen_height, orientation);
         draw_info.layer = 1;
-        DrawSingleScreen(1, static_cast<float>((top_screen_left / 2) + (layout.width / 2)),
+        DrawSingleScreen(rightside, static_cast<float>((top_screen_left / 2) + (layout.width / 2)),
                          top_screen_top, top_screen_width / 2, top_screen_height, orientation);
         break;
     }
-    case Settings::StereoRenderOption::ReverseSideBySide: {
-        DrawSingleScreen(1, top_screen_left / 2, top_screen_top, top_screen_width / 2,
+    case Settings::StereoRenderOption::SideBySideFull: {
+        DrawSingleScreen(leftside, top_screen_left, top_screen_top, top_screen_width,
                          top_screen_height, orientation);
         draw_info.layer = 1;
-        DrawSingleScreen(0, static_cast<float>((top_screen_left / 2) + (layout.width / 2)),
-                         top_screen_top, top_screen_width / 2, top_screen_height, orientation);
+        DrawSingleScreen(rightside, top_screen_left + layout.width / 2, top_screen_top,
+                         top_screen_width, top_screen_height, orientation);
         break;
     }
     case Settings::StereoRenderOption::CardboardVR: {
-        DrawSingleScreen(0, top_screen_left, top_screen_top, top_screen_width, top_screen_height,
-                         orientation);
+        DrawSingleScreen(leftside, top_screen_left, top_screen_top, top_screen_width,
+                         top_screen_height, orientation);
         draw_info.layer = 1;
         DrawSingleScreen(
-            1, static_cast<float>(layout.cardboard.top_screen_right_eye + (layout.width / 2)),
+            rightside,
+            static_cast<float>(layout.cardboard.top_screen_right_eye + (layout.width / 2)),
             top_screen_top, top_screen_width, top_screen_height, orientation);
         break;
     }
     case Settings::StereoRenderOption::Anaglyph:
     case Settings::StereoRenderOption::Interlaced:
     case Settings::StereoRenderOption::ReverseInterlaced: {
-        DrawSingleScreenStereo(0, 1, top_screen_left, top_screen_top, top_screen_width,
-                               top_screen_height, orientation);
+        DrawSingleScreenStereo(leftside, rightside, top_screen_left, top_screen_top,
+                               top_screen_width, top_screen_height, orientation);
         break;
     }
     }
@@ -754,31 +769,29 @@ void RendererVulkan::DrawBottomScreen(const Layout::FramebufferLayout& layout,
     const auto orientation = layout.is_rotated ? Layout::DisplayOrientation::Landscape
                                                : Layout::DisplayOrientation::Portrait;
 
-    bool separate_win = false;
-#ifndef ANDROID
-    separate_win =
-        (Settings::values.layout_option.GetValue() == Settings::LayoutOption::SeparateWindows);
-#endif
-
-    switch (Settings::values.render_3d.GetValue()) {
+    switch (layout.render_3d_mode) {
     case Settings::StereoRenderOption::Off: {
         DrawSingleScreen(2, bottom_screen_left, bottom_screen_top, bottom_screen_width,
                          bottom_screen_height, orientation);
+
         break;
     }
     case Settings::StereoRenderOption::SideBySide: // Bottom screen is identical on both sides
-    case Settings::StereoRenderOption::ReverseSideBySide: {
-        if (separate_win) {
-            DrawSingleScreen(2, bottom_screen_left, bottom_screen_top, bottom_screen_width,
-                             bottom_screen_height, orientation);
-        } else {
-            DrawSingleScreen(2, bottom_screen_left / 2, bottom_screen_top, bottom_screen_width / 2,
-                             bottom_screen_height, orientation);
-            draw_info.layer = 1;
-            DrawSingleScreen(2, static_cast<float>((bottom_screen_left / 2) + (layout.width / 2)),
-                             bottom_screen_top, bottom_screen_width / 2, bottom_screen_height,
-                             orientation);
-        }
+    {
+        DrawSingleScreen(2, bottom_screen_left / 2, bottom_screen_top, bottom_screen_width / 2,
+                         bottom_screen_height, orientation);
+        draw_info.layer = 1;
+        DrawSingleScreen(2, static_cast<float>((bottom_screen_left / 2) + (layout.width / 2)),
+                         bottom_screen_top, bottom_screen_width / 2, bottom_screen_height,
+                         orientation);
+        break;
+    }
+    case Settings::StereoRenderOption::SideBySideFull: {
+        DrawSingleScreen(2, bottom_screen_left, bottom_screen_top, bottom_screen_width,
+                         bottom_screen_height, orientation);
+        draw_info.layer = 1;
+        DrawSingleScreen(2, bottom_screen_left + layout.width / 2, bottom_screen_top,
+                         bottom_screen_width, bottom_screen_height, orientation);
         break;
     }
     case Settings::StereoRenderOption::CardboardVR: {
@@ -793,13 +806,8 @@ void RendererVulkan::DrawBottomScreen(const Layout::FramebufferLayout& layout,
     case Settings::StereoRenderOption::Anaglyph:
     case Settings::StereoRenderOption::Interlaced:
     case Settings::StereoRenderOption::ReverseInterlaced: {
-        if (separate_win) {
-            DrawSingleScreen(2, bottom_screen_left, bottom_screen_top, bottom_screen_width,
-                             bottom_screen_height, orientation);
-        } else {
-            DrawSingleScreenStereo(2, 2, bottom_screen_left, bottom_screen_top, bottom_screen_width,
-                                   bottom_screen_height, orientation);
-        }
+        DrawSingleScreenStereo(2, 2, bottom_screen_left, bottom_screen_top, bottom_screen_width,
+                               bottom_screen_height, orientation);
         break;
     }
     }
@@ -813,7 +821,7 @@ void RendererVulkan::DrawScreens(Frame* frame, const Layout::FramebufferLayout& 
         clear_color.float32[2] = Settings::values.bg_blue.GetValue();
     }
     if (settings.shader_update_requested.exchange(false)) {
-        ReloadPipeline();
+        ReloadPipeline(layout.render_3d_mode);
     }
 
     PrepareDraw(frame, layout);
@@ -823,13 +831,23 @@ void RendererVulkan::DrawScreens(Frame* frame, const Layout::FramebufferLayout& 
     draw_info.modelview = MakeOrthographicMatrix(layout.width, layout.height);
 
     draw_info.layer = 0;
+
+    // Apply the initial default opacity value; Needed to avoid flickering
+    ApplySecondLayerOpacity(1.0f);
+
     if (!Settings::values.swap_screen.GetValue()) {
         DrawTopScreen(layout, top_screen);
         draw_info.layer = 0;
+        if (layout.bottom_opacity < 1) {
+            ApplySecondLayerOpacity(layout.bottom_opacity);
+        }
         DrawBottomScreen(layout, bottom_screen);
     } else {
         DrawBottomScreen(layout, bottom_screen);
         draw_info.layer = 0;
+        if (layout.top_opacity < 1) {
+            ApplySecondLayerOpacity(layout.top_opacity);
+        }
         DrawTopScreen(layout, top_screen);
     }
 

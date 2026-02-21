@@ -140,7 +140,24 @@ void ReloadInputDevices() {
 namespace Polling {
 
 std::vector<std::unique_ptr<DevicePoller>> GetPollers(DeviceType type) {
-    std::vector<std::unique_ptr<DevicePoller>> pollers = sdl->GetPollers(type);
+    std::vector<std::unique_ptr<DevicePoller>> pollers;
+
+#ifdef HAVE_SDL2
+    pollers = sdl->GetPollers(type);
+#endif
+#ifdef ENABLE_GCADAPTER
+    switch (type) {
+    case DeviceType::Analog:
+        pollers.push_back(std::make_unique<GCAnalogFactory>(*gcanalog));
+        break;
+    case DeviceType::Button:
+        pollers.push_back(std::make_unique<GCButtonFactory>(*gcbuttons));
+        break;
+    default:
+        break;
+    }
+#endif
+
     return pollers;
 }
 

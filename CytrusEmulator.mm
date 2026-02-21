@@ -104,8 +104,8 @@ static void TryShutdown() {
         bottom_window = std::make_unique<EmulationWindow_Vulkan>(bottom_layer, true, library, bottom_size);
     
     u64 program_id{};
-    FileUtil::SetCurrentRomPath([url.path UTF8String]);
-    auto app_loader = Loader::GetLoader([url.path UTF8String]);
+    // FileUtil::SetCurrentRomPath([url.path UTF8String]);
+    auto app_loader = Loader::GetLoader(Core::GetHomeMenuNcchPath(3));
     if (app_loader) {
         app_loader->ReadProgramId(program_id);
     }
@@ -117,8 +117,8 @@ static void TryShutdown() {
     auto leftRearCamera = std::make_unique<Camera::iOSLeftRearCameraFactory>();
     auto rightRearCamera = std::make_unique<Camera::iOSRightRearCameraFactory>();
     Camera::RegisterFactory("av_front", std::move(frontCamera));
-    Camera::RegisterFactory("av_left_rear", std::move(leftRearCamera));
-    Camera::RegisterFactory("av_right_rear", std::move(rightRearCamera));
+    Camera::RegisterFactory("av_rear_left", std::move(leftRearCamera));
+    Camera::RegisterFactory("av_rear_right", std::move(rightRearCamera));
     
     Frontend::RegisterDefaultApplets(system);
     // system.RegisterMiiSelector(std::make_shared<MiiSelector::AndroidMiiSelector>());
@@ -131,7 +131,7 @@ static void TryShutdown() {
     Network::Init();
     
     if (auto bottom = bottom_window.get(); bottom) {
-        void(system.Load(*top_window, [url.path UTF8String], bottom));
+        void(system.Load(*top_window, Core::GetHomeMenuNcchPath(3), bottom));
     } else
         void(system.Load(*top_window, [url.path UTF8String]));
     
@@ -142,9 +142,10 @@ static void TryShutdown() {
         _disk_cache_callback(static_cast<uint8_t>(VideoCore::LoadCallbackStage::Prepare), 0, 0);
     
     std::unique_ptr<Frontend::GraphicsContext> cpu_context;
-    system.GPU().Renderer().Rasterizer()->LoadDefaultDiskResources(stop_run, [&](VideoCore::LoadCallbackStage stage, std::size_t progress, std::size_t maximum) {
+    system.GPU().Renderer().Rasterizer()->LoadDefaultDiskResources(stop_run, [&](VideoCore::LoadCallbackStage stage, std::size_t current,
+                                                                                 std::size_t total, const std::string& name) {
         if (_disk_cache_callback)
-            _disk_cache_callback(static_cast<uint8_t>(stage), progress, maximum);
+            _disk_cache_callback(static_cast<uint8_t>(stage), current, total);
     });
     
     if (_disk_cache_callback)
@@ -172,12 +173,6 @@ static void TryShutdown() {
                 return "";
         }
     };
-    
-    NSLog(@"LocalFriendCodeSeedB: %s", status_to_str(HW::UniqueData::LoadLocalFriendCodeSeedB()));
-    NSLog(@"Movable: %s", status_to_str(HW::UniqueData::LoadMovable()));
-    NSLog(@"OTP: %s", status_to_str(HW::UniqueData::LoadOTP()));
-    NSLog(@"SecureInfoA: %s", status_to_str(HW::UniqueData::LoadSecureInfoA()));
-    NSLog(@"IsFullConsoleLinked: %@", HW::UniqueData::IsFullConsoleLinked() ? @"YES" : @"NO");
     
     static dispatch_once_t onceToken;
     while (!stop_run.load()) {
@@ -326,16 +321,16 @@ static void TryShutdown() {
         bottom_size = metalView.frame.size;
         
         bottom->SizeChanged(metalView.frame.size);
-        bottom->OrientationChanged(orientation, (__bridge CA::MetalLayer*)metalView.layer);
+        // bottom->OrientationChanged(orientation, (__bridge CA::MetalLayer*)metalView.layer);
     } else {
         top_layer = (__bridge CA::MetalLayer*)metalView.layer;
         top_size = metalView.frame.size;
         
         top_window->SizeChanged(metalView.frame.size);
-        top_window->OrientationChanged(orientation, (__bridge CA::MetalLayer*)metalView.layer);
+        // top_window->OrientationChanged(orientation, (__bridge CA::MetalLayer*)metalView.layer);
     }
     
-    Core::System::GetInstance().GPU().Renderer().NotifySurfaceChanged(false);
+    Core::System::GetInstance().GPU().Renderer().NotifySurfaceChanged(secondary);
 }
 
 -(NSMutableArray<NSURL *> *) installedGamePaths {
@@ -426,6 +421,7 @@ static void TryShutdown() {
     Settings::values.plugin_loader_enabled.SetValue(boolean(@"cytrus.v1.35.pluginLoader"));
     Settings::values.allow_plugin_loader.SetValue(boolean(@"cytrus.v1.35.allowPluginLoader"));
     Settings::values.steps_per_hour.SetValue(unsigned16(@"cytrus.v1.35.stepsPerHour"));
+    Settings::values.apply_region_free_patch.SetValue(boolean(@"cytrus.v1.35.applyRegionFreePatch"));
     // Renderer
     Settings::values.spirv_shader_gen.SetValue(boolean(@"cytrus.v1.35.spirvShaderGeneration"));
     Settings::values.disable_spirv_optimizer.SetValue(boolean(@"cytrus.v1.35.disableSpirvOptimizer"));
@@ -434,7 +430,7 @@ static void TryShutdown() {
     Settings::values.use_hw_shader.SetValue(boolean(@"cytrus.v1.35.useHardwareShaders"));
     Settings::values.use_disk_shader_cache.SetValue(boolean(@"cytrus.v1.35.useDiskShaderCache"));
     Settings::values.shaders_accurate_mul.SetValue(boolean(@"cytrus.v1.35.useShadersAccurateMul"));
-    Settings::values.use_vsync_new.SetValue(boolean(@"cytrus.v1.35.useNewVSync"));
+    Settings::values.use_vsync.SetValue(boolean(@"cytrus.v1.35.useNewVSync"));
     if (@available(iOS 26, *)) {
         Settings::values.use_shader_jit.SetValue(false);
     } else {

@@ -105,7 +105,7 @@ PresentWindow::PresentWindow(Frontend::EmuWindow& emu_window_, const Instance& i
       swapchain{instance, emu_window.GetFramebufferLayout().width,
                 emu_window.GetFramebufferLayout().height, surface, low_refresh_rate_},
       graphics_queue{instance.GetGraphicsQueue()}, present_renderpass{CreateRenderpass()},
-      vsync_enabled{Settings::values.use_vsync_new.GetValue()},
+      vsync_enabled{Settings::values.use_vsync.GetValue()},
       blit_supported{
           CanBlitToSwapchain(instance.GetPhysicalDevice(), swapchain.GetSurfaceFormat().format)},
       use_present_thread{Settings::values.async_presentation.GetValue()},
@@ -238,46 +238,41 @@ void PresentWindow::RecreateFrame(Frame* frame, u32 width, u32 height) {
 }
 
 Frame* PresentWindow::GetRenderFrame() {
-    try {
-        MICROPROFILE_SCOPE(Vulkan_WaitPresent);
+    MICROPROFILE_SCOPE(Vulkan_WaitPresent);
 
-        // Wait for free presentation frames
-        std::unique_lock lock{free_mutex};
-        free_cv.wait(lock, [this] { return !free_queue.empty(); });
+    // Wait for free presentation frames
+    std::unique_lock lock{free_mutex};
+    free_cv.wait(lock, [this] { return !free_queue.empty(); });
 
-        // Take the frame from the queue
-        Frame* frame = free_queue.front();
-        free_queue.pop();
+    // Take the frame from the queue
+    Frame* frame = free_queue.front();
+    free_queue.pop();
 
-        vk::Device device = instance.GetDevice();
-        vk::Result result{};
+    vk::Device device = instance.GetDevice();
+    vk::Result result{};
 
-        const auto wait = [&]() {
-            result = device.waitForFences(frame->present_done, false, std::numeric_limits<u64>::max());
-            return result;
-        };
+    const auto wait = [&]() {
+        result = device.waitForFences(frame->present_done, false, std::numeric_limits<u64>::max());
+        return result;
+    };
 
-        // Wait for the presentation to be finished so all frame resources are free
-        while (wait() != vk::Result::eSuccess) {
-            // Retry if the waiting times out
-            if (result == vk::Result::eTimeout) {
-                continue;
-            }
-
-            // eErrorInitializationFailed occurs on Mali GPU drivers due to them
-            // using the ppoll() syscall which isn't correctly restarted after a signal,
-            // we need to manually retry waiting in that case
-            if (result == vk::Result::eErrorInitializationFailed) {
-                continue;
-            }
+    // Wait for the presentation to be finished so all frame resources are free
+    while (wait() != vk::Result::eSuccess) {
+        // Retry if the waiting times out
+        if (result == vk::Result::eTimeout) {
+            continue;
         }
 
-        device.resetFences(frame->present_done);
-        return frame;
-    } catch(std::exception exc) {
-        LOG_ERROR(Render_Vulkan, "{}", exc.what());
-        return nullptr;
+        // eErrorInitializationFailed occurs on Mali GPU drivers due to them
+        // using the ppoll() syscall which isn't correctly restarted after a signal,
+        // we need to manually retry waiting in that case
+        if (result == vk::Result::eErrorInitializationFailed) {
+            continue;
+        }
     }
+
+    device.resetFences(frame->present_done);
+    return frame;
 }
 
 void PresentWindow::Present(Frame* frame) {
@@ -365,7 +360,7 @@ void PresentWindow::CopyToSwapchain(Frame* frame) {
     };
 
 #ifndef ANDROID
-    const bool use_vsync = Settings::values.use_vsync_new.GetValue();
+    const bool use_vsync = Settings::values.use_vsync.GetValue();
     const bool size_changed =
         swapchain.GetWidth() != frame->width || swapchain.GetHeight() != frame->height;
     const bool vsync_changed = vsync_enabled != use_vsync;
