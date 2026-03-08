@@ -104,8 +104,8 @@ static void TryShutdown() {
         bottom_window = std::make_unique<EmulationWindow_Vulkan>(bottom_layer, true, library, bottom_size);
     
     u64 program_id{};
-    // FileUtil::SetCurrentRomPath([url.path UTF8String]);
-    auto app_loader = Loader::GetLoader(Core::GetHomeMenuNcchPath(3));
+    FileUtil::SetCurrentRomPath([url.path UTF8String]);
+    auto app_loader = Loader::GetLoader([url.path UTF8String]);
     if (app_loader) {
         app_loader->ReadProgramId(program_id);
     }
@@ -131,7 +131,7 @@ static void TryShutdown() {
     Network::Init();
     
     if (auto bottom = bottom_window.get(); bottom) {
-        void(system.Load(*top_window, Core::GetHomeMenuNcchPath(3), bottom));
+        void(system.Load(*top_window, [url.path UTF8String], bottom));
     } else
         void(system.Load(*top_window, [url.path UTF8String]));
     
