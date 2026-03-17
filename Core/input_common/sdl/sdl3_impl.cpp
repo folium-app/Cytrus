@@ -21,7 +21,7 @@
 #include "common/param_package.h"
 #include "common/threadsafe_queue.h"
 #include "core/frontend/input.h"
-#include "input_common/sdl/sdl_impl.h"
+#include "input_common/sdl/sdl3_impl.h"
 
 // These structures are not actually defined in the headers, so we need to define them here to use
 // them.
@@ -924,11 +924,6 @@ SDLState::SDLState() {
     // There are also hints to toggle the individual drivers if needed.
     SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI, "0");
 #endif
-#endif
-
-    // Prevent SDL from adding undesired axis
-#ifdef SDL_HINT_ACCELEROMETER_AS_JOYSTICK
-    SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
 #endif
 
     // Enable HIDAPI rumble. This prevents SDL from disabling motion on PS4 and PS5 controllers

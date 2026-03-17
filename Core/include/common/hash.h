@@ -7,7 +7,6 @@
 #include <cstddef>
 #include <cstring>
 #include <string>
-#include <type_traits>
 #include <xxhash.h>
 #include "cityhash.h"
 #include "common/common_types.h"

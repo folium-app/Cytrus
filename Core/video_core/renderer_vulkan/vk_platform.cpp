@@ -8,6 +8,7 @@
 #elif defined(WIN32)
 #define VK_USE_PLATFORM_WIN32_KHR
 #elif defined(__APPLE__)
+#import <TargetConditionals.h>
 #define VK_USE_PLATFORM_METAL_EXT
 #else
 #define VK_USE_PLATFORM_WAYLAND_KHR
@@ -106,7 +107,16 @@ std::shared_ptr<Common::DynamicLibrary> OpenLibrary(
 #endif
     auto library = std::make_shared<Common::DynamicLibrary>();
 #ifdef __APPLE__
+#if TARGET_OS_IOS
     void(library->Load("@rpath/MoltenVK.framework/MoltenVK"));
+#else
+    const std::string filename = Common::DynamicLibrary::GetLibraryName("vulkan");
+    if (!library->Load(filename)) {
+        // Fall back to directly loading bundled MoltenVK library.
+        const std::string mvk_filename = Common::DynamicLibrary::GetLibraryName("MoltenVK");
+        void(library->Load(mvk_filename));
+    }
+#endif
 #else
     std::string filename = Common::DynamicLibrary::GetLibraryName("vulkan", 1);
     LOG_DEBUG(Render_Vulkan, "Trying Vulkan library: {}", filename);

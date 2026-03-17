@@ -4,6 +4,10 @@
 
 #pragma once
 
+#if __APPLE__
+#import <TargetConditionals.h>
+#endif
+
 #include <algorithm>
 #include <array>
 #include <string_view>
@@ -18,7 +22,11 @@ constexpr const char* TrimSourcePath(std::string_view source) {
     const auto rfind = [source](const std::string_view match) {
         return source.rfind(match) == source.npos ? 0 : (source.rfind(match) + match.size());
     };
+#if TARGET_OS_IOS
     auto idx = std::max({rfind("Core/"), rfind("Cytrus/"), rfind("../"), rfind("..\\")});
+#else
+    auto idx = std::max({rfind("src/"), rfind("src\\"), rfind("../"), rfind("..\\")});
+#endif
     return source.data() + idx;
 }
 

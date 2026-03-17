@@ -1,4 +1,4 @@
-// Copyright 2023 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -22,7 +22,11 @@ enum class InputType : u32 {
     Auto = 0,
     Null = 1,
     Static = 2,
-    OpenAL = 3
+    Cubeb = 3,
+    OpenAL = 4,
+#ifdef HAVE_LIBRETRO
+    LibRetro = 5,
+#endif
 };
 
 struct InputDetails {

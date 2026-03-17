@@ -2,8 +2,8 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-#include "input_common/sdl/sdl.h"
-#include "input_common/sdl/sdl_impl.h"
+#include "input_common/sdl/sdl3.h"
+#include "input_common/sdl/sdl3_impl.h"
 
 namespace InputCommon::SDL {
 

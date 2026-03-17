@@ -26,9 +26,9 @@
 #define EMU_DATA_DIR "Azahar"
 #define LEGACY_CITRA_DATA_DIR "Citra"
 #define LEGACY_LIME3DS_DATA_DIR "Lime3DS"
-#elif defined(__APPLE__)
+#elif __APPLE__
 #include <TargetConditionals.h>
-#if TARGET_OS_IPHONE
+#if TARGET_OS_IOS
 #define EMU_APPLE_DATA_DIR "Documents" DIR_SEP "Cytrus"
 #define LEGACY_CITRA_APPLE_DATA_DIR "Documents" DIR_SEP "Citra"
 #define LEGACY_LIME3DS_APPLE_DATA_DIR "Documents" DIR_SEP "Lime3DS"
@@ -71,7 +71,14 @@
 
 // Filenames
 // Files in the directory returned by GetUserPath(UserPath::LogDir)
+#if __APPLE__
+#include <TargetConditionals.h>
+#if TARGET_OS_IOS
 #define LOG_FILE "cytrus_log.txt"
+#else
+#define LOG_FILE "azahar_log.txt"
+#endif
+#endif
 
 // Files in the directory returned by GetUserPath(UserPath::ConfigDir)
 #define EMU_CONFIG "emu.ini"

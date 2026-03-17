@@ -1,4 +1,4 @@
-// Copyright 2016 Citra Emulator Project
+// Copyright Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -17,9 +17,14 @@ class Sink;
 enum class SinkType : u32 {
     Auto = 0,
     Null = 1,
-    CoreAudio = 2,
+    Cubeb = 2,
     OpenAL = 3,
-    SDL3 = 4
+    SDL2 = 4,
+    SDL3 = 5,
+    CoreAudio = 6,
+#ifdef HAVE_LIBRETRO
+    LibRetro = 7,
+#endif
 };
 
 struct SinkDetails {

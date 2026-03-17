@@ -30,7 +30,7 @@
 #include "common/param_package.h"
 #include "common/vector_math.h"
 #include "input_common/main.h"
-#include "input_common/sdl/sdl.h"
+#include "input_common/sdl/sdl3.h"
 #endif
 
 namespace InputManager {
@@ -79,6 +79,8 @@ public:
         std::lock_guard<std::mutex> guard(mutex);
         bool button_found = false;
         for (const KeyButtonPair& pair : list) {
+            printf("id = %i, status = %i\n", pair.button_id, pair.key_button->status.load());
+            
             if (pair.button_id == button_id) {
                 pair.key_button->status.store(pressed);
                 button_found = true;

@@ -4,8 +4,6 @@
 
 #include <string>
 #include <vector>
-#define SDL_MAIN_HANDLED
-#define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include "audio_core/audio_types.h"
@@ -92,7 +90,7 @@ void SDL3Sink::Impl::Callback(void* userdata, SDL_AudioStream* stream, int addit
 }
 
 std::vector<std::string> ListSDL3SinkDevices() {
-    if (SDL_InitSubSystem(SDL_INIT_AUDIO) == false) {
+    if (SDL_Init(SDL_INIT_AUDIO) == false) {
         LOG_CRITICAL(Audio_Sink, "SDL_InitSubSystem failed with: {}", SDL_GetError());
         return {};
     }

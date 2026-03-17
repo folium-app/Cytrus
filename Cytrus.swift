@@ -51,27 +51,6 @@ public enum CytrusButtonType : UInt32 {
     case r      = 774
     case debug  = 781
     case gpio14 = 782
-    
-    public static func type(_ string: String) -> Self? {
-        switch string {
-        case "a", "circle": .a
-        case "b", "cross": .b
-        case "x", "triangle": .x
-        case "y", "square": .y
-        case "up", "dpadUp": .up
-        case "down", "dpadDown": .down
-        case "left", "dpadLeft": .left
-        case "right", "dpadRight": .right
-        case "l", "l1": .l
-        case "r", "r1": .r
-        case "zl", "l2": .zl
-        case "zr", "r2": .zr
-        case "home": .home
-        case "minus", "select": .select
-        case "plus", "start": .start
-        default: nil
-        }
-    }
 }
 
 public enum CytrusImportResult : UInt32 {

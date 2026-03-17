@@ -20,7 +20,22 @@
 #include "video_core/host_shaders/vulkan_present_interlaced_frag.h"
 #include "video_core/host_shaders/vulkan_present_vert.h"
 
+#include "video_core/host_shaders/vulkan_cursor_frag.h"
+#include "video_core/host_shaders/vulkan_cursor_vert.h"
+
 #include <vma/vk_mem_alloc.h>
+
+#if __APPLE__
+#import <TargetConditionals.h>
+#endif
+
+#ifdef ENABLE_SDL2
+#include <SDL.h>
+#endif
+
+#ifdef ENABLE_SDL3
+#include <SDL3/SDL.h>
+#endif
 
 MICROPROFILE_DEFINE(Vulkan_RenderFrame, "Vulkan", "Render Frame", MP_RGB(128, 128, 64));
 
@@ -52,6 +67,51 @@ constexpr static std::array<vk::DescriptorSetLayoutBinding, 1> PRESENT_BINDINGS 
 
 namespace {
 static bool IsLowRefreshRate() {
+#if TARGET_OS_IOS
+    return false;
+#else
+#if (defined(__APPLE__) || defined(ENABLE_SDL2)) && !defined(HAVE_LIBRETRO)
+    if (!Settings::values.use_display_refresh_rate_detection) {
+        LOG_INFO(Render_Vulkan, "Refresh rate detection is currently disabled via settings");
+        return false;
+    }
+#ifdef __APPLE__
+    // Apple's low power mode sometimes limits applications to 30fps without changing the refresh
+    // rate, meaning the above code doesn't catch it.
+    if (AppleUtils::IsLowPowerModeEnabled()) {
+        LOG_WARNING(Render_Vulkan, "Apple's low power mode is enabled, assuming low application "
+                                   "framerate. FIFO will be disabled");
+        return true;
+    }
+
+    const auto cur_refresh_rate = AppleUtils::GetRefreshRate();
+#elif defined(ENABLE_SDL2)
+    if (SDL_WasInit(SDL_INIT_VIDEO) == 0) {
+        LOG_ERROR(Render_Vulkan, "Attempted to check refresh rate via SDL, but failed because "
+                                 "SDL_INIT_VIDEO wasn't initialized");
+        return false;
+    }
+
+    SDL_DisplayMode cur_display_mode;
+    SDL_GetCurrentDisplayMode(0, &cur_display_mode); // TODO: Multimonitor handling. -OS
+
+    const auto cur_refresh_rate = cur_display_mode.refresh_rate;
+#endif // ENABLE_SDL2
+
+    if (cur_refresh_rate < SCREEN_REFRESH_RATE) {
+        LOG_WARNING(Render_Vulkan,
+                    "Detected refresh rate lower than the emulated 3DS screen: {}hz. FIFO will "
+                    "be disabled",
+                    cur_refresh_rate);
+        return true;
+    } else {
+        LOG_INFO(Render_Vulkan, "Refresh rate is above emulated 3DS screen: {}hz. Good.",
+                 cur_refresh_rate);
+    }
+#endif // (defined(__APPLE__) || defined(ENABLE_SDL2)) && !defined(HAVE_LIBRETRO)
+#endif
+
+    // We have no available method of checking refresh rate. Just assume that everything is fine :)
     return false;
 }
 } // Anonymous namespace
@@ -104,6 +164,10 @@ RendererVulkan::~RendererVulkan() {
         device.destroyImageView(info.texture.image_view);
         vmaDestroyImage(instance.GetAllocator(), info.texture.image, info.texture.allocation);
     }
+
+    device.destroyPipeline(cursor_pipeline);
+    device.destroyShaderModule(cursor_vertex_shader);
+    device.destroyShaderModule(cursor_fragment_shader);
 }
 
 void RendererVulkan::PrepareRendertarget() {
@@ -245,6 +309,11 @@ void RendererVulkan::CompileShaders() {
     present_shaders[2] = Compile(HostShaders::VULKAN_PRESENT_INTERLACED_FRAG,
                                  vk::ShaderStageFlagBits::eFragment, device, preamble);
 
+    cursor_vertex_shader =
+        Compile(HostShaders::VULKAN_CURSOR_VERT, vk::ShaderStageFlagBits::eVertex, device);
+    cursor_fragment_shader =
+        Compile(HostShaders::VULKAN_CURSOR_FRAG, vk::ShaderStageFlagBits::eFragment, device);
+
     auto properties = instance.GetPhysicalDevice().getProperties();
     for (std::size_t i = 0; i < present_samplers.size(); i++) {
         const vk::Filter filter_mode = i == 0 ? vk::Filter::eLinear : vk::Filter::eNearest;
@@ -281,6 +350,9 @@ void RendererVulkan::BuildLayouts() {
         .pPushConstantRanges = &push_range,
     };
     present_pipeline_layout = instance.GetDevice().createPipelineLayoutUnique(layout_info);
+
+    const vk::PipelineLayoutCreateInfo cursor_layout_info = {};
+    cursor_pipeline_layout = instance.GetDevice().createPipelineLayoutUnique(cursor_layout_info);
 }
 
 void RendererVulkan::BuildPipelines() {
@@ -410,6 +482,126 @@ void RendererVulkan::BuildPipelines() {
             instance.GetDevice().createGraphicsPipeline({}, pipeline_info);
         ASSERT_MSG(result == vk::Result::eSuccess, "Unable to build present pipelines");
         present_pipelines[i] = pipeline;
+    }
+
+    // Build cursor pipeline (simple position-only, inverted color blending)
+    {
+        const vk::VertexInputBindingDescription cursor_binding = {
+            .binding = 0,
+            .stride = sizeof(float) * 2,
+            .inputRate = vk::VertexInputRate::eVertex,
+        };
+
+        const vk::VertexInputAttributeDescription cursor_attribute = {
+            .location = 0,
+            .binding = 0,
+            .format = vk::Format::eR32G32Sfloat,
+            .offset = 0,
+        };
+
+        const vk::PipelineVertexInputStateCreateInfo cursor_vertex_input = {
+            .vertexBindingDescriptionCount = 1,
+            .pVertexBindingDescriptions = &cursor_binding,
+            .vertexAttributeDescriptionCount = 1,
+            .pVertexAttributeDescriptions = &cursor_attribute,
+        };
+
+        const vk::PipelineInputAssemblyStateCreateInfo cursor_input_assembly = {
+            .topology = vk::PrimitiveTopology::eTriangleList,
+            .primitiveRestartEnable = false,
+        };
+
+        const vk::PipelineRasterizationStateCreateInfo cursor_raster = {
+            .depthClampEnable = false,
+            .rasterizerDiscardEnable = false,
+            .cullMode = vk::CullModeFlagBits::eNone,
+            .frontFace = vk::FrontFace::eClockwise,
+            .depthBiasEnable = false,
+            .lineWidth = 1.0f,
+        };
+
+        const vk::PipelineMultisampleStateCreateInfo cursor_multisample = {
+            .rasterizationSamples = vk::SampleCountFlagBits::e1,
+            .sampleShadingEnable = false,
+        };
+
+        const vk::PipelineColorBlendAttachmentState cursor_blend_attachment = {
+            .blendEnable = true,
+            .srcColorBlendFactor = vk::BlendFactor::eOneMinusDstColor,
+            .dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcColor,
+            .colorBlendOp = vk::BlendOp::eAdd,
+            .srcAlphaBlendFactor = vk::BlendFactor::eOne,
+            .dstAlphaBlendFactor = vk::BlendFactor::eZero,
+            .alphaBlendOp = vk::BlendOp::eAdd,
+            .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                              vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+        };
+
+        const vk::PipelineColorBlendStateCreateInfo cursor_color_blending = {
+            .logicOpEnable = false,
+            .attachmentCount = 1,
+            .pAttachments = &cursor_blend_attachment,
+        };
+
+        const vk::Viewport placeholder_vp = {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+        const vk::Rect2D placeholder_sc = {{0, 0}, {1, 1}};
+        const vk::PipelineViewportStateCreateInfo cursor_viewport = {
+            .viewportCount = 1,
+            .pViewports = &placeholder_vp,
+            .scissorCount = 1,
+            .pScissors = &placeholder_sc,
+        };
+
+        const std::array cursor_dynamic_states = {
+            vk::DynamicState::eViewport,
+            vk::DynamicState::eScissor,
+        };
+
+        const vk::PipelineDynamicStateCreateInfo cursor_dynamic = {
+            .dynamicStateCount = static_cast<u32>(cursor_dynamic_states.size()),
+            .pDynamicStates = cursor_dynamic_states.data(),
+        };
+
+        const vk::PipelineDepthStencilStateCreateInfo cursor_depth = {
+            .depthTestEnable = false,
+            .depthWriteEnable = false,
+            .depthCompareOp = vk::CompareOp::eAlways,
+            .depthBoundsTestEnable = false,
+            .stencilTestEnable = false,
+        };
+
+        const std::array cursor_shader_stages = {
+            vk::PipelineShaderStageCreateInfo{
+                .stage = vk::ShaderStageFlagBits::eVertex,
+                .module = cursor_vertex_shader,
+                .pName = "main",
+            },
+            vk::PipelineShaderStageCreateInfo{
+                .stage = vk::ShaderStageFlagBits::eFragment,
+                .module = cursor_fragment_shader,
+                .pName = "main",
+            },
+        };
+
+        const vk::GraphicsPipelineCreateInfo cursor_pipeline_info = {
+            .stageCount = static_cast<u32>(cursor_shader_stages.size()),
+            .pStages = cursor_shader_stages.data(),
+            .pVertexInputState = &cursor_vertex_input,
+            .pInputAssemblyState = &cursor_input_assembly,
+            .pViewportState = &cursor_viewport,
+            .pRasterizationState = &cursor_raster,
+            .pMultisampleState = &cursor_multisample,
+            .pDepthStencilState = &cursor_depth,
+            .pColorBlendState = &cursor_color_blending,
+            .pDynamicState = &cursor_dynamic,
+            .layout = *cursor_pipeline_layout,
+            .renderPass = main_present_window.Renderpass(),
+        };
+
+        const auto [result, pipeline] =
+            instance.GetDevice().createGraphicsPipeline({}, cursor_pipeline_info);
+        ASSERT_MSG(result == vk::Result::eSuccess, "Unable to build cursor pipeline");
+        cursor_pipeline = pipeline;
     }
 }
 
@@ -860,7 +1052,69 @@ void RendererVulkan::DrawScreens(Frame* frame, const Layout::FramebufferLayout& 
         }
     }
 
+    DrawCursor(layout);
+
     scheduler.Record([](vk::CommandBuffer cmdbuf) { cmdbuf.endRenderPass(); });
+}
+
+void RendererVulkan::DrawCursor(const Layout::FramebufferLayout& layout) {
+    const auto cursor = render_window.GetCursorInfo();
+    if (!cursor.visible) {
+        return;
+    }
+
+    const float buf_w = static_cast<float>(layout.width);
+    const float buf_h = static_cast<float>(layout.height);
+
+    // Convert from bottom-screen-local to layout-absolute, then to NDC
+    const float abs_x = layout.bottom_screen.left + cursor.projected_x;
+    const float abs_y = layout.bottom_screen.top + cursor.projected_y;
+    const float cx = (abs_x / buf_w) * 2.0f - 1.0f;
+    const float cy = (abs_y / buf_h) * 2.0f - 1.0f;
+    const float ratio = static_cast<float>(layout.bottom_screen.GetHeight()) / 30.0f;
+    const float rw = ratio / buf_w;
+    const float rh = ratio / buf_h;
+
+    // Bottom screen bounds in NDC
+    const float bl = (layout.bottom_screen.left / buf_w) * 2.0f - 1.0f;
+    const float bt = (layout.bottom_screen.top / buf_h) * 2.0f - 1.0f;
+    const float br = (layout.bottom_screen.right / buf_w) * 2.0f - 1.0f;
+    const float bb = (layout.bottom_screen.bottom / buf_h) * 2.0f - 1.0f;
+
+    // Crosshair geometry clamped to bottom screen bounds
+    const float vl = std::fmax(cx - rw / 5.0f, bl);
+    const float vr = std::fmin(cx + rw / 5.0f, br);
+    const float vt = std::fmax(cy - rh, bt);
+    const float vb = std::fmin(cy + rh, bb);
+
+    const float hl = std::fmax(cx - rw, bl);
+    const float hr = std::fmin(cx + rw, br);
+    const float ht = std::fmax(cy - rh / 5.0f, bt);
+    const float hb = std::fmin(cy + rh / 5.0f, bb);
+
+    // 12 vertices = 4 triangles (2 for vertical bar, 2 for horizontal bar)
+    // clang-format off
+    const float vertices[] = {
+        // Vertical bar
+        vl, vt,  vr, vt,  vr, vb,
+        vl, vt,  vr, vb,  vl, vb,
+        // Horizontal bar
+        hl, ht,  hr, ht,  hr, hb,
+        hl, ht,  hr, hb,  hl, hb,
+    };
+    // clang-format on
+
+    const u64 size = sizeof(vertices);
+    auto [data, offset, invalidate] = vertex_buffer.Map(size, 16);
+    std::memcpy(data, vertices, size);
+    vertex_buffer.Commit(size);
+
+    scheduler.Record([this, offset = offset, pipeline = cursor_pipeline](vk::CommandBuffer cmdbuf) {
+        cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+        cmdbuf.bindVertexBuffers(0, vertex_buffer.Handle(), {0});
+        const u32 first_vertex = static_cast<u32>(offset) / (sizeof(float) * 2);
+        cmdbuf.draw(12, 1, first_vertex, 0);
+    });
 }
 
 void RendererVulkan::SwapBuffers() {

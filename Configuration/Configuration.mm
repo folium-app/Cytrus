@@ -4,13 +4,16 @@
 
 #include <iomanip>
 #include <memory>
+#include <ranges>
 #include <sstream>
 #include <unordered_map>
 #include <INIReader.h>
+#include <boost/hana/string.hpp>
 #include "common/file_util.h"
 #include "common/logging/backend.h"
 #include "common/logging/log.h"
 #include "common/param_package.h"
+#include "common/setting_keys.h"
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/hle/service/cfg/cfg.h"
@@ -28,8 +31,12 @@
 Configuration::Configuration() {
     // TODO: Don't hardcode the path; let the frontend decide where to put the config files.
     sdl3_config_loc = FileUtil::GetUserPath(FileUtil::UserPath::ConfigDir) + "config.ini";
-    sdl3_config = std::make_unique<INIReader>(sdl3_config_loc);
-    
+    std::string ini_buffer;
+    FileUtil::ReadFileToString(true, sdl3_config_loc, ini_buffer);
+    if (!ini_buffer.empty()) {
+        sdl3_config = std::make_unique<INIReader>(ini_buffer.c_str(), ini_buffer.size());
+    }
+
     Reload();
 }
 
@@ -37,13 +44,16 @@ Configuration::~Configuration() = default;
 
 bool Configuration::LoadINI(const std::string& default_contents, bool retry) {
     const std::string& location = this->sdl3_config_loc;
-    if (sdl3_config->ParseError() < 0) {
+    if (sdl3_config == nullptr || sdl3_config->ParseError() < 0) {
         if (retry) {
             LOG_WARNING(Config, "Failed to load {}. Creating file from defaults...", location);
             FileUtil::CreateFullPath(location);
             FileUtil::WriteStringToFile(true, location, default_contents);
-            sdl3_config = std::make_unique<INIReader>(location); // Reopen file
-            
+            std::string ini_buffer;
+            FileUtil::ReadFileToString(true, location, ini_buffer);
+            sdl3_config =
+                std::make_unique<INIReader>(ini_buffer.c_str(), ini_buffer.size()); // Reopen file
+
             return LoadINI(default_contents, false);
         }
         LOG_ERROR(Config, "Failed.");
@@ -54,31 +64,26 @@ bool Configuration::LoadINI(const std::string& default_contents, bool retry) {
 }
 
 static const std::array<int, Settings::NativeButton::NumButtons> default_buttons = {
-    SDL_SCANCODE_A, SDL_SCANCODE_S, SDL_SCANCODE_Z, SDL_SCANCODE_X, SDL_SCANCODE_T, SDL_SCANCODE_G,
-    SDL_SCANCODE_F, SDL_SCANCODE_H, SDL_SCANCODE_Q, SDL_SCANCODE_W, SDL_SCANCODE_M, SDL_SCANCODE_N,
-    SDL_SCANCODE_O, SDL_SCANCODE_P, SDL_SCANCODE_1, SDL_SCANCODE_2, SDL_SCANCODE_B,
+    InputManager::N3DS_BUTTON_A,     InputManager::N3DS_BUTTON_B,
+    InputManager::N3DS_BUTTON_X,     InputManager::N3DS_BUTTON_Y,
+    InputManager::N3DS_DPAD_UP,      InputManager::N3DS_DPAD_DOWN,
+    InputManager::N3DS_DPAD_LEFT,    InputManager::N3DS_DPAD_RIGHT,
+    InputManager::N3DS_TRIGGER_L,    InputManager::N3DS_TRIGGER_R,
+    InputManager::N3DS_BUTTON_START, InputManager::N3DS_BUTTON_SELECT,
+    InputManager::N3DS_BUTTON_DEBUG, InputManager::N3DS_BUTTON_GPIO14,
+    InputManager::N3DS_BUTTON_ZL,    InputManager::N3DS_BUTTON_ZR,
+    InputManager::N3DS_BUTTON_HOME,
 };
 
-static const std::array<std::array<int, 5>, Settings::NativeAnalog::NumAnalogs> default_analogs{{
-    {
-        SDL_SCANCODE_UP,
-        SDL_SCANCODE_DOWN,
-        SDL_SCANCODE_LEFT,
-        SDL_SCANCODE_RIGHT,
-        SDL_SCANCODE_D,
-    },
-    {
-        SDL_SCANCODE_I,
-        SDL_SCANCODE_K,
-        SDL_SCANCODE_J,
-        SDL_SCANCODE_L,
-        SDL_SCANCODE_D,
-    },
+static const std::array<int, Settings::NativeAnalog::NumAnalogs> default_analogs{{
+    InputManager::N3DS_CIRCLEPAD,
+    InputManager::N3DS_STICK_C,
 }};
 
 template <>
 void Configuration::ReadSetting(const std::string& group, Settings::Setting<std::string>& setting) {
-    std::string setting_value = sdl3_config->Get(group, setting.GetLabel(), setting.GetDefault());
+    std::string setting_value =
+        sdl3_config->Get(group, setting.GetLabel(), setting.GetDefault());
     if (setting_value.empty()) {
         setting_value = setting.GetDefault();
     }
@@ -93,86 +98,109 @@ void Configuration::ReadSetting(const std::string& group, Settings::Setting<bool
 template <typename Type, bool ranged>
 void Configuration::ReadSetting(const std::string& group, Settings::Setting<Type, ranged>& setting) {
     if constexpr (std::is_floating_point_v<Type>) {
-        setting = static_cast<Type>(
-                                    sdl3_config->GetReal(group, setting.GetLabel(), setting.GetDefault()));
+        setting = sdl3_config->GetReal(group, setting.GetLabel(), setting.GetDefault());
     } else {
         setting = static_cast<Type>(sdl3_config->GetInteger(
-                                                            group, setting.GetLabel(), static_cast<long>(setting.GetDefault())));
+            group, setting.GetLabel(), static_cast<long>(setting.GetDefault())));
     }
 }
 
 void Configuration::ReadValues() {
     // Controls
-    // TODO: add multiple input profile support
     for (int i = 0; i < Settings::NativeButton::NumButtons; ++i) {
-        std::string default_param = InputCommon::GenerateKeyboardParam(default_buttons[i]);
-        Settings::values.current_input_profile.buttons[i] =
-        sdl3_config->GetString("Controls", Settings::NativeButton::mapping[i], default_param);
+        std::string default_param = InputManager::GenerateButtonParamPackage(default_buttons[i]);
+        Settings::values.current_input_profile.buttons[i] = sdl3_config->GetString(
+            "Controls", Settings::NativeButton::mapping[i], default_param);
         if (Settings::values.current_input_profile.buttons[i].empty())
             Settings::values.current_input_profile.buttons[i] = default_param;
     }
-    
+
     for (int i = 0; i < Settings::NativeAnalog::NumAnalogs; ++i) {
-        std::string default_param = InputCommon::GenerateAnalogParamFromKeys(
-                                                                             default_analogs[i][0], default_analogs[i][1], default_analogs[i][2],
-                                                                             default_analogs[i][3], default_analogs[i][4], 0.5f);
-        Settings::values.current_input_profile.analogs[i] =
-        sdl3_config->GetString("Controls", Settings::NativeAnalog::mapping[i], default_param);
+        std::string default_param = InputManager::GenerateAnalogParamPackage(default_analogs[i]);
+        Settings::values.current_input_profile.analogs[i] = sdl3_config->GetString(
+            "Controls", Settings::NativeAnalog::mapping[i], default_param);
         if (Settings::values.current_input_profile.analogs[i].empty())
             Settings::values.current_input_profile.analogs[i] = default_param;
     }
-    
+
     Settings::values.current_input_profile.motion_device = sdl3_config->GetString(
-                                                                                  "Controls", "motion_device",
-                                                                                  "engine:motion_emu,update_period:100,sensitivity:0.01,tilt_clamp:90.0");
+        "Controls", "motion_device",
+        "engine:motion_emu,update_period:100,sensitivity:0.01,tilt_clamp:90.0");
     Settings::values.current_input_profile.touch_device =
-    sdl3_config->GetString("Controls", "touch_device", "engine:emu_window");
+        sdl3_config->GetString("Controls", "touch_device", "engine:emu_window");
     Settings::values.current_input_profile.udp_input_address = sdl3_config->GetString(
-                                                                                      "Controls", "udp_input_address", InputCommon::CemuhookUDP::DEFAULT_ADDR);
+        "Controls", "udp_input_address", InputCommon::CemuhookUDP::DEFAULT_ADDR);
     Settings::values.current_input_profile.udp_input_port =
-    static_cast<u16>(sdl3_config->GetInteger("Controls", "udp_input_port",
-                                             InputCommon::CemuhookUDP::DEFAULT_PORT));
+        static_cast<u16>(sdl3_config->GetInteger("Controls", "udp_input_port",
+                                                    InputCommon::CemuhookUDP::DEFAULT_PORT));
+
     ReadSetting("Controls", Settings::values.use_artic_base_controller);
-    
+
     // Core
     ReadSetting("Core", Settings::values.use_cpu_jit);
     ReadSetting("Core", Settings::values.cpu_clock_percentage);
-    
+
     // Renderer
+    Settings::values.use_gles = sdl3_config->GetBoolean("Renderer", "use_gles", true);
+    Settings::values.shaders_accurate_mul =
+        sdl3_config->GetBoolean("Renderer", "shaders_accurate_mul", false);
     ReadSetting("Renderer", Settings::values.graphics_api);
-    ReadSetting("Renderer", Settings::values.physical_device);
-    ReadSetting("Renderer", Settings::values.spirv_shader_gen);
-    ReadSetting("Renderer", Settings::values.async_shader_compilation);
     ReadSetting("Renderer", Settings::values.async_presentation);
-    ReadSetting("Renderer", Settings::values.use_gles);
+    ReadSetting("Renderer", Settings::values.async_shader_compilation);
+    ReadSetting("Renderer", Settings::values.spirv_shader_gen);
+    ReadSetting("Renderer", Settings::values.disable_spirv_optimizer);
     ReadSetting("Renderer", Settings::values.use_hw_shader);
-    ReadSetting("Renderer", Settings::values.shaders_accurate_mul);
     ReadSetting("Renderer", Settings::values.use_shader_jit);
     ReadSetting("Renderer", Settings::values.resolution_factor);
     ReadSetting("Renderer", Settings::values.use_disk_shader_cache);
-    ReadSetting("Renderer", Settings::values.frame_limit);
     ReadSetting("Renderer", Settings::values.use_vsync);
     ReadSetting("Renderer", Settings::values.texture_filter);
     ReadSetting("Renderer", Settings::values.texture_sampling);
-    ReadSetting("Renderer", Settings::values.delay_game_render_thread_us);
-    
-    ReadSetting("Renderer", Settings::values.mono_render_option);
+    ReadSetting("Renderer", Settings::values.turbo_limit);
+    // Workaround to map Android setting for enabling the frame limiter to the format Citra expects
+    if (sdl3_config->GetBoolean("Renderer", "use_frame_limit", true)) {
+        ReadSetting("Renderer", Settings::values.frame_limit);
+    } else {
+        Settings::values.frame_limit = 0;
+    }
+
     ReadSetting("Renderer", Settings::values.render_3d);
     ReadSetting("Renderer", Settings::values.factor_3d);
-    ReadSetting("Renderer", Settings::values.pp_shader_name);
-    ReadSetting("Renderer", Settings::values.anaglyph_shader_name);
+    std::string default_shader = "None (builtin)";
+    if (Settings::values.render_3d.GetValue() == Settings::StereoRenderOption::Anaglyph)
+        default_shader = "Dubois (builtin)";
+    else if (Settings::values.render_3d.GetValue() == Settings::StereoRenderOption::Interlaced)
+        default_shader = "Horizontal (builtin)";
+    Settings::values.pp_shader_name =
+        sdl3_config->GetString("Renderer", "pp_shader_name", default_shader);
     ReadSetting("Renderer", Settings::values.filter_mode);
-    
+    ReadSetting("Renderer", Settings::values.use_integer_scaling);
+
     ReadSetting("Renderer", Settings::values.bg_red);
     ReadSetting("Renderer", Settings::values.bg_green);
     ReadSetting("Renderer", Settings::values.bg_blue);
+    ReadSetting("Renderer", Settings::values.custom_second_layer_opacity);
+    ReadSetting("Renderer", Settings::values.delay_game_render_thread_us);
     ReadSetting("Renderer", Settings::values.disable_right_eye_render);
-    
+    ReadSetting("Renderer", Settings::values.swap_eyes_3d);
+    ReadSetting("Renderer", Settings::values.render_3d_which_display);
     // Layout
-    ReadSetting("Layout", Settings::values.layout_option);
-    ReadSetting("Layout", Settings::values.swap_screen);
-    ReadSetting("Layout", Settings::values.upright_screen);
-    ReadSetting("Layout", Settings::values.large_screen_proportion);
+    // Somewhat inelegant solution to ensure layout value is between 0 and 5 on read
+    // since older config files may have other values
+    int layoutInt = (int)sdl3_config->GetInteger(
+        "Layout", "layout_option", static_cast<int>(Settings::LayoutOption::LargeScreen));
+    if (layoutInt < 0 || layoutInt > 5) {
+        layoutInt = static_cast<int>(Settings::LayoutOption::LargeScreen);
+    }
+    Settings::values.layout_option = static_cast<Settings::LayoutOption>(layoutInt);
+    Settings::values.screen_gap =
+        static_cast<int>(sdl3_config->GetReal("Layout", "screen_gap", 0));
+    Settings::values.large_screen_proportion =
+        static_cast<float>(sdl3_config->GetReal("Layout", "large_screen_proportion", 2.25));
+    Settings::values.small_screen_position = static_cast<Settings::SmallScreenPosition>(
+        sdl3_config->GetInteger("Layout", "small_screen_position",
+                                   static_cast<int>(Settings::SmallScreenPosition::TopRight)));
+    ReadSetting("Layout", Settings::values.screen_gap);
     ReadSetting("Layout", Settings::values.custom_top_x);
     ReadSetting("Layout", Settings::values.custom_top_y);
     ReadSetting("Layout", Settings::values.custom_top_width);
@@ -180,17 +208,20 @@ void Configuration::ReadValues() {
     ReadSetting("Layout", Settings::values.custom_bottom_x);
     ReadSetting("Layout", Settings::values.custom_bottom_y);
     ReadSetting("Layout", Settings::values.custom_bottom_width);
+    ReadSetting("Layout", Settings::values.aspect_ratio);
     ReadSetting("Layout", Settings::values.custom_bottom_height);
-    ReadSetting("Layout", Settings::values.custom_second_layer_opacity);
-    
-    ReadSetting("Layout", Settings::values.screen_top_stretch);
-    ReadSetting("Layout", Settings::values.screen_top_leftright_padding);
-    ReadSetting("Layout", Settings::values.screen_top_topbottom_padding);
-    ReadSetting("Layout", Settings::values.screen_bottom_stretch);
-    ReadSetting("Layout", Settings::values.screen_bottom_leftright_padding);
-    ReadSetting("Layout", Settings::values.screen_bottom_topbottom_padding);
-    
-    ReadSetting("Layout", Settings::values.portrait_layout_option);
+    ReadSetting("Layout", Settings::values.cardboard_screen_size);
+    ReadSetting("Layout", Settings::values.cardboard_x_shift);
+    ReadSetting("Layout", Settings::values.cardboard_y_shift);
+    ReadSetting("Layout", Settings::values.upright_screen);
+
+    Settings::values.portrait_layout_option =
+        static_cast<Settings::PortraitLayoutOption>(sdl3_config->GetInteger(
+            "Layout", "portrait_layout_option",
+            static_cast<int>(Settings::PortraitLayoutOption::PortraitTopFullWidth)));
+    Settings::values.secondary_display_layout = static_cast<Settings::SecondaryDisplayLayout>(
+        sdl3_config->GetInteger("Layout", Settings::HKeys::secondary_display_layout.c_str(),
+                                   static_cast<int>(Settings::SecondaryDisplayLayout::None)));
     ReadSetting("Layout", Settings::values.custom_portrait_top_x);
     ReadSetting("Layout", Settings::values.custom_portrait_top_y);
     ReadSetting("Layout", Settings::values.custom_portrait_top_width);
@@ -199,13 +230,16 @@ void Configuration::ReadValues() {
     ReadSetting("Layout", Settings::values.custom_portrait_bottom_y);
     ReadSetting("Layout", Settings::values.custom_portrait_bottom_width);
     ReadSetting("Layout", Settings::values.custom_portrait_bottom_height);
-    
+
+    // Storage
+    ReadSetting("Storage", Settings::values.compress_cia_installs);
+
     // Utility
     ReadSetting("Utility", Settings::values.dump_textures);
     ReadSetting("Utility", Settings::values.custom_textures);
     ReadSetting("Utility", Settings::values.preload_textures);
     ReadSetting("Utility", Settings::values.async_custom_loading);
-    
+
     // Audio
     ReadSetting("Audio", Settings::values.audio_emulation);
     ReadSetting("Audio", Settings::values.enable_audio_stretching);
@@ -215,19 +249,10 @@ void Configuration::ReadValues() {
     ReadSetting("Audio", Settings::values.output_device);
     ReadSetting("Audio", Settings::values.input_type);
     ReadSetting("Audio", Settings::values.input_device);
-    
+
     // Data Storage
     ReadSetting("Data Storage", Settings::values.use_virtual_sd);
-    ReadSetting("Data Storage", Settings::values.use_custom_storage);
-    ReadSetting("Data Storage", Settings::values.compress_cia_installs);
-    
-    if (Settings::values.use_custom_storage) {
-        FileUtil::UpdateUserPath(FileUtil::UserPath::NANDDir,
-                                 sdl3_config->GetString("Data Storage", "nand_directory", ""));
-        FileUtil::UpdateUserPath(FileUtil::UserPath::SDMCDir,
-                                 sdl3_config->GetString("Data Storage", "sdmc_directory", ""));
-    }
-    
+
     // System
     ReadSetting("System", Settings::values.is_new_3ds);
     ReadSetting("System", Settings::values.lle_applets);
@@ -235,24 +260,12 @@ void Configuration::ReadValues() {
     ReadSetting("System", Settings::values.region_value);
     ReadSetting("System", Settings::values.init_clock);
     {
-        std::tm t;
-        t.tm_sec = 1;
-        t.tm_min = 0;
-        t.tm_hour = 0;
-        t.tm_mday = 1;
-        t.tm_mon = 0;
-        t.tm_year = 100;
-        t.tm_isdst = 0;
-        std::istringstream string_stream(
-                                         sdl3_config->GetString("System", "init_time", "2000-01-01 00:00:01"));
-        string_stream >> std::get_time(&t, "%Y-%m-%d %H:%M:%S");
-        if (string_stream.fail()) {
-            LOG_ERROR(Config, "Failed To parse init_time. Using 2000-01-01 00:00:01");
+        std::string time =
+            sdl3_config->GetString("System", Settings::HKeys::init_time.c_str(), "946681277");
+        try {
+            Settings::values.init_time = std::stoll(time);
+        } catch (...) {
         }
-        Settings::values.init_time =
-        std::chrono::duration_cast<std::chrono::seconds>(
-                                                         std::chrono::system_clock::from_time_t(std::mktime(&t)).time_since_epoch())
-        .count();
     }
     ReadSetting("System", Settings::values.init_ticks_type);
     ReadSetting("System", Settings::values.init_ticks_override);
@@ -260,142 +273,83 @@ void Configuration::ReadValues() {
     ReadSetting("System", Settings::values.allow_plugin_loader);
     ReadSetting("System", Settings::values.steps_per_hour);
     ReadSetting("System", Settings::values.apply_region_free_patch);
-    
-    {
-        constexpr const char* default_init_time_offset = "0 00:00:00";
-        
-        std::string offset_string =
-        sdl3_config->GetString("System", "init_time_offset", default_init_time_offset);
-        
-        std::size_t sep_index = offset_string.find(' ');
-        
-        if (sep_index == std::string::npos) {
-            LOG_ERROR(Config, "Failed to parse init_time_offset. Using 0 00:00:00");
-            offset_string = default_init_time_offset;
-            
-            sep_index = offset_string.find(' ');
-        }
-        
-        std::string day_string = offset_string.substr(0, sep_index);
-        long long days = 0;
-        
-        try {
-            days = std::stoll(day_string);
-        } catch (std::logic_error&) {
-            LOG_ERROR(Config, "Failed to parse days in init_time_offset. Using 0");
-            days = 0;
-        }
-        
-        long long days_in_seconds = days * 86400;
-        
-        std::tm t;
-        t.tm_sec = 0;
-        t.tm_min = 0;
-        t.tm_hour = 0;
-        t.tm_mday = 1;
-        t.tm_mon = 0;
-        t.tm_year = 100;
-        t.tm_isdst = 0;
-        
-        std::istringstream string_stream(offset_string.substr(sep_index + 1));
-        string_stream >> std::get_time(&t, "%H:%M:%S");
-        
-        if (string_stream.fail()) {
-            LOG_ERROR(Config,
-                      "Failed to parse hours, minutes and seconds in init_time_offset. 00:00:00");
-        }
-        
-        auto time_offset =
-        std::chrono::system_clock::from_time_t(std::mktime(&t)).time_since_epoch();
-        
-        auto secs = std::chrono::duration_cast<std::chrono::seconds>(time_offset).count();
-        
-        Settings::values.init_time_offset = static_cast<long long>(secs) + days_in_seconds;
-    }
-    
+
     // Camera
     using namespace Service::CAM;
-    Settings::values.camera_name[OuterRightCamera] =
-    sdl3_config->GetString("Camera", "camera_outer_right_name", "av_rear_right");
+    Settings::values.camera_name[OuterRightCamera] = sdl3_config->GetString(
+        "Camera", Settings::HKeys::camera_outer_right_name.c_str(), "ndk");
     Settings::values.camera_config[OuterRightCamera] =
-    sdl3_config->GetString("Camera", "camera_outer_right_config", "");
+        sdl3_config->GetString("Camera", Settings::HKeys::camera_outer_right_config.c_str(),
+                                  std::string{"av_rear_right"});
     Settings::values.camera_flip[OuterRightCamera] =
-    (int)sdl3_config->GetInteger("Camera", "camera_outer_right_flip", 0);
+        sdl3_config->GetInteger("Camera", Settings::HKeys::camera_outer_right_flip.c_str(), 0);
     Settings::values.camera_name[InnerCamera] =
-    sdl3_config->GetString("Camera", "camera_inner_name", "av_front");
+        sdl3_config->GetString("Camera", Settings::HKeys::camera_inner_name.c_str(), "ndk");
     Settings::values.camera_config[InnerCamera] =
-    sdl3_config->GetString("Camera", "camera_inner_config", "");
+        sdl3_config->GetString("Camera", Settings::HKeys::camera_inner_config.c_str(),
+                                  std::string{"av_front"});
     Settings::values.camera_flip[InnerCamera] =
-    (int)sdl3_config->GetInteger("Camera", "camera_inner_flip", 0);
+        sdl3_config->GetInteger("Camera", Settings::HKeys::camera_inner_flip.c_str(), 0);
     Settings::values.camera_name[OuterLeftCamera] =
-    sdl3_config->GetString("Camera", "camera_outer_left_name", "av_rear_left");
+        sdl3_config->GetString("Camera", Settings::HKeys::camera_outer_left_name.c_str(), "ndk");
     Settings::values.camera_config[OuterLeftCamera] =
-    sdl3_config->GetString("Camera", "camera_outer_left_config", "");
+        sdl3_config->GetString("Camera", Settings::HKeys::camera_outer_left_config.c_str(),
+                                  std::string{"av_rear_left"});
     Settings::values.camera_flip[OuterLeftCamera] =
-    (int)sdl3_config->GetInteger("Camera", "camera_outer_left_flip", 0);
-    
+        sdl3_config->GetInteger("Camera", Settings::HKeys::camera_outer_left_flip.c_str(), 0);
+
     // Miscellaneous
     ReadSetting("Miscellaneous", Settings::values.log_filter);
     ReadSetting("Miscellaneous", Settings::values.log_regex_filter);
-    ReadSetting("Miscellaneous", Settings::values.delay_start_for_lle_modules);
-    ReadSetting("Miscellaneous", Settings::values.deterministic_async_operations);
-    
+
     // Apply the log_filter setting as the logger has already been initialized
     // and doesn't pick up the filter on its own.
     Common::Log::Filter filter;
     filter.ParseFilterString(Settings::values.log_filter.GetValue());
     Common::Log::SetGlobalFilter(filter);
     Common::Log::SetRegexFilter(Settings::values.log_regex_filter.GetValue());
-    
+
     // Debugging
     Settings::values.record_frame_times =
-    sdl3_config->GetBoolean("Debugging", "record_frame_times", false);
+        sdl3_config->GetBoolean("Debugging", Settings::HKeys::record_frame_times.c_str(), false);
     ReadSetting("Debugging", Settings::values.renderer_debug);
     ReadSetting("Debugging", Settings::values.use_gdbstub);
     ReadSetting("Debugging", Settings::values.gdbstub_port);
     ReadSetting("Debugging", Settings::values.instant_debug_log);
     ReadSetting("Debugging", Settings::values.enable_rpc_server);
-    
+    ReadSetting("Debugging", Settings::values.toggle_unique_data_console_type);
+
     for (const auto& service_module : Service::service_module_map) {
-        bool use_lle = sdl3_config->GetBoolean("Debugging", "LLE\\" + service_module.name, false);
+        bool use_lle =
+            sdl3_config->GetBoolean("Debugging", "LLE\\" + service_module.name, false);
         Settings::values.lle_modules.emplace(service_module.name, use_lle);
     }
-    
+
     // Web Service
     NetSettings::values.web_api_url =
-    sdl3_config->GetString("WebService", "web_api_url", "http://88.198.47.46:5000");
-    NetSettings::values.citra_username = sdl3_config->GetString("WebService", "citra_username", "");
+        sdl3_config->GetString("WebService", "web_api_url", "https://api.citra-emu.org");
+    NetSettings::values.citra_username =
+        sdl3_config->GetString("WebService", "citra_username", "");
     NetSettings::values.citra_token = sdl3_config->GetString("WebService", "citra_token", "");
-    
-    // Video Dumping
-    Settings::values.output_format =
-    sdl3_config->GetString("Video Dumping", "output_format", "webm");
-    Settings::values.format_options = sdl3_config->GetString("Video Dumping", "format_options", "");
-    
-    Settings::values.video_encoder =
-    sdl3_config->GetString("Video Dumping", "video_encoder", "libvpx-vp9");
-    
-    // Options for variable bit rate live streaming taken from here:
-    // https://developers.google.com/media/vp9/live-encoding
-    std::string default_video_options;
-    if (Settings::values.video_encoder == "libvpx-vp9") {
-        default_video_options =
-        "quality:realtime,speed:6,tile-columns:4,frame-parallel:1,threads:8,row-mt:1";
-    }
-    Settings::values.video_encoder_options =
-    sdl3_config->GetString("Video Dumping", "video_encoder_options", default_video_options);
-    Settings::values.video_bitrate =
-    sdl3_config->GetInteger("Video Dumping", "video_bitrate", 2500000);
-    
-    Settings::values.audio_encoder =
-    sdl3_config->GetString("Video Dumping", "audio_encoder", "libvorbis");
-    Settings::values.audio_encoder_options =
-    sdl3_config->GetString("Video Dumping", "audio_encoder_options", "");
-    Settings::values.audio_bitrate =
-    sdl3_config->GetInteger("Video Dumping", "audio_bitrate", 64000);
 }
 
 void Configuration::Reload() {
-    LoadINI(DefaultINI::sdl3_config_file);
+    /*
+    for (auto key = Settings::Keys::keys_array.begin(); key != Settings::Keys::keys_array.end();
+         ++key) {
+        const auto key_declaration_string = std::string(*key) + " =";
+        // FIXME: This code looks so ass when formatted by clang-format -OS
+        if (std::ranges::find(DefaultINI::sdl3_config_omitted_keys, *key) ==
+            std::end(DefaultINI::sdl3_config_omitted_keys) &&
+            std::string(DefaultINI::sdl3_config_default_file_content)
+            .find(key_declaration_string) == std::string::npos) {
+                ASSERT_MSG(false,
+                           "Validation of default content config failed: Missing or malformed key "
+                           "declaration {}",
+                           *key);
+            }
+    }
+     */
+    LoadINI(DefaultINI::sdl3_config_default_file_content);
     ReadValues();
 }

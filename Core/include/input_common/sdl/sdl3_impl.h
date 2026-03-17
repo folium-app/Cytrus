@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include "common/settings.h"
 #include "common/threadsafe_queue.h"
-#include "input_common/sdl/sdl.h"
+#include "input_common/sdl/sdl3.h"
 
 struct SDL_Joystick;
 struct SDL_GameController;
