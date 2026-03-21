@@ -13,7 +13,9 @@
 #include <map>
 #include <numeric>
 #include <fcntl.h>
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/format-inl.h>
 
 #ifdef _WIN32
 #include <winsock2.h>

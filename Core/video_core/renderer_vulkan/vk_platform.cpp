@@ -18,7 +18,9 @@
 #include <memory>
 #include <vector>
 #include <boost/container/static_vector.hpp>
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/format-inl.h>
 
 #include "common/assert.h"
 #include "common/logging/log.h"

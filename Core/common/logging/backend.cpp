@@ -6,7 +6,9 @@
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/regex.hpp>
 
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/format-inl.h>
 
 #ifdef _WIN32
 #include <share.h>   // For _SH_DENYWR

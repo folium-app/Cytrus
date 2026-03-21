@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstring>
 #include <string>
+#include <type_traits>
 #include <xxhash.h>
 #include "cityhash.h"
 #include "common/common_types.h"
@@ -76,7 +77,8 @@ template <typename T, typename Hasher = HashAlgo64::XXH3>
 struct HashableStruct {
     // In addition to being trivially copyable, T must also have a trivial default constructor,
     // because any member initialization would be overridden by memset
-    static_assert(std::is_trivial_v<T>, "Type passed to HashableStruct must be trivial");
+    static_assert(std::is_trivially_copyable_v<T>, "Type passed to HashableStruct must be trivial");
+    static_assert(std::is_trivially_default_constructible_v<T>, "Type passed to HashableStruct must be trivial");
     /*
      * We use a union because "implicitly-defined copy/move constructor for a union X copies the
      * object representation of X." and "implicitly-defined copy assignment operator for a union X

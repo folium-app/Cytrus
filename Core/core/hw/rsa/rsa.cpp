@@ -9,7 +9,9 @@
 #include <cryptopp/integer.h>
 #include <cryptopp/nbtheory.h>
 #include <cryptopp/sha.h>
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/format-inl.h>
 #include "common/common_paths.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"

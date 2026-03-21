@@ -16,7 +16,9 @@
 #include <boost/iostreams/stream.hpp>
 #include <cryptopp/aes.h>
 #include <cryptopp/modes.h>
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/format-inl.h>
 #include "common/archives.h"
 #include "common/assert.h"
 #include "common/common_funcs.h"

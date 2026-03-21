@@ -22,7 +22,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <boost/serialization/weak_ptr.hpp>
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/format-inl.h>
 #include "common/archives.h"
 #include "common/logging/log.h"
 #include "common/settings.h"

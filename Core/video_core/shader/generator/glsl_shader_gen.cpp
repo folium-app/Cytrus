@@ -3,7 +3,9 @@
 // Refer to the license.txt file included.
 
 #include <string_view>
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/format-inl.h>
 
 #include "video_core/pica/regs_rasterizer.h"
 #include "video_core/shader/generator/glsl_shader_decompiler.h"

@@ -6,7 +6,9 @@
 #include <cstdlib>
 #include <mutex>
 #include <string>
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/format-inl.h>
 #include <httplib.h>
 #include "common/common_types.h"
 #include "common/logging/log.h"

@@ -6,7 +6,9 @@
 #include <cstring>
 #include <memory>
 #include <vector>
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/format-inl.h>
 #include "common/literals.h"
 #include "common/logging/log.h"
 #include "common/settings.h"

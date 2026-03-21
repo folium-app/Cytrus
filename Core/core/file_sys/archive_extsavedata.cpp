@@ -5,7 +5,9 @@
 #include <algorithm>
 #include <memory>
 #include <vector>
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/format-inl.h>
 #include "common/archives.h"
 #include "common/common_types.h"
 #include "common/file_util.h"

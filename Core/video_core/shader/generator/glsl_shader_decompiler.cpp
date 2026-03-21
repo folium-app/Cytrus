@@ -7,7 +7,9 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/format-inl.h>
 #include <nihstro/shader_bytecode.h>
 #include "common/assert.h"
 #include "common/common_types.h"

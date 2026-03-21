@@ -7,7 +7,9 @@
 #include <cstring>
 #include <cryptopp/aes.h>
 #include <cryptopp/modes.h>
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/format-inl.h>
 #include <openssl/rand.h>
 #include "common/alignment.h"
 #include "common/archives.h"

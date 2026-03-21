@@ -5,7 +5,9 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/format-inl.h>
 #include "common/archives.h"
 #include "common/logging/log.h"
 #include "common/microprofile.h"
