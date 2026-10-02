@@ -9,7 +9,7 @@
 namespace HostShaders {
 
 constexpr std::string_view VULKAN_PRESENT_INTERLACED_FRAG = {
-"// Copyright 2022 Citra Emulator Project\n"
+"// Copyright 2022-2024 Citra Emulator Project / Azahar Emulator Project\n"
 "// Licensed under GPLv2 or any later version\n"
 "// Refer to the license.txt file included.\n"
 "\n"

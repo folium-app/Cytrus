@@ -21,7 +21,7 @@
 #include "common/param_package.h"
 #include "common/threadsafe_queue.h"
 #include "core/frontend/input.h"
-#include "input_common/sdl/sdl_impl.h"
+#include "input_common/sdl/sdl3_impl.h"
 
 // These structures are not actually defined in the headers, so we need to define them here to use
 // them.
@@ -152,8 +152,8 @@ static bool SDLEventWatcher(void* userdata, SDL_Event* event) {
     return 0;
 }
 
-constexpr std::array<SDL_GamepadButton, Settings::NativeButton::NumButtons>
-    xinput_to_3ds_mapping = {{
+constexpr std::array<SDL_GamepadButton, Settings::NativeButton::NumButtons> xinput_to_3ds_mapping =
+    {{
         SDL_GAMEPAD_BUTTON_EAST,
         SDL_GAMEPAD_BUTTON_SOUTH,
         SDL_GAMEPAD_BUTTON_NORTH,
@@ -195,38 +195,36 @@ constexpr std::array<SDL_GamepadButton, Settings::NativeButton::NumButtons>
         SDL_GAMEPAD_BUTTON_INVALID,
     }};
 
-const std::map<Uint8, std::string> axis_names = {
-    {SDL_GAMEPAD_AXIS_LEFTX, "Left Stick X"},
-    {SDL_GAMEPAD_AXIS_LEFTY, "Left Stick Y"},
-    {SDL_GAMEPAD_AXIS_RIGHTX, "Right Stick X"},
-    {SDL_GAMEPAD_AXIS_RIGHTY, "Right Stick Y"},
-    {SDL_GAMEPAD_AXIS_INVALID, ""},
-    {SDL_GAMEPAD_AXIS_LEFT_TRIGGER, "Left Trigger"},
-    {SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, "Right Trigger"}};
+const std::map<Uint8, std::string> axis_names = {{SDL_GAMEPAD_AXIS_LEFTX, "Left Stick X"},
+                                                 {SDL_GAMEPAD_AXIS_LEFTY, "Left Stick Y"},
+                                                 {SDL_GAMEPAD_AXIS_RIGHTX, "Right Stick X"},
+                                                 {SDL_GAMEPAD_AXIS_RIGHTY, "Right Stick Y"},
+                                                 {SDL_GAMEPAD_AXIS_INVALID, ""},
+                                                 {SDL_GAMEPAD_AXIS_LEFT_TRIGGER, "Left Trigger"},
+                                                 {SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, "Right Trigger"}};
 
-const std::map<Uint8, std::string> button_names = {
-    {SDL_GAMEPAD_BUTTON_SOUTH, "A / ✖"},
-    {SDL_GAMEPAD_BUTTON_EAST, "B / ●"},
-    {SDL_GAMEPAD_BUTTON_WEST, "X / ■"},
-    {SDL_GAMEPAD_BUTTON_NORTH, "Y / ▲"},
-    {SDL_GAMEPAD_BUTTON_BACK, "Back/Select"},
-    {SDL_GAMEPAD_BUTTON_GUIDE, "Guide/Home"},
-    {SDL_GAMEPAD_BUTTON_START, "Start"},
-    {SDL_GAMEPAD_BUTTON_LEFT_STICK, "LS Click"},
-    {SDL_GAMEPAD_BUTTON_RIGHT_STICK, "RS Click"},
-    {SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, "LB"},
-    {SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, "RB"},
-    {SDL_GAMEPAD_BUTTON_DPAD_UP, "D-Pad Up"},
-    {SDL_GAMEPAD_BUTTON_DPAD_DOWN, "D-Pad Down"},
-    {SDL_GAMEPAD_BUTTON_DPAD_LEFT, "D-Pad Left"},
-    {SDL_GAMEPAD_BUTTON_DPAD_RIGHT, "D-Pad Right"},
-    {SDL_GAMEPAD_BUTTON_MISC1, "Misc (Share/Mute)"},
-    {SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1, "Paddle 1"},
-    {SDL_GAMEPAD_BUTTON_LEFT_PADDLE1, "Paddle 2"},
-    {SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2, "Paddle 3"},
-    {SDL_GAMEPAD_BUTTON_LEFT_PADDLE2, "Paddle 4"},
-    {SDL_GAMEPAD_BUTTON_TOUCHPAD, "Touchpad"},
-    {SDL_GAMEPAD_BUTTON_INVALID, ""}};
+const std::map<Uint8, std::string> button_names = {{SDL_GAMEPAD_BUTTON_SOUTH, "A / ✖"},
+                                                   {SDL_GAMEPAD_BUTTON_EAST, "B / ●"},
+                                                   {SDL_GAMEPAD_BUTTON_WEST, "X / ■"},
+                                                   {SDL_GAMEPAD_BUTTON_NORTH, "Y / ▲"},
+                                                   {SDL_GAMEPAD_BUTTON_BACK, "Back/Select"},
+                                                   {SDL_GAMEPAD_BUTTON_GUIDE, "Guide/Home"},
+                                                   {SDL_GAMEPAD_BUTTON_START, "Start"},
+                                                   {SDL_GAMEPAD_BUTTON_LEFT_STICK, "LS Click"},
+                                                   {SDL_GAMEPAD_BUTTON_RIGHT_STICK, "RS Click"},
+                                                   {SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, "LB"},
+                                                   {SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, "RB"},
+                                                   {SDL_GAMEPAD_BUTTON_DPAD_UP, "D-Pad Up"},
+                                                   {SDL_GAMEPAD_BUTTON_DPAD_DOWN, "D-Pad Down"},
+                                                   {SDL_GAMEPAD_BUTTON_DPAD_LEFT, "D-Pad Left"},
+                                                   {SDL_GAMEPAD_BUTTON_DPAD_RIGHT, "D-Pad Right"},
+                                                   {SDL_GAMEPAD_BUTTON_MISC1, "Misc (Share/Mute)"},
+                                                   {SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1, "Paddle 1"},
+                                                   {SDL_GAMEPAD_BUTTON_LEFT_PADDLE1, "Paddle 2"},
+                                                   {SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2, "Paddle 3"},
+                                                   {SDL_GAMEPAD_BUTTON_LEFT_PADDLE2, "Paddle 4"},
+                                                   {SDL_GAMEPAD_BUTTON_TOUCHPAD, "Touchpad"},
+                                                   {SDL_GAMEPAD_BUTTON_INVALID, ""}};
 struct SDLJoystickDeleter {
     void operator()(SDL_Joystick* object) {
         SDL_CloseJoystick(object);
@@ -1123,7 +1121,7 @@ private:
     std::unordered_map<SDL_JoystickID, std::unordered_map<uint8_t, int16_t>> axis_memory;
     std::unordered_map<SDL_JoystickID, std::unordered_map<uint8_t, uint32_t>> axis_event_count;
     std::unordered_map<SDL_JoystickID, std::unordered_map<uint8_t, bool>> axis_skip;
-    int buttonDownTimestamp = 0;
+    uint64_t buttonDownTimestamp = 0;
     std::unordered_map<SDL_JoystickID, std::unordered_map<uint8_t, int>> axisStartTimestamps;
 };
 
@@ -1144,17 +1142,21 @@ public:
         SDL_Event event{};
         SDL_JoystickID which = -1;
         while (state.event_queue.Pop(event)) {
-            if ((event.type != SDL_EVENT_JOYSTICK_AXIS_MOTION && event.type != SDL_EVENT_GAMEPAD_AXIS_MOTION)) {
+            if ((event.type != SDL_EVENT_JOYSTICK_AXIS_MOTION &&
+                 event.type != SDL_EVENT_GAMEPAD_AXIS_MOTION)) {
                 continue;
             }
-            which = event.type == SDL_EVENT_JOYSTICK_AXIS_MOTION ? event.jaxis.which : event.gaxis.which;
-            auto value = event.type == SDL_EVENT_JOYSTICK_AXIS_MOTION ? event.jaxis.value : event.gaxis.value;
+            which = event.type == SDL_EVENT_JOYSTICK_AXIS_MOTION ? event.jaxis.which
+                                                                 : event.gaxis.which;
+            auto value = event.type == SDL_EVENT_JOYSTICK_AXIS_MOTION ? event.jaxis.value
+                                                                      : event.gaxis.value;
 
             if (std::abs(value / 32767.0) < 0.5)
                 continue;
             // An analog device needs two axes, so we need to store the axis for later and wait
             // for a second SDL event. The axes also must be from the same joystick.
-            int axis = event.type == SDL_EVENT_JOYSTICK_AXIS_MOTION ? event.jaxis.axis : event.gaxis.axis;
+            int axis =
+                event.type == SDL_EVENT_JOYSTICK_AXIS_MOTION ? event.jaxis.axis : event.gaxis.axis;
 
             if (analog_xaxis == -1) {
                 analog_xaxis = axis;

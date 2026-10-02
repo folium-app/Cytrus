@@ -103,4 +103,4 @@ unsigned int CoreAudioSink::GetNativeSampleRate() const {
 std::vector<std::string> ListCoreAudioSinkDevices() {
     return {"auto"};
 }
-}
+} // namespace AudioCore

@@ -1,10 +1,9 @@
-// Copyright Citra Emulator Project / Azahar Emulator Project
+// Copyright 2026 Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
 #pragma once
 
-#include <stdlib.h>
 #include <string>
 #include "common/common_types.h"
 

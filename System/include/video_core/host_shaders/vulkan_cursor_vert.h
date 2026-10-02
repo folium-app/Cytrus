@@ -9,7 +9,7 @@
 namespace HostShaders {
 
 constexpr std::string_view VULKAN_CURSOR_VERT = {
-"// Copyright Citra Emulator Project / Azahar Emulator Project\n"
+"// Copyright 2026 Citra Emulator Project / Azahar Emulator Project\n"
 "// Licensed under GPLv2 or any later version\n"
 "// Refer to the license.txt file included.\n"
 "\n"

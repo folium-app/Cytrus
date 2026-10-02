@@ -3,7 +3,7 @@
 // Refer to the license.txt file included.
 
 #include <SDL3/SDL.h>
-#include "sdl_joystick.h"
+#include "sdl3_joystick.h"
 
 typedef struct SDL_GamepadButtonBind {
     SDL_GamepadBindingType bindType;
@@ -22,7 +22,8 @@ typedef struct SDL_GamepadButtonBind {
 * Code used from sdl2-compat
 https://github.com/libsdl-org/sdl2-compat/blob/main/src/sdl2_compat.c#L10315-L10348
 */
-static SDL_GamepadButtonBind SDL_GamepadGetBindForAxis(SDL_Gamepad* controller, SDL_GamepadAxis axis) {
+static SDL_GamepadButtonBind SDL_GamepadGetBindForAxis(SDL_Gamepad* controller,
+                                                       SDL_GamepadAxis axis) {
     SDL_GamepadButtonBind bind{};
 
     if (axis != SDL_GAMEPAD_AXIS_INVALID) {
@@ -57,7 +58,9 @@ static SDL_GamepadButtonBind SDL_GamepadGetBindForAxis(SDL_Gamepad* controller, 
 * Code used from sdl2-compat
 https://github.com/libsdl-org/sdl2-compat/blob/main/src/sdl2_compat.c#L10350-L10382
 */
-static SDL_GamepadButtonBind SDL_GamepadGetBindForButton(SDL_Gamepad* controller, SDL_GamepadButton button) {
+/*
+static SDL_GamepadButtonBind SDL_GamepadGetBindForButton(SDL_Gamepad* controller,
+                                                         SDL_GamepadButton button) {
     SDL_GamepadButtonBind bind{};
 
     if (button != SDL_GAMEPAD_BUTTON_INVALID) {
@@ -85,6 +88,7 @@ static SDL_GamepadButtonBind SDL_GamepadGetBindForButton(SDL_Gamepad* controller
 
     return bind;
 }
+    */
 
 namespace InputCommon::SDL {
 
@@ -130,8 +134,7 @@ bool SDLJoystick::GetButton(int button, bool isController) const {
     if (!sdl_joystick)
         return false;
     if (isController)
-        return SDL_GetGamepadButton(sdl_controller.get(),
-                                           static_cast<SDL_GamepadButton>(button));
+        return SDL_GetGamepadButton(sdl_controller.get(), static_cast<SDL_GamepadButton>(button));
     return SDL_GetJoystickButton(sdl_joystick.get(), button) != 0;
 }
 
@@ -139,8 +142,7 @@ float SDLJoystick::GetAxis(int axis, bool isController) const {
     if (!sdl_joystick)
         return 0.0;
     if (isController)
-        return SDL_GetGamepadAxis(sdl_controller.get(),
-                                         static_cast<SDL_GamepadAxis>(axis)) /
+        return SDL_GetGamepadAxis(sdl_controller.get(), static_cast<SDL_GamepadAxis>(axis)) /
                32767.0f;
     return SDL_GetJoystickAxis(sdl_joystick.get(), axis) / 32767.0f;
 }
@@ -241,14 +243,12 @@ void SDLJoystick::CreateControllerButtonMap() {
     }
 
     // Also check trigger axes that might be buttons
-    auto lt_bind =
-        SDL_GamepadGetBindForAxis(sdl_controller.get(), SDL_GAMEPAD_AXIS_LEFT_TRIGGER);
+    auto lt_bind = SDL_GamepadGetBindForAxis(sdl_controller.get(), SDL_GAMEPAD_AXIS_LEFT_TRIGGER);
     if (lt_bind.bindType == SDL_GAMEPAD_BINDTYPE_BUTTON) {
         mapped_joystick_buttons.insert(lt_bind.value.button);
     }
 
-    auto rt_bind =
-        SDL_GamepadGetBindForAxis(sdl_controller.get(), SDL_GAMEPAD_AXIS_RIGHT_TRIGGER);
+    auto rt_bind = SDL_GamepadGetBindForAxis(sdl_controller.get(), SDL_GAMEPAD_AXIS_RIGHT_TRIGGER);
     if (rt_bind.bindType == SDL_GAMEPAD_BINDTYPE_BUTTON) {
         mapped_joystick_buttons.insert(rt_bind.value.button);
     }

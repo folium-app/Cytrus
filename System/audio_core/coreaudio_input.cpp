@@ -4,15 +4,15 @@
 
 #include <utility>
 #include <vector>
-#include "audio_core/input.h"
 #include "audio_core/coreaudio_input.h"
+#include "audio_core/input.h"
 #include "audio_core/sink.h"
 #include "common/logging/log.h"
 
+#include <deque>
+#include <mutex>
 #include <AudioToolbox/AudioToolbox.h>
 #include <CoreAudio/CoreAudioTypes.h>
-#include <mutex>
-#include <deque>
 
 namespace AudioCore {
 

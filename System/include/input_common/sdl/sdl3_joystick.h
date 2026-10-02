@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "common/vector_math.h"
-#include "input_common/sdl/sdl.h"
+#include "input_common/sdl/sdl3.h"
 
 union SDL_Event;
 struct SDL_Joystick;
@@ -21,8 +21,7 @@ typedef u32 SDL_JoystickID;
 namespace InputCommon::SDL {
 class SDLJoystick {
 public:
-    SDLJoystick(std::string guid_, int port_, SDL_Joystick* joystick,
-                SDL_Gamepad* game_controller);
+    SDLJoystick(std::string guid_, int port_, SDL_Joystick* joystick, SDL_Gamepad* game_controller);
 
     bool IsButtonMappedToController(int button) const;
 

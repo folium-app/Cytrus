@@ -142,6 +142,7 @@ void Config::ReadValues() {
 
     // Core
     ReadSetting("Core", Settings::values.use_cpu_jit);
+    ReadSetting("Core", Settings::values.use_fastinterp);
     ReadSetting("Core", Settings::values.cpu_clock_percentage);
 
     // Renderer
@@ -327,7 +328,7 @@ void Config::ReadValues() {
     ReadSetting("Debugging", Settings::values.instant_debug_log);
     ReadSetting("Debugging", Settings::values.enable_rpc_server);
     ReadSetting("Debugging", Settings::values.toggle_unique_data_console_type);
-    ReadSetting("Debugging", Settings::values.break_on_unmapped_memory_access);
+    ReadSetting("Debugging", Settings::values.enable_exception_handler);
 
     for (const auto& service_module : Service::service_module_map) {
         bool use_lle =

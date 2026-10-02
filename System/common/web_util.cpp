@@ -1,8 +1,10 @@
-// Copyright Citra Emulator Project / Azahar Emulator Project
+// Copyright 2026 Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
 #include "web_util.h"
+
+#include <cstdlib>
 
 namespace Common {
 // Splits URL into its components. Example: https://citra-emu.org:443/index.html
@@ -35,7 +37,7 @@ URLInfo SplitUrl(const std::string& url) {
         std::string port_str = host.substr(port_start + 1);
         host = host.substr(0, port_start);
         char* p_end = nullptr;
-        port = strtol(port_str.c_str(), &p_end, 10);
+        port = std::strtol(port_str.c_str(), &p_end, 10);
         if (*p_end) {
             port = -1;
         }

@@ -13,7 +13,7 @@
 #include "common/vector_math.h"
 #include "common/logging/log.h"
 #include "input_common/main.h"
-#include "input_common/sdl/sdl.h"
+#include "input_common/sdl/sdl3.h"
 
 #include <atomic>
 #include <chrono>

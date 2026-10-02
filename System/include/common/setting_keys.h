@@ -16,6 +16,7 @@ namespace Keys {
 DEFINE_KEY(use_artic_base_controller)
 DEFINE_KEY(enable_gamemode)
 DEFINE_KEY(use_cpu_jit)
+DEFINE_KEY(use_fastinterp)
 DEFINE_KEY(cpu_clock_percentage)
 DEFINE_KEY(is_new_3ds)
 DEFINE_KEY(lle_applets)
@@ -242,12 +243,14 @@ DEFINE_KEY(screenshot_resolution_factor)
 DEFINE_KEY(screenshotPath)
 DEFINE_KEY(calloutFlags)
 DEFINE_KEY(showConsole)
+DEFINE_KEY(enable_exception_handler)
 
 static const std::array keys_array = {
 
 "use_artic_base_controller",
 "enable_gamemode",
 "use_cpu_jit",
+"use_fastinterp",
 "cpu_clock_percentage",
 "is_new_3ds",
 "lle_applets",
@@ -473,7 +476,8 @@ static const std::array keys_array = {
 "screenshot_resolution_factor",
 "screenshotPath",
 "calloutFlags",
-"showConsole"
+"showConsole",
+"enable_exception_handler"
 };
 
 #undef DEFINE_KEY
@@ -486,6 +490,7 @@ namespace HKeys {
 DEFINE_KEY(use_artic_base_controller)
 DEFINE_KEY(enable_gamemode)
 DEFINE_KEY(use_cpu_jit)
+DEFINE_KEY(use_fastinterp)
 DEFINE_KEY(cpu_clock_percentage)
 DEFINE_KEY(is_new_3ds)
 DEFINE_KEY(lle_applets)
@@ -712,6 +717,7 @@ DEFINE_KEY(screenshot_resolution_factor)
 DEFINE_KEY(screenshotPath)
 DEFINE_KEY(calloutFlags)
 DEFINE_KEY(showConsole)
+DEFINE_KEY(enable_exception_handler)
 
 #undef DEFINE_KEY
 }

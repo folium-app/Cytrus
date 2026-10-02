@@ -1,4 +1,4 @@
-// Copyright Citra Emulator Project / Azahar Emulator Project
+// Copyright 2014-2026 Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -15,6 +15,10 @@
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
 #endif
 #include "video_core/video_core.h"
+
+#ifdef ENABLE_SDL2
+#include <SDL.h>
+#endif
 
 #ifdef ENABLE_SDL3
 #include <SDL3/SDL.h>
@@ -33,12 +37,12 @@ std::unique_ptr<RendererBase> CreateRenderer(Frontend::EmuWindow& emu_window,
 #endif
 #ifdef ENABLE_VULKAN
     case Settings::GraphicsAPI::Vulkan:
-#if defined(ENABLE_SDL3) && !defined(__APPLE__)
+#if defined(ENABLE_SDL2) || defined(ENABLE_SDL3) && !defined(__APPLE__)
         // TODO: When we migrate to SDL3, refactor so that we don't need to init here.
         if (SDL_WasInit(SDL_INIT_VIDEO) == 0) {
             SDL_Init(SDL_INIT_VIDEO);
         }
-#endif // ENABLE_SDL3
+#endif // ENABLE_SDL2
         return std::make_unique<Vulkan::RendererVulkan>(system, pica, emu_window, secondary_window);
 #endif
 #ifdef ENABLE_OPENGL

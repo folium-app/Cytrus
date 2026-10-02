@@ -1,4 +1,4 @@
-// Copyright Citra Emulator Project / Azahar Emulator Project
+// Copyright 2023-2026 Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -9,9 +9,6 @@
 #include "audio_core/input_details.h"
 #include "audio_core/null_input.h"
 #include "audio_core/static_input.h"
-#ifdef HAVE_COREAUDIO
-#include "audio_core/coreaudio_input.h"
-#endif
 #ifdef HAVE_CUBEB
 #include "audio_core/cubeb_input.h"
 #endif
@@ -20,6 +17,9 @@
 #endif
 #ifdef HAVE_LIBRETRO
 #include "audio_core/libretro_input.h"
+#endif
+#ifdef HAVE_COREAUDIO
+#include "audio_core/coreaudio_input.h"
 #endif
 #include "common/logging/log.h"
 #include "core/core.h"

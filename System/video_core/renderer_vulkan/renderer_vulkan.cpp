@@ -1,4 +1,4 @@
-// Copyright Citra Emulator Project / Azahar Emulator Project
+// Copyright 2023-2026 Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -26,6 +26,10 @@
 #include <vk_mem_alloc.h>
 #if defined(__APPLE__) && !defined(HAVE_LIBRETRO)
 #include "common/apple_utils.h"
+#endif
+
+#ifdef ENABLE_SDL2
+#include <SDL.h>
 #endif
 
 #ifdef ENABLE_SDL3
@@ -62,7 +66,7 @@ constexpr static std::array<vk::DescriptorSetLayoutBinding, 1> PRESENT_BINDINGS 
 
 namespace {
 static bool IsLowRefreshRate() {
-#if (defined(__APPLE__) || defined(ENABLE_SDL3)) && !defined(HAVE_LIBRETRO)
+#if (defined(__APPLE__) || defined(ENABLE_SDL2) || defined(ENABLE_SDL3)) && !defined(HAVE_LIBRETRO)
     if (!Settings::values.use_display_refresh_rate_detection) {
         LOG_INFO(Render_Vulkan, "Refresh rate detection is currently disabled via settings");
         return false;
@@ -77,18 +81,24 @@ static bool IsLowRefreshRate() {
     }
 
     const auto cur_refresh_rate = AppleUtils::GetRefreshRate();
-#elif defined(ENABLE_SDL3)
+#elif defined(ENABLE_SDL2) || defined(ENABLE_SDL3)
     if (SDL_WasInit(SDL_INIT_VIDEO) == 0) {
         LOG_ERROR(Render_Vulkan, "Attempted to check refresh rate via SDL, but failed because "
                                  "SDL_INIT_VIDEO wasn't initialized");
         return false;
     }
 
+#if defined(ENABLE_SDL3)
+    const SDL_DisplayMode* cur_display_mode;
+    cur_display_mode = SDL_GetCurrentDisplayMode(0); // TODO: Multimonitor handling. -OS
+    const auto cur_refresh_rate = cur_display_mode->refresh_rate;
+#else
     SDL_DisplayMode cur_display_mode;
     SDL_GetCurrentDisplayMode(0, &cur_display_mode); // TODO: Multimonitor handling. -OS
-
     const auto cur_refresh_rate = cur_display_mode.refresh_rate;
-#endif // ENABLE_SDL3
+#endif
+
+#endif // ENABLE_SDL2
 
     if (cur_refresh_rate < SCREEN_REFRESH_RATE) {
         LOG_WARNING(Render_Vulkan,
@@ -100,7 +110,8 @@ static bool IsLowRefreshRate() {
         LOG_INFO(Render_Vulkan, "Refresh rate is above emulated 3DS screen: {}hz. Good.",
                  cur_refresh_rate);
     }
-#endif // (defined(__APPLE__) || defined(ENABLE_SDL3)) && !defined(HAVE_LIBRETRO)
+#endif // (defined(__APPLE__) || defined(ENABLE_SDL2) || defined(ENABLE_SDL3)) &&
+       // !defined(HAVE_LIBRETRO)
 
     // We have no available method of checking refresh rate. Just assume that everything is fine :)
     return false;
@@ -311,19 +322,23 @@ void RendererVulkan::CompileShaders() {
     cursor_fragment_shader =
         Compile(HostShaders::VULKAN_CURSOR_FRAG, vk::ShaderStageFlagBits::eFragment, device);
 
-    auto properties = instance.GetPhysicalDevice().getProperties();
     for (std::size_t i = 0; i < present_samplers.size(); i++) {
-        const vk::Filter filter_mode = i == 0 ? vk::Filter::eLinear : vk::Filter::eNearest;
+        const bool linear = i == 0;
+        const vk::Filter filter_mode = linear ? vk::Filter::eLinear : vk::Filter::eNearest;
+        const vk::SamplerMipmapMode mipmap_mode =
+            linear ? vk::SamplerMipmapMode::eLinear : vk::SamplerMipmapMode::eNearest;
         const vk::SamplerCreateInfo sampler_info = {
             .magFilter = filter_mode,
             .minFilter = filter_mode,
-            .mipmapMode = vk::SamplerMipmapMode::eLinear,
+            .mipmapMode = mipmap_mode,
             .addressModeU = vk::SamplerAddressMode::eClampToEdge,
             .addressModeV = vk::SamplerAddressMode::eClampToEdge,
-            .anisotropyEnable = instance.IsAnisotropicFilteringSupported(),
-            .maxAnisotropy = properties.limits.maxSamplerAnisotropy,
+            .anisotropyEnable = VK_FALSE,
+            .maxAnisotropy = 1.0f,
             .compareEnable = false,
             .compareOp = vk::CompareOp::eAlways,
+            .minLod = 0.0f,
+            .maxLod = 0.0f,
             .borderColor = vk::BorderColor::eIntOpaqueBlack,
             .unnormalizedCoordinates = false,
         };
@@ -1387,7 +1402,7 @@ bool RendererVulkan::TryRenderScreenshotWithHostMemory() {
                 .handleType = vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT,
                 .pHostPointer = aligned_pointer,
             },
-        };
+    };
 
     // Import host memory
     const vk::UniqueDeviceMemory imported_memory =
@@ -1403,7 +1418,7 @@ bool RendererVulkan::TryRenderScreenshotWithHostMemory() {
             vk::ExternalMemoryBufferCreateInfo{
                 .handleTypes = vk::ExternalMemoryHandleTypeFlagBits::eHostAllocationEXT,
             },
-        };
+    };
 
     // Bind imported memory to buffer
     const vk::UniqueBuffer imported_buffer = device.createBufferUnique(buffer_info.get());

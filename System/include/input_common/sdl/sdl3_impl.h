@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include "common/settings.h"
 #include "common/threadsafe_queue.h"
-#include "input_common/sdl/sdl_joystick.h"
+#include "input_common/sdl/sdl3_joystick.h"
 
 namespace InputCommon::SDL {
 

@@ -24,6 +24,12 @@
 #define SDL_MAIN_HANDLED
 #include <SDL3/SDL_main.h>
 
+namespace AppleUtils {
+float GetRefreshRate() { return 60.f; }
+int IsLowPowerModeEnabled() { return false; }
+bool IsRunningFromTerminal() { return false; }
+}
+
 // MARK: SDMH BEGIN
 namespace {
     std::vector<uint8_t> GetSMDHData(const std::unique_ptr<Loader::AppLoader>& loader) {
@@ -180,8 +186,12 @@ void cytrus::initialize_logging(void) {
     Settings::values.input_type.SetValue(AudioCore::InputType::CoreAudio);
     Settings::values.output_type.SetValue(AudioCore::SinkType::CoreAudio);
     Settings::values.aspect_ratio.SetValue(Settings::AspectRatio::Stretch);
+    Settings::values.audio_emulation.SetValue(Settings::AudioEmulation::HLE);
+    Settings::values.enable_audio_stretching.SetValue(true);
+    Settings::values.enable_realtime_audio.SetValue(true);
     Settings::values.layout_option.SetValue(Settings::LayoutOption::SeparateWindows);
     Settings::values.use_cpu_jit.SetValue(false);
+    Settings::values.use_fastinterp.SetValue(true);
     Settings::values.use_shader_jit.SetValue(false);
     
     cntnr.library = std::make_shared<Common::DynamicLibrary>(dlopen("@rpath/MoltenVK.framework/MoltenVK", RTLD_NOW));

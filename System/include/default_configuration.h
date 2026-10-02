@@ -82,6 +82,10 @@ static const char* sdl3_config_default_file_content = (BOOST_HANA_STRING(R"(
 )") DECLARE_KEY(use_artic_base_controller) BOOST_HANA_STRING(R"(
 
 [Core]
+# Whether to use the fast interpreter or the legacy interpreter when JIT is disabled
+# 0: Legacy, 1 (default): Fast
+)") DECLARE_KEY(use_fastinterp) BOOST_HANA_STRING(R"(
+
 # Whether to use the Just-In-Time (JIT) compiler for CPU emulation
 # 0: Interpreter (slow), 1 (default): JIT (fast)
 )") DECLARE_KEY(use_cpu_jit) BOOST_HANA_STRING(R"(

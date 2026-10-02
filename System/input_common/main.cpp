@@ -1,4 +1,4 @@
-// Copyright Citra Emulator Project / Azahar Emulator Project
+// Copyright 2017-2026 Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -14,8 +14,13 @@
 #include "input_common/keyboard.h"
 #include "input_common/main.h"
 #include "input_common/motion_emu.h"
+#if ENABLE_SDL3
+#include "input_common/sdl/sdl3.h"
+#include "input_common/sdl/sdl3_impl.h"
+#else
 #include "input_common/sdl/sdl.h"
 #include "input_common/sdl/sdl_impl.h"
+#endif
 #include "input_common/touch_from_button.h"
 #include "input_common/udp/udp.h"
 
@@ -155,13 +160,13 @@ std::string AnalogToText(const Common::ParamPackage& param, const std::string& d
         }
         if (dir == "up") {
             if (name_y_str == "")
-                return "Axis " + axis_y_str + plus_str;
+                return "Axis " + axis_y_str + minus_str;
             else
-                return name_y_str + plus_str;
+                return name_y_str + minus_str;
         }
         if (dir == "down") {
             if (name_y_str == "")
-                return "Axis " + axis_y_str + minus_str;
+                return "Axis " + axis_y_str + plus_str;
             else
                 return name_y_str + plus_str;
         }
@@ -242,7 +247,7 @@ namespace Polling {
 std::vector<std::unique_ptr<DevicePoller>> GetPollers(DeviceType type) {
     std::vector<std::unique_ptr<DevicePoller>> pollers;
 
-#ifdef HAVE_SDL3
+#if defined(HAVE_SDL2) || defined(HAVE_SDL3)
     pollers = sdl->GetPollers(type);
 #endif
 #ifdef ENABLE_GCADAPTER

@@ -1,4 +1,4 @@
-// Copyright Citra Emulator Project / Azahar Emulator Project
+// Copyright 2014-2025 Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -29,7 +29,11 @@
 #elif defined(__APPLE__)
 #include <TargetConditionals.h>
 #if TARGET_OS_IPHONE
+#if defined(FOR_CYTRUS)
 #define EMU_APPLE_DATA_DIR "Documents" DIR_SEP "Cytrus"
+#else
+#define EMU_APPLE_DATA_DIR "Documents" DIR_SEP "Azahar"
+#endif
 #define LEGACY_CITRA_APPLE_DATA_DIR "Documents" DIR_SEP "Citra"
 #define LEGACY_LIME3DS_APPLE_DATA_DIR "Documents" DIR_SEP "Lime3DS"
 #else

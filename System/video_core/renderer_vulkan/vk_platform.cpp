@@ -1,4 +1,4 @@
-// Copyright Citra Emulator Project / Azahar Emulator Project
+// Copyright 2023-2026 Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -106,7 +106,7 @@ std::shared_ptr<Common::DynamicLibrary> OpenLibrary(
 #endif
     auto library = std::make_shared<Common::DynamicLibrary>();
 #ifdef __APPLE__
-#if TARGET_OS_IPHONE
+#if defined(FOR_CYTRUS) && TARGET_OS_IPHONE
     const std::string filename = "@rpath/MoltenVK.framework/MoltenVK";
 #else
     const std::string filename = Common::DynamicLibrary::GetLibraryName("vulkan");
@@ -330,6 +330,24 @@ vk::UniqueInstance CreateInstance(const Common::DynamicLibrary& library,
     if (dump_command_buffers) {
         layers.push_back("VK_LAYER_LUNARG_api_dump");
     }
+
+    // Sanitize layers list
+    const auto layer_properties = vk::enumerateInstanceLayerProperties();
+    if (layer_properties.empty()) {
+        LOG_WARNING(Render_Vulkan, "Instance layer properties list is empty");
+    }
+
+    boost::container::erase_if(layers, [&](const char* layer) -> bool {
+        const auto it = std::find_if(
+            layer_properties.begin(), layer_properties.end(),
+            [layer](const auto& prop) { return std::strcmp(layer, prop.layerName) == 0; });
+
+        if (it == layer_properties.end()) {
+            LOG_INFO(Render_Vulkan, "Candidate instance layer {} is not available", layer);
+            return true;
+        }
+        return false;
+    });
 
     vk::InstanceCreateInfo instance_ci = {
         .flags = GetInstanceFlags(),

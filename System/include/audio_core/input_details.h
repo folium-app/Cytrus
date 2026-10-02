@@ -1,4 +1,4 @@
-// Copyright Citra Emulator Project / Azahar Emulator Project
+// Copyright 2023-2026 Citra Emulator Project / Azahar Emulator Project
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
@@ -27,7 +27,6 @@ enum class InputType : u32 {
 #ifdef HAVE_LIBRETRO
     LibRetro = 5,
 #endif
-    
     CoreAudio = 6
 };
 
