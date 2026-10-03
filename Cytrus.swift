@@ -146,6 +146,10 @@ public actor CytrusSystem {
         switch value {
         case let boolSetting as Bool:
             cytrus.set_setting(setting, boolSetting)
+        case let intSetting as Int:
+            cytrus.set_setting(setting, Int32(intSetting))
+        case let stringSetting as String:
+            cytrus.set_setting(setting, std.string(stringSetting))
         default:
             break
         }
